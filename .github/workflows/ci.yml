@@ -1,0 +1,45 @@
+name: Jenkins repository contract
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jenkins-repository-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    env:
+      # Compose requires these settings to render the model. They are
+      # disposable placeholders and are never used to start Jenkins.
+      JENKINS_ADMIN_ID: ci-placeholder
+      JENKINS_ADMIN_PASSWORD: ci-placeholder-only
+      JENKINS_TARGET_REPO_OWNER: ci-owner
+      JENKINS_TARGET_REPO_NAME: ci-repository
+      JENKINS_GITHUB_APP_ID: "12345678"
+      JENKINS_MULTIBRANCH_JOB_NAME: ci-job
+      JENKINS_MARKER_FILE: package.json
+      JENKINS_CANDIDATE_PATHS: web/
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check patch whitespace
+        run: git diff --check HEAD^ HEAD
+
+      - name: Validate Compose model
+        run: docker compose --file compose.yaml config --quiet
+
+      - name: Validate trusted pipeline contract
+        shell: pwsh
+        run: ./scripts/verify-pipeline-contract.ps1
