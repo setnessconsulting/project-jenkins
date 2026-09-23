@@ -22,6 +22,9 @@ String candidateCheckConclusion(String candidateState, String candidateResult) {
     if (candidateResult == 'SUCCESS' || candidateResult == 'FAILURE') {
         return candidateResult
     }
+    if (candidateResult == 'CANCELED') {
+        return 'CANCELED'
+    }
     return 'NEUTRAL'
 }
 
@@ -73,6 +76,7 @@ pipeline {
                     assert candidateCheckConclusion('UNCLASSIFIED', 'NOT_RUN') == 'FAILURE'
                     assert candidateCheckConclusion('RELEVANT', 'SUCCESS') == 'SUCCESS'
                     assert candidateCheckConclusion('RELEVANT', 'FAILURE') == 'FAILURE'
+                    assert candidateCheckConclusion('RELEVANT', 'CANCELED') == 'CANCELED'
                     assert candidateCheckConclusion('RELEVANT', 'NOT_RUN') == 'NEUTRAL'
                     assert candidateCheckConclusion('NOT_APPLICABLE', 'NOT_RUN') == 'NEUTRAL'
                     assert shouldFailGateClosed('UNCLASSIFIED', 'NOT_RUN', 'SUCCESS')
@@ -179,7 +183,9 @@ npx wrangler deploy --dry-run --config dist/server/wrangler.json
 '''
                             env.JENKINS_CLOUDFLARE_CANDIDATE_RESULT = 'SUCCESS'
                         } catch (err) {
-                            env.JENKINS_CLOUDFLARE_CANDIDATE_RESULT = 'FAILURE'
+                            env.JENKINS_CLOUDFLARE_CANDIDATE_RESULT = currentBuild.currentResult == 'ABORTED'
+                                ? 'CANCELED'
+                                : 'FAILURE'
                             throw err
                         }
                     }
@@ -218,6 +224,7 @@ npx wrangler deploy --dry-run --config dist/server/wrangler.json
                             status: 'COMPLETED',
                             conclusion: result
                         )
+
                     }
                 }
                 finally {

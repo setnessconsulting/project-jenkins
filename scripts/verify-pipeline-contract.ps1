@@ -33,11 +33,12 @@ $requiredContracts = @(
     'def candidatePathRules = /* JENKINS_PILOT_CANDIDATE_PATH_RULES */',
     "assert classifyCandidateChanges([], candidatePathRules) == 'NOT_APPLICABLE'",
     "assert candidateCheckConclusion('UNCLASSIFIED', 'NOT_RUN') == 'FAILURE'",
+    "assert candidateCheckConclusion('RELEVANT', 'CANCELED') == 'CANCELED'",
     "assert shouldFailGateClosed('RELEVANT', 'NOT_RUN', 'SUCCESS')",
     "if (shouldFailGateClosed(candidateState, candidateRunResult, currentBuild.currentResult))",
     "currentBuild.result = 'FAILURE'",
     "env.JENKINS_CLOUDFLARE_CANDIDATE = isPullRequest",
-    "env.JENKINS_CLOUDFLARE_CANDIDATE_RESULT = 'FAILURE'",
+    'env.JENKINS_CLOUDFLARE_CANDIDATE_RESULT = currentBuild.currentResult',
     'throw err'
 )
 foreach ($contract in $requiredContracts) {
