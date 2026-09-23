@@ -20,14 +20,13 @@ The comparison must include the existing self-hosted GitHub Actions path, not ju
 - Before cutover, explicitly decide and read back required reviews, administrator enforcement, and any bypass actors; do not assume a green Jenkins check alone makes the gate authoritative.
 - A recent workflow-run sample showed standard CI, Cloudflare Candidate, deployment, and nightly E2E activity. This is a short, high-churn sample—not a monthly forecast or a measure of billed minutes. Per-run elapsed time is also not the billing source of truth. Capture the account's actual Actions usage/billing baseline before comparing savings.
 - Fewer Actions minutes do not necessarily mean lower cash spend if the account is within its included allowance. Report minute reduction and actual billed-cost reduction separately.
-- Standard CI runs on all PRs and pushes to the default branch. Cloudflare Candidate is path-filtered to the website code and its workflow file, with a manual trigger; it repeats most standard CI steps and adds staging compatibility checks and a deploy dry run. A separate tutor-site workflow, nightly/manual E2E, and a main-branch deployment workflow also exist.
+- The current workflow inventory includes standard CI, Cloudflare Candidate, a separate tutor-site workflow, nightly/manual E2E, and deployment. Capture exact triggers and path filters in the private Epic/readiness record and re-read them before implementation; the Candidate workflow overlaps much of standard CI and adds staging compatibility checks and a deploy dry run.
 - The first Jenkins scope requested is standard CI plus Cloudflare Candidate. This is not yet a complete disposition of every workflow. Before calling Jenkins the repository-wide authority, explicitly migrate, retain, or retire Tutor Web CI, nightly E2E, and deployment. Any retained Actions minutes must be visible in the comparison.
 
 ### Existing self-hosted CI alternative
 
-- The latest live self-hosted-runner pilot receipt qualifies a different API workload; it does not qualify this site repository.
-- Target-specific local-runner evidence is still missing for the site's Node builds, Cloudflare Candidate checks, and required-check behavior.
-- Therefore, compare the remaining work to qualify this target on the existing runner against the work to stand up Jenkins. Both alternatives need target-specific parity, cleanup, failure, and recovery evidence.
+- Evidence from another workload cannot qualify this site repository. Require target-specific evidence for Node builds, Cloudflare Candidate checks, and required-check behavior before treating either self-hosted option as ready.
+- Compare the remaining work to qualify this target on the existing runner against the work to stand up Jenkins. Both alternatives need target-specific parity, cleanup, failure, and recovery evidence.
 
 ### Host feasibility
 
@@ -85,7 +84,7 @@ Use the plugins as components, not as a substitute for the security/availability
 
 ### 2. Cut over the PR gate
 
-- First require both the existing Actions `build-test` and the Jenkins App check tied to the PR head SHA; keep the Actions triggers enabled during this no-gap transition. Remove the Actions app's `build-test` context only after Jenkins has demonstrated reliable success and failure reporting on the targeted PR cases.
+- First require both the existing Actions check and the Jenkins App check tied to the PR head SHA; keep the Actions triggers enabled during this no-gap transition. Remove the Actions check only after Jenkins has demonstrated reliable success and failure reporting on the targeted PR cases.
 - Read back required reviews, administrator enforcement, bypass actors, strictness, and any merge-queue event requirements. Prove docs-only, web changes, pipeline changes, stale heads, failed builds, cancelled builds, and an unavailable Jenkins host all block or report accurately.
 - Then disable the migrated Actions PR/push triggers so the gate stops consuming GitHub-hosted minutes. Keep any intentionally retained workflows listed with their expected run frequency and cost; do not leave duplicate workflows silently enabled.
 - Record a manual rollback procedure to re-require the hosted Actions check and verify that check on the same SHA. The recovery must be owner-controlled and auditable.
@@ -112,7 +111,7 @@ Compare three options on the same target scope: hosted GitHub Actions, the exist
 
 Create the first Epic only after reviewing this plan. Scope it to baseline/feasibility, target-repo CI and Candidate parity, a bounded shadow pilot, a protected cutover decision, and documented rollback. Keep multi-repository rollout and production deployment as gated follow-on work; preserve deployment as a required future capability, but do not make it an implicit acceptance criterion for the PR-gate pilot.
 
-This plan is stored in a public repository. Keep private repository identifiers, branch-policy snapshots, run-volume details, logs, and credentials out of future public artifacts unless their publication is explicitly reviewed.
+This plan is stored in a public repository. Keep private repository identifiers, branch-policy snapshots, exact workflow triggers, run-volume details, logs, and credentials out of future public artifacts unless their publication is explicitly reviewed.
 
 ## References
 
