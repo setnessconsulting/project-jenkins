@@ -1,0 +1,82 @@
+name: setness-jenkins-pilot
+
+services:
+  controller:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jenkins-pilot-controller:2.568.3-pilot1
+    init: true
+    restart: unless-stopped
+    cpus: 4.0
+    mem_limit: 4g
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    ports:
+      - "127.0.0.1:${JENKINS_HTTP_PORT:-18080}:8080"
+    expose:
+      - "8080"
+    environment:
+      CASC_JENKINS_CONFIG: /usr/share/jenkins/casc/jenkins.yaml
+      JAVA_OPTS: -Djenkins.install.runSetupWizard=false
+      JENKINS_ADMIN_ID: ${JENKINS_ADMIN_ID:?Start Jenkins through scripts/start-controller.ps1}
+      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:?Start Jenkins through scripts/start-controller.ps1}
+      JENKINS_TARGET_REPO_OWNER: ${JENKINS_TARGET_REPO_OWNER:?Set the target in the ignored local .env file}
+      JENKINS_TARGET_REPO_NAME: ${JENKINS_TARGET_REPO_NAME:?Set the target in the ignored local .env file}
+      JENKINS_GITHUB_APP_ID: ${JENKINS_GITHUB_APP_ID:?Set the installed App ID in the ignored local .env file}
+      JENKINS_MULTIBRANCH_JOB_NAME: ${JENKINS_MULTIBRANCH_JOB_NAME:?Set the local job name in the ignored .env file}
+      JENKINS_MARKER_FILE: ${JENKINS_MARKER_FILE:?Set the marker file in the ignored local .env file}
+      JENKINS_CANDIDATE_PATHS: ${JENKINS_CANDIDATE_PATHS:?Set candidate paths in the ignored local .env file}
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - ./casc:/usr/share/jenkins/casc:ro
+    networks:
+      - jenkins-private
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  agent:
+    build:
+      context: .
+      dockerfile: agent/Dockerfile
+    image: jenkins-pilot-agent:node-22.23.2
+    init: true
+    restart: unless-stopped
+    cpus: 4.0
+    mem_limit: 8g
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=3g
+    environment:
+      JENKINS_URL: http://controller:8080/
+      JENKINS_AGENT_NAME: setness-linux-agent
+      JENKINS_SECRET: ${JENKINS_AGENT_SECRET:-}
+      JENKINS_WEB_SOCKET: "true"
+      JENKINS_AGENT_WORKDIR: /home/jenkins/agent
+    depends_on:
+      controller:
+        condition: service_started
+    networks:
+      - jenkins-private
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  jenkins_home:
+
+networks:
+  jenkins-private:
+    driver: bridge

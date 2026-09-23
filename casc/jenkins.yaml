@@ -1,0 +1,39 @@
+jenkins:
+  systemMessage: "Private single-repository CI pilot. Do not use for production deployment."
+  mode: NORMAL
+  numExecutors: 0
+  slaveAgentPort: -1
+  securityRealm:
+    local:
+      allowsSignup: false
+      enableCaptcha: false
+      users:
+        - id: "${JENKINS_ADMIN_ID}"
+          name: "Jenkins Administrator"
+          password: "${JENKINS_ADMIN_PASSWORD}"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+  nodes:
+    - permanent:
+        name: "setness-linux-agent"
+        nodeDescription: "Unprivileged Linux pilot agent"
+        numExecutors: 1
+        remoteFS: "/home/jenkins/agent"
+        labelString: "setness-linux"
+        mode: EXCLUSIVE
+        launcher:
+          inbound:
+            webSocket: true
+            workDirSettings:
+              disabled: false
+              failIfWorkDirIsMissing: true
+              internalDir: "remoting"
+              workDirPath: "/home/jenkins/agent"
+
+jobs:
+  - file: /usr/share/jenkins/casc/jobs.groovy
+
+unclassified:
+  location:
+    url: "http://127.0.0.1:18080/"
