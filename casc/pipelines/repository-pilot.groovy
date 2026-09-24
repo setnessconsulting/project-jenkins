@@ -1,5 +1,10 @@
 String classifyCandidateChanges(List<String> changedPaths, List<String> pathRules) {
     for (String path : changedPaths) {
+        // Plain Markdown documentation does not change the deployable
+        // application. Keep .mdx eligible because it is validated and built.
+        if (path.toLowerCase().endsWith('.md')) {
+            continue
+        }
         for (String rule : pathRules) {
             if (rule.endsWith('/') ? path.startsWith(rule) : path == rule) {
                 return 'RELEVANT'
@@ -122,6 +127,12 @@ pipeline {
                     }
                     relevantFixtures.each { fixture ->
                         assert classifyCandidateChanges([fixture], candidatePathRules) == 'RELEVANT'
+                    }
+
+                    def directoryRules = candidatePathRules.findAll { rule -> rule.endsWith('/') }
+                    directoryRules.each { rule ->
+                        assert classifyCandidateChanges(["${rule}README.md"], candidatePathRules) == 'NOT_APPLICABLE'
+                        assert classifyCandidateChanges(["${rule}pilot-example.mdx"], candidatePathRules) == 'RELEVANT'
                     }
 
                     def irrelevantFixture = '__jenkins-policy-self-test__/unmatched.txt'
