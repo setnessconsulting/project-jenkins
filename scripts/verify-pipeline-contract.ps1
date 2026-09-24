@@ -53,8 +53,25 @@ $requiredContracts = @(
     "assert !isAuthorizedPullRequestAuthor(null, trustedPullRequestAuthors)",
     "assert candidateCheckSummary('AUTHORIZED', 'NOT_APPLICABLE', 'NOT_RUN', '0') ==",
     "assert candidateCheckSummary('DENIED', 'UNCLASSIFIED', 'NOT_RUN', '0').startsWith('Not run: owner-only policy')",
+    "assert candidateCheckSummary('AUTHORIZED', 'RELEVANT', 'CANCELED', '2').startsWith('Cancelled:')",
+    "assert candidateCheckSummary('AUTHORIZED', 'RELEVANT', 'NOT_RUN', '2').startsWith('Not run: Standard CI')",
     "assert candidateCheckConclusion('UNCLASSIFIED', 'NOT_RUN') == 'FAILURE'",
     "assert candidateCheckConclusion('RELEVANT', 'CANCELED') == 'CANCELED'",
+    "stage('Node 22 runtime')",
+    "stage('Install dependencies (npm ci)')",
+    "stage('Typecheck')",
+    "stage('Lint')",
+    "stage('Build')",
+    "stage('Blog validation')",
+    "stage('SEO baseline')",
+    "stage('Tests')",
+    "stage('MDX validation')",
+    "stage('Vinext check')",
+    "stage('Vinext staging build')",
+    "stage('Cloudflare configuration validation')",
+    "stage('Wrangler validation')",
+    "stage('Wrangler dry-run deploy')",
+    "stage('Reviewer result summary')",
     "'Not applicable: no configured Cloudflare Candidate path changed.'",
     "assert shouldFailGateClosed('RELEVANT', 'NOT_RUN', 'SUCCESS')",
     "if (shouldFailGateClosed(candidateState, candidateRunResult, currentBuild.currentResult))",
@@ -123,8 +140,14 @@ if (-not $jobs.Contains('InlineDefinitionBranchProjectFactory') -or
     -not $jobs.Contains("inlineFactory.appendNode('script', trustedPipeline)")) {
     throw 'The job must execute the checked-in trusted Pipeline, not a repository Jenkinsfile.'
 }
-if ([regex]::Matches($pipeline, '(?m)^\s*npm ci\s*$').Count -ne 1) {
+if ([regex]::Matches($pipeline, "(?m)^\s*sh 'npm ci'\s*$").Count -ne 1) {
     throw 'The trusted pipeline must install Node dependencies only once per build.'
 }
 
-Write-Output 'Repository isolation, owner-before-checkout, explicit check-reporting, and trusted-pipeline contracts passed. Jenkins also runs behavioral policy assertions before checkout on each build.'
+$candidateStageIndex = $pipeline.IndexOf("stage('Cloudflare Candidate')")
+$candidateGuardIndex = $pipeline.IndexOf("return isPullRequest && env.JENKINS_CLOUDFLARE_CANDIDATE == 'RELEVANT'")
+if ($candidateStageIndex -lt 0 -or $candidateGuardIndex -lt $candidateStageIndex) {
+    throw 'Cloudflare Candidate commands must remain restricted to relevant pull requests.'
+}
+
+Write-Output 'Repository isolation, owner-before-checkout, explicit check-reporting, staged reviewer output, and trusted-pipeline contracts passed. Jenkins also runs behavioral policy assertions before checkout on each build.'

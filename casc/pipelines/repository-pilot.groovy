@@ -69,7 +69,13 @@ String candidateCheckSummary(String authorization, String candidateState, String
     if (candidateResult == 'SUCCESS' || candidateResult == 'FAILURE') {
         return "Cloudflare Candidate ${candidateResult.toLowerCase()} for ${changedPathCount} relevant changed path(s)."
     }
-    return 'Cloudflare Candidate checks were not run because an earlier stage did not complete or the build was cancelled; see jenkins-pr-gate.'
+    if (candidateResult == 'CANCELED') {
+        return 'Cancelled: Cloudflare Candidate checks stopped before completion; see jenkins-pr-gate.'
+    }
+    if (candidateResult == 'NOT_RUN') {
+        return 'Not run: Standard CI did not complete before Cloudflare Candidate checks could run; see jenkins-pr-gate.'
+    }
+    return 'Cloudflare Candidate result is unknown; failing closed.'
 }
 
 def candidatePathRules = /* JENKINS_PILOT_CANDIDATE_PATH_RULES */
@@ -161,6 +167,8 @@ pipeline {
                     assert candidateCheckSummary('AUTHORIZED', 'NOT_APPLICABLE', 'NOT_RUN', '0') ==
                         'Not applicable: no configured Cloudflare Candidate path changed.'
                     assert candidateCheckSummary('DENIED', 'UNCLASSIFIED', 'NOT_RUN', '0').startsWith('Not run: owner-only policy')
+                    assert candidateCheckSummary('AUTHORIZED', 'RELEVANT', 'CANCELED', '2').startsWith('Cancelled:')
+                    assert candidateCheckSummary('AUTHORIZED', 'RELEVANT', 'NOT_RUN', '2').startsWith('Not run: Standard CI')
                     assert candidateCheckSummary('AUTHORIZED', 'RELEVANT', 'FAILURE', '2').contains('failure for 2 relevant changed path(s)')
 
                     echo 'Jenkins gate policy self-test passed.'
@@ -231,20 +239,36 @@ pipeline {
                 dir('web') {
                     script {
                         try {
-                            sh '''#!/usr/bin/env bash
+                            stage('Node 22 runtime') {
+                                sh '''#!/usr/bin/env bash
 set -euo pipefail
 
 test "$(node --version)" = "v22.23.2"
 node --version
 npm --version
-npm ci
-npm run typecheck
-npm run lint
-npm run build
-npm run blog:validate
-npm run seo:baseline
-npm run test
 '''
+                            }
+                            stage('Install dependencies (npm ci)') {
+                                sh 'npm ci'
+                            }
+                            stage('Typecheck') {
+                                sh 'npm run typecheck'
+                            }
+                            stage('Lint') {
+                                sh 'npm run lint'
+                            }
+                            stage('Build') {
+                                sh 'npm run build'
+                            }
+                            stage('Blog validation') {
+                                sh 'npm run blog:validate'
+                            }
+                            stage('SEO baseline') {
+                                sh 'npm run seo:baseline'
+                            }
+                            stage('Tests') {
+                                sh 'npm run test'
+                            }
                             env.JENKINS_PILOT_STANDARD_RESULT = 'SUCCESS'
                         } catch (err) {
                             env.JENKINS_PILOT_STANDARD_RESULT = currentBuild.currentResult == 'ABORTED'
@@ -270,16 +294,24 @@ npm run test
                 dir('web') {
                     script {
                         try {
-                            sh '''#!/usr/bin/env bash
-set -euo pipefail
-
-npm run mdx:check
-npx vinext check
-npm run build:vinext:staging
-CLOUDFLARE_ENV=staging npm run cloudflare:validate
-npm run wrangler:check
-npx wrangler deploy --dry-run --config dist/server/wrangler.json
-'''
+                            stage('MDX validation') {
+                                sh 'npm run mdx:check'
+                            }
+                            stage('Vinext check') {
+                                sh 'npx vinext check'
+                            }
+                            stage('Vinext staging build') {
+                                sh 'npm run build:vinext:staging'
+                            }
+                            stage('Cloudflare configuration validation') {
+                                sh 'CLOUDFLARE_ENV=staging npm run cloudflare:validate'
+                            }
+                            stage('Wrangler validation') {
+                                sh 'npm run wrangler:check'
+                            }
+                            stage('Wrangler dry-run deploy') {
+                                sh 'npx wrangler deploy --dry-run --config dist/server/wrangler.json'
+                            }
                             env.JENKINS_CLOUDFLARE_CANDIDATE_RESULT = 'SUCCESS'
                         } catch (err) {
                             env.JENKINS_CLOUDFLARE_CANDIDATE_RESULT = currentBuild.currentResult == 'ABORTED'
@@ -287,6 +319,22 @@ npx wrangler deploy --dry-run --config dist/server/wrangler.json
                                 : 'FAILURE'
                             throw err
                         }
+                    }
+                }
+            }
+        }
+
+        stage('Reviewer result summary') {
+            steps {
+                script {
+                    def standardResult = env.JENKINS_PILOT_STANDARD_RESULT ?: 'NOT_RUN'
+                    def candidateState = env.JENKINS_CLOUDFLARE_CANDIDATE ?: 'UNCLASSIFIED'
+                    def candidateResult = env.JENKINS_CLOUDFLARE_CANDIDATE_RESULT ?: 'NOT_RUN'
+                    def candidateSummary = candidateState == 'NOT_APPLICABLE'
+                        ? 'not applicable'
+                        : "${candidateState.toLowerCase()} / ${candidateResult.toLowerCase()}"
+                    stage("Result: Standard CI ${standardResult.toLowerCase()}; Cloudflare Candidate ${candidateSummary}") {
+                        echo "Standard CI: ${standardResult}; Cloudflare Candidate: ${candidateState} (${candidateResult})."
                     }
                 }
             }
