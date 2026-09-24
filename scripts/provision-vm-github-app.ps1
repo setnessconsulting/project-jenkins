@@ -42,8 +42,12 @@ if (-not ($forwardReadback | Where-Object { $_ -match '^\s*127\.0\.0\.1\s+18080\
 
 $stateDirectory = Join-Path $env:LOCALAPPDATA 'SetnessConsulting\JenkinsPilot'
 $encryptedAppKeyPath = Join-Path $stateDirectory 'github-app-private-key.dpapi'
+$encryptedCheckoutKeyPath = Join-Path $stateDirectory "$($pilotConfig.Repository)-deploy-key.dpapi"
 if (-not (Test-Path -LiteralPath $encryptedAppKeyPath -PathType Leaf)) {
     throw 'The existing DPAPI-protected GitHub App recovery key was not found. Do not re-download or move a key until the host encryption preflight passes.'
+}
+if (-not (Test-Path -LiteralPath $encryptedCheckoutKeyPath -PathType Leaf)) {
+    throw 'The existing DPAPI-protected repository read-only deploy key was not found. Do not create or move a checkout credential until the host encryption preflight passes.'
 }
 
 function Convert-SecureStringToPlainText([System.Security.SecureString] $Value) {
@@ -66,6 +70,9 @@ $groovy = $null
 $headers = $null
 $jenkinsSession = $null
 $secureAppKey = $null
+$secureCheckoutKey = $null
+$checkoutPrivateKey = $null
+$encodedCheckoutKey = $null
 $rsa = [System.Security.Cryptography.RSA]::Create()
 
 try {
@@ -85,6 +92,14 @@ try {
     [Array]::Clear($privateKeyBytes, 0, $privateKeyBytes.Length)
     $privateKeyBytes = $null
 
+    $encryptedCheckoutKey = Get-Content -LiteralPath $encryptedCheckoutKeyPath -Raw
+    $secureCheckoutKey = ConvertTo-SecureString -String $encryptedCheckoutKey
+    $checkoutPrivateKey = Convert-SecureStringToPlainText $secureCheckoutKey
+    if ([string]::IsNullOrWhiteSpace($checkoutPrivateKey)) {
+        throw 'The protected read-only checkout key is empty.'
+    }
+    $encodedCheckoutKey = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($checkoutPrivateKey))
+
     $jenkinsSession = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
     $crumb = Invoke-RestMethod `
         -Uri "$($controllerUri.AbsoluteUri.TrimEnd('/'))/crumbIssuer/api/json" `
@@ -97,6 +112,7 @@ try {
     $headers[$crumb.crumbRequestField] = $crumb.crumb
 
     $appCredentialId = $pilotConfig.AppCredentialId
+    $checkoutCredentialId = $pilotConfig.CheckoutCredentialId
     $targetRepository = $pilotConfig.FullName
     $appId = $pilotConfig.AppId
     $owner = $pilotConfig.Owner
@@ -106,6 +122,7 @@ try {
 import com.cloudbees.plugins.credentials.CredentialsScope
 import com.cloudbees.plugins.credentials.SystemCredentialsProvider
 import com.cloudbees.plugins.credentials.domains.Domain
+import com.cloudbees.jenkins.plugins.sshcredentials.impl.BasicSSHUserPrivateKey
 import hudson.util.Secret
 import org.jenkinsci.plugins.github_branch_source.Connector
 import org.jenkinsci.plugins.github_branch_source.GitHubAppCredentials
@@ -120,7 +137,10 @@ def store = provider.getStore()
 def domain = Domain.global()
 def credentials = store.getCredentials(domain)
 def credentialId = '$appCredentialId'
+def checkoutId = '$checkoutCredentialId'
+def checkoutKey = new String(Base64.decoder.decode('$encodedCheckoutKey'), StandardCharsets.UTF_8)
 def existing = credentials.find { it.id == credentialId }
+def existingCheckout = credentials.find { it.id == checkoutId }
 
 if (existing != null && !(existing instanceof GitHubAppCredentials)) {
     throw new IllegalStateException('The App credential ID is occupied by an unexpected credential type.')
@@ -137,6 +157,22 @@ if (existing == null) {
         throw new IllegalStateException('Jenkins could not save the GitHub App credential.')
     }
 }
+if (existingCheckout != null && !(existingCheckout instanceof BasicSSHUserPrivateKey)) {
+    throw new IllegalStateException('The checkout credential ID is occupied by an unexpected credential type.')
+}
+if (existingCheckout != null && (existingCheckout.getUsername() != 'git' ||
+        !existingCheckout.getPrivateKeys().contains(checkoutKey))) {
+    throw new IllegalStateException('A different SSH key is already stored under the read-only checkout credential ID.')
+}
+if (existingCheckout == null) {
+    existingCheckout = new BasicSSHUserPrivateKey(
+        CredentialsScope.GLOBAL, checkoutId, 'git',
+        new BasicSSHUserPrivateKey.DirectEntryPrivateKeySource(checkoutKey), null,
+        'Repository-scoped read-only checkout deploy key')
+    if (!store.addCredentials(domain, existingCheckout)) {
+        throw new IllegalStateException('Jenkins could not save the read-only checkout credential.')
+    }
+}
 existing.setRepositoryAccessStrategy(new AccessSpecifiedRepositories('$owner', ['$repository']))
 existing.setDefaultPermissionsStrategy(DefaultPermissionsStrategy.CONTENTS_READ)
 provider.save()
@@ -150,7 +186,7 @@ try {
 } finally {
     Connector.release(connection)
 }
-println 'PILOT_VM_GITHUB_APP_CONFIGURED'
+println 'PILOT_VM_GITHUB_APP_AND_READ_ONLY_CHECKOUT_CONFIGURED'
 "@
 
     try {
@@ -165,24 +201,28 @@ println 'PILOT_VM_GITHUB_APP_CONFIGURED'
             -TimeoutSec 30
     }
     catch {
-        throw 'Jenkins App provisioning failed. The response body was suppressed to protect credential material.'
+        throw 'Jenkins credential provisioning failed. The response body was suppressed to protect credential material.'
     }
-    if ($response.Content.Trim() -ne 'PILOT_VM_GITHUB_APP_CONFIGURED') {
-        throw 'Jenkins did not confirm the repo-scoped App credential and repository readback.'
+    if ($response.Content.Trim() -ne 'PILOT_VM_GITHUB_APP_AND_READ_ONLY_CHECKOUT_CONFIGURED') {
+        throw 'Jenkins did not confirm both separated credentials and the App repository readback.'
     }
 }
 finally {
     $rsa.Dispose()
     if ($adminSecurePassword) { $adminSecurePassword.Dispose() }
     if ($secureAppKey) { $secureAppKey.Dispose() }
+    if ($secureCheckoutKey) { $secureCheckoutKey.Dispose() }
     if ($privateKeyBytes) { [Array]::Clear($privateKeyBytes, 0, $privateKeyBytes.Length) }
     $adminPassword = $null
     $basicToken = $null
+    $encryptedCheckoutKey = $null
     $appPrivateKeyPem = $null
     $encodedAppKey = $null
+    $encodedCheckoutKey = $null
+    $checkoutPrivateKey = $null
     $groovy = $null
     $headers = $null
     $jenkinsSession = $null
 }
 
-Write-Output 'Jenkins stored and validated the repository-scoped App credential; untrusted use is restricted to Contents read.'
+Write-Output 'Jenkins stored the controller-side repository-scoped GitHub App and separate repository read-only SSH checkout credential. The App key and Checks permission are not used for agent checkout.'

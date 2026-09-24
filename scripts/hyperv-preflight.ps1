@@ -29,6 +29,12 @@ if ($bitLocker.ProtectionStatus -ne 'On' -or
     $bitLocker.EncryptionPercentage -ne 100) {
     throw "The VM storage volume $ProtectedVolume is not fully encrypted and actively protected. Stop before creating the VM or moving credentials."
 }
+$recoveryPasswordProtector = @($bitLocker.KeyProtector | Where-Object {
+    $_.KeyProtectorType -eq 'RecoveryPassword'
+})
+if ($recoveryPasswordProtector.Count -eq 0) {
+    throw 'The protected volume has no BitLocker recovery-password protector. Stop before creating the VM or moving credentials.'
+}
 
 $computer = Get-CimInstance -ClassName Win32_ComputerSystem
 $processor = Get-CimInstance -ClassName Win32_Processor |
@@ -44,5 +50,6 @@ if ($volume.SizeRemaining -lt $minimumFreeBytes) {
 }
 
 Write-Output "Hyper-V: $($hyperVFeature.State); VMMS: $($vmms.Status); BitLocker protection: $($bitLocker.ProtectionStatus); volume encryption: $($bitLocker.EncryptionPercentage)%"
+Write-Output 'A BitLocker recovery-password protector exists. This check does not verify escrow; confirm the recovery key is retrievable from its approved backup before VM creation. The key was not read or displayed.'
 Write-Output "Host resources: $($processor.Sum) logical CPUs, $([math]::Round($computer.TotalPhysicalMemory / 1GB, 1)) GiB RAM, $([math]::Round($volume.SizeRemaining / 1GB, 1)) GiB free on $ProtectedVolume"
 Write-Output 'Preflight passed. No VM, network, firewall, or credential state was changed.'

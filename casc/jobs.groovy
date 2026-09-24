@@ -9,6 +9,7 @@ def candidateCheckName = System.getenv('JENKINS_CANDIDATE_CHECK_NAME')?.trim()
 def appDirectory = System.getenv('JENKINS_APP_DIRECTORY')?.trim()
 def siteUrl = System.getenv('JENKINS_SITE_URL')?.trim()
 def appCredentialId = System.getenv('JENKINS_GITHUB_APP_CREDENTIAL_ID')?.trim()
+def checkoutCredentialId = System.getenv('JENKINS_CHECKOUT_SSH_CREDENTIAL_ID')?.trim() ?: 'jenkins-readonly-checkout'
 def candidatePathRules = (System.getenv('JENKINS_CANDIDATE_PATHS') ?: '')
     .split(',')
     .collect { it.trim() }
@@ -24,6 +25,7 @@ if (!(targetOwner ==~ /[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/) ||
 if (!(primaryCheckName ==~ /[A-Za-z0-9][A-Za-z0-9 ._-]{0,99}/) ||
         !(candidateCheckName ==~ /[A-Za-z0-9][A-Za-z0-9 ._-]{0,99}/) ||
         !(appCredentialId ==~ /[A-Za-z0-9._-]{1,100}/) ||
+        !(checkoutCredentialId ==~ /[A-Za-z0-9._-]{1,100}/) ||
         !(appDirectory ==~ /[A-Za-z0-9._\/-]+/) || appDirectory.startsWith('/') ||
         appDirectory.split('/').any { segment -> segment == '.' || segment == '..' } ||
         !siteUrl?.startsWith('https://') || siteUrl.contains('@') || siteUrl.contains(' ')) {
@@ -125,6 +127,12 @@ multibranchPipelineJob(jobName) {
 
         Node pullRequestDiscovery = sourceTraits.appendNode('org.jenkinsci.plugins.github_branch_source.OriginPullRequestDiscoveryTrait')
         pullRequestDiscovery.appendNode('strategyId', '1')
+
+        // Use a separate repository-scoped read-only deploy key for agent
+        // checkout. Branch Source scan credentials are trusted and can carry
+        // the App's Checks-write permission.
+        Node sshCheckout = sourceTraits.appendNode('org.jenkinsci.plugins.github_branch_source.SSHCheckoutTrait')
+        sshCheckout.appendNode('credentialsId', checkoutCredentialId)
 
         // Keep automatic lifecycle publication enabled so a Pipeline parse
         // failure cannot leave a prior successful check stale on this SHA.

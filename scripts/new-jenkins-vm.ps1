@@ -5,6 +5,9 @@ param(
     [Parameter(Mandatory)]
     [ValidatePattern('^[A-Fa-f0-9]{64}$')]
     [string] $UbuntuIsoSha256,
+    [Parameter(Mandatory)]
+    [ValidateSet('RECOVERY-KEY-VERIFIED')]
+    [string] $RecoveryKeyConfirmation,
     [ValidatePattern('^[A-Za-z]:$')]
     [string] $ProtectedVolume = 'C:'
 )
@@ -190,6 +193,7 @@ catch {
 }
 
 Write-Output "Created and started $vmName with 8 vCPU, 16 GiB RAM, and a 120 GiB dynamically expanding VHDX under the BitLocker-protected $ProtectedVolume volume."
+Write-Output 'The operator confirmed before provisioning that the BitLocker recovery key is retrievable from its approved backup location.'
 Write-Output "Host-only network: $networkPrefix; Windows host: $hostAddress; Ubuntu guest static address: $guestAddress."
 Write-Output 'Install Ubuntu Server 24.04 in VMConnect. Configure the NIC as guestAddress/24, gateway hostAddress, DNS 1.1.1.1; install OpenSSH only if needed for guest administration.'
 Write-Output 'No GitHub credential, Jenkins volume, port forward, or firewall rule was moved or changed by this script.'

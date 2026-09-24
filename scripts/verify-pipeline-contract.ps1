@@ -10,8 +10,11 @@ $jobsPath = Join-Path $repositoryRoot 'casc/jobs.groovy'
 $gitIgnorePath = Join-Path $repositoryRoot '.gitignore'
 $pluginsPath = Join-Path $repositoryRoot 'plugins.txt'
 $agentDockerfilePath = Join-Path $repositoryRoot 'agent/Dockerfile'
+$knownHostsPath = Join-Path $repositoryRoot 'agent/known_hosts'
 $credentialScriptPath = Join-Path $repositoryRoot 'scripts/provision-vm-github-app.ps1'
 $pilotConfigParserPath = Join-Path $repositoryRoot 'scripts/pilot-config.ps1'
+$hypervPreflightPath = Join-Path $repositoryRoot 'scripts/hyperv-preflight.ps1'
+$newVmScriptPath = Join-Path $repositoryRoot 'scripts/new-jenkins-vm.ps1'
 $vmStartScriptPath = Join-Path $repositoryRoot 'scripts/vm/start-jenkins.sh'
 $rollbackScriptPath = Join-Path $repositoryRoot 'scripts/rollback-jenkins-vm-forward.ps1'
 $windowsControllerShimPath = Join-Path $repositoryRoot 'scripts/start-controller.ps1'
@@ -23,8 +26,11 @@ $jobs = Get-Content -LiteralPath $jobsPath -Raw
 $gitIgnore = Get-Content -LiteralPath $gitIgnorePath -Raw
 $plugins = Get-Content -LiteralPath $pluginsPath -Raw
 $agentDockerfile = Get-Content -LiteralPath $agentDockerfilePath -Raw
+$knownHosts = Get-Content -LiteralPath $knownHostsPath -Raw
 $credentialScript = Get-Content -LiteralPath $credentialScriptPath -Raw
 $pilotConfigParser = Get-Content -LiteralPath $pilotConfigParserPath -Raw
+$hypervPreflight = Get-Content -LiteralPath $hypervPreflightPath -Raw
+$newVmScript = Get-Content -LiteralPath $newVmScriptPath -Raw
 $vmStartScript = Get-Content -LiteralPath $vmStartScriptPath -Raw
 $windowsControllerShim = Get-Content -LiteralPath $windowsControllerShimPath -Raw
 
@@ -160,6 +166,8 @@ if ($postHeadShaGuardIndex -lt $postBlockIndex -or
     throw 'The post-build publisher must refuse every check publication unless the controller-verified PR head SHA is valid.'
 }
 if (-not $jobs.Contains('scanCredentialsId(appCredentialId)') -or
+    -not $jobs.Contains("sourceTraits.appendNode('org.jenkinsci.plugins.github_branch_source.SSHCheckoutTrait')") -or
+    -not $jobs.Contains("sshCheckout.appendNode('credentialsId', checkoutCredentialId)") -or
     -not $jobs.Contains("trustedAuthorsMarker = '/* JENKINS_PILOT_TRUSTED_PR_AUTHORS */'") -or
     -not $jobs.Contains('JsonOutput.toJson([targetOwner])') -or
     -not $jobs.Contains('JENKINS_GITHUB_APP_CREDENTIAL_ID') -or
@@ -172,12 +180,21 @@ if (-not $jobs.Contains('scanCredentialsId(appCredentialId)') -or
 if (-not $pilotConfigParser.Contains("'JENKINS_GITHUB_APP_CREDENTIAL_ID'") -or
     -not $pilotConfigParser.Contains("'github-app'") -or
     -not $pilotConfigParser.Contains('AppCredentialId = $appCredentialId') -or
+    -not $pilotConfigParser.Contains("'JENKINS_CHECKOUT_SSH_CREDENTIAL_ID'") -or
+    -not $pilotConfigParser.Contains('CheckoutCredentialId = $checkoutCredentialId') -or
+    -not $pilotConfigParser.Contains('$checkoutCredentialId -eq $appCredentialId') -or
     -not $credentialScript.Contains('$appCredentialId = $pilotConfig.AppCredentialId') -or
-    $credentialScript -match '\$appCredentialId\s*=\s*["'']') {
-    throw 'The VM provisioner must consume a validated, ignored local App credential ID rather than embedding a private identifier.'
+    -not $credentialScript.Contains('$checkoutCredentialId = $pilotConfig.CheckoutCredentialId') -or
+    -not $credentialScript.Contains('$encryptedCheckoutKeyPath') -or
+    -not $credentialScript.Contains('BasicSSHUserPrivateKey') -or
+    -not $credentialScript.Contains('PILOT_VM_GITHUB_APP_AND_READ_ONLY_CHECKOUT_CONFIGURED') -or
+    $credentialScript -match '\$appCredentialId\s*=\s*["'']' -or
+    $credentialScript -match '\$checkoutCredentialId\s*=\s*["'']') {
+    throw 'The VM provisioner must use separate, validated local App and read-only checkout credentials rather than embedding private identifiers.'
 }
-if ($jobs.Contains('SSHCheckoutTrait') -or $jobs.Contains('setness-jenkins-readonly-checkout')) {
-    throw 'App-based checkout must replace the persistent SSH deploy key in the new controller configuration.'
+if (-not $credentialScript.Contains('Controller-only GitHub App for discovery and Checks') -or
+    -not $credentialScript.Contains('Repository-scoped read-only checkout deploy key')) {
+    throw 'The App and SSH checkout credentials must remain separate and be provisioned as distinct credential types.'
 }
 if (-not $jobs.Contains("sourceTraits.appendNode('io.jenkins.plugins.checks.github.status.GitHubSCMSourceStatusChecksTrait')") -or
     -not $jobs.Contains("gateChecks.appendNode('skip', 'false')") -or
@@ -191,7 +208,7 @@ if (-not $gitIgnore.Contains('*.env')) {
 if (-not $compose.Contains('${JENKINS_HTTP_BIND_IP:-127.0.0.1}:${JENKINS_HTTP_PORT:-18080}:8080')) {
     throw 'Jenkins must default to loopback and support binding only to the VM host-only address.'
 }
-foreach ($privateConfigurationKey in @('JENKINS_GITHUB_APP_CREDENTIAL_ID', 'JENKINS_PRIMARY_CHECK_NAME', 'JENKINS_CANDIDATE_CHECK_NAME', 'JENKINS_APP_DIRECTORY', 'JENKINS_SITE_URL')) {
+foreach ($privateConfigurationKey in @('JENKINS_GITHUB_APP_CREDENTIAL_ID', 'JENKINS_CHECKOUT_SSH_CREDENTIAL_ID', 'JENKINS_PRIMARY_CHECK_NAME', 'JENKINS_CANDIDATE_CHECK_NAME', 'JENKINS_APP_DIRECTORY', 'JENKINS_SITE_URL')) {
     if (-not $compose.Contains($privateConfigurationKey)) {
         throw "Private target configuration must be injected from local runtime settings: $privateConfigurationKey."
     }
@@ -260,13 +277,22 @@ if ($jenkinsConfig.Contains('permanent:') -or $jenkinsConfig.Contains('setness-l
 if (-not $plugins.Contains('docker-plugin:1327.v9524f1ee134e')) {
     throw 'The Docker cloud plugin must be explicitly version-pinned.'
 }
-if ($agentDockerfile.Contains('openssh-client') -or $agentDockerfile.Contains('known_hosts') -or
-    $agentDockerfile.Contains('JENKINS_SECRET') -or $agentDockerfile.Contains('GITHUB_APP')) {
-    throw 'The one-use agent image must not contain checkout keys, App keys, or agent secrets.'
+if (-not $agentDockerfile.Contains('openssh-client') -or
+    -not $agentDockerfile.Contains('agent/known_hosts') -or
+    -not $knownHosts.Contains('github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl')) {
+    throw 'The SSH checkout agent must include the pinned GitHub host key and SSH client.'
+}
+if ($agentDockerfile.Contains('JENKINS_SECRET') -or $agentDockerfile.Contains('GITHUB_APP')) {
+    throw 'The one-use agent image must not contain App keys or persistent-agent secrets.'
 }
 if (-not $credentialScript.Contains('DefaultPermissionsStrategy.CONTENTS_READ') -or
     $credentialScript.Contains('DefaultPermissionsStrategy.INHERIT_ALL')) {
-    throw 'Untrusted GitHub App use must be limited to repository Contents read.'
+    throw 'The repository-discovery App must retain its least-privilege default for untrusted contexts; checkout must use the separate SSH credential.'
+}
+if (-not $hypervPreflight.Contains("KeyProtectorType -eq 'RecoveryPassword'") -or
+    -not $newVmScript.Contains('RECOVERY-KEY-VERIFIED') -or
+    -not $newVmScript.Contains('[string] $RecoveryKeyConfirmation')) {
+    throw 'VM creation must require a BitLocker recovery-password protector and explicit operator confirmation that recovery material is retrievable.'
 }
 if (-not $vmStartScript.Contains('[[ "$action" == start || "$action" == install || "$action" == restart ]]') -or
     -not $vmStartScript.Contains('export JENKINS_ADMIN_PASSWORD="$(<"$admin_password_file")"')) {
@@ -292,4 +318,4 @@ if (-not $pipeline.Contains("withEnv(['CLOUDFLARE_ENV=staging'])") -or
     throw 'Every Candidate validation command must run in the staging environment, without provider credentials or deployment capability.'
 }
 
-Write-Output 'Compose isolation, one-use agent limits, controller-before-checkout authorization, App permission scope, check reporting, and trusted-pipeline contracts passed.'
+Write-Output 'Compose isolation, one-use agent limits, controller-before-checkout authorization, separated GitHub App and read-only checkout credentials, check reporting, BitLocker recovery gates, and trusted-pipeline contracts passed.'

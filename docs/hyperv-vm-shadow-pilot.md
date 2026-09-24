@@ -6,11 +6,11 @@ GitHub Actions remains the authoritative merge gate throughout this runbook. Do 
 
 ## Stop conditions
 
-- Do not create the VM or move credentials until elevated preflight confirms Hyper-V is enabled and the VM storage volume is fully encrypted and actively protected by BitLocker.
+- Do not create the VM or move credentials until elevated preflight confirms Hyper-V is enabled, the VM storage volume is fully encrypted and actively protected by BitLocker, and a recovery-password protector exists. Independently confirm that the recovery key is retrievable from its approved backup; the script cannot verify escrow.
 - If Hyper-V is unavailable, disk protection is not fully active, the proposed isolated network overlaps an existing host network, or the VM cannot recover after restart, stop. Do not substitute Docker Desktop or WSL2.
 - The Docker socket is mounted only into the Jenkins controller inside this VM. Docker daemon access is effectively host-root, so the VM is the security boundary. Build agents never receive the socket.
 - Keep the current Docker Desktop volume and the existing Windows DPAPI recovery material. Do not use `docker compose down -v`.
-- Do not revoke the existing read-only SSH key until GitHub App checkout is validated from a disposable build container. Do not widen builds to other authors or forks during initial qualification.
+- Keep the repo-scoped read-only SSH deploy key separate from the GitHub App. The App credential is for controller-side discovery and Checks publication; the key is used only by the Branch Source SSH checkout trait. Do not widen builds to other authors or forks during initial qualification.
 
 ## Host preflight and VM creation
 
@@ -21,16 +21,17 @@ GitHub Actions remains the authoritative merge gate throughout this runbook. Do 
    .\scripts\hyperv-preflight.ps1
    ```
 
-   This is read-only. It must confirm Hyper-V, the VM management service, full BitLocker protection on the chosen storage volume, at least 8 logical CPUs, 32 GiB host memory, and 140 GiB free space. A failure is a stop, not a request to enable features or move data.
+   This is read-only. It must confirm Hyper-V, the VM management service, full BitLocker protection and a recovery-password protector on the chosen storage volume, at least 8 logical CPUs, 32 GiB host memory, and 140 GiB free space. A failure is a stop, not a request to enable features or move data. Separately confirm the recovery key is retrievable from its approved backup without displaying it in logs or chat.
 3. Only after that passes, create the VM, providing the independently verified ISO hash:
 
    ```powershell
    .\scripts\new-jenkins-vm.ps1 `
      -UbuntuServerIsoPath 'C:\path\to\ubuntu-24.04-live-server-amd64.iso' `
-     -UbuntuIsoSha256 '<verified-64-character-SHA256>'
+     -UbuntuIsoSha256 '<verified-64-character-SHA256>' `
+     -RecoveryKeyConfirmation 'RECOVERY-KEY-VERIFIED'
    ```
 
-   The script creates a Generation 2 VM with Secure Boot, 8 vCPU, 16 GiB fixed RAM, and a 120 GiB dynamically expanding disk under `C:\ProgramData\SetnessConsulting\JenkinsVM`. It also creates an internal Hyper-V switch and outbound NAT for `192.168.218.0/24`. It fails rather than reusing existing VM, switch, NAT, disk, or overlapping route state.
+   The confirmation argument is an explicit operator attestation that the BitLocker recovery key is retrievable from its approved backup. The script creates a Generation 2 VM with Secure Boot, 8 vCPU, 16 GiB fixed RAM, and a 120 GiB dynamically expanding disk under `C:\ProgramData\SetnessConsulting\JenkinsVM`. It also creates an internal Hyper-V switch and outbound NAT for `192.168.218.0/24`. It fails rather than reusing existing VM, switch, NAT, disk, or overlapping route state.
 4. In VMConnect, install Ubuntu Server 24.04 with a static address `192.168.218.2/24`, gateway `192.168.218.1`, and DNS `1.1.1.1`. Install OpenSSH only if needed for administration; do not forward SSH to the LAN. Use a unique guest admin password.
 5. Configure the guest firewall to deny inbound by default and allow Jenkins TCP `18080` only from `192.168.218.1`. Allow outbound traffic for Ubuntu updates, Docker image pulls, GitHub, and npm. Docker-published ports can bypass UFW rules, so the host-only VM network and the guest's single host-only NIC are also part of the access boundary. Do not add an external Hyper-V switch or a Docker TCP API listener.
 6. Install Docker Engine and Compose from [Docker's official Ubuntu instructions](https://docs.docker.com/engine/install/ubuntu/). Do not expose the Docker API over TCP. Enable the Docker service at boot. Verify the daemon uses the local Unix socket and does not listen on `2375` or `2376`.
@@ -68,13 +69,13 @@ The VM script sets automatic startup and clean guest shutdown for Windows restar
    ```
 
    The script creates only `127.0.0.1:18080 -> 192.168.218.2:18080`; it refuses to replace a different mapping or take a port already in use. Jenkins remains unreachable from the LAN and internet.
-7. From the existing Windows checkout, provision the repo-scoped App to the new controller through the loopback URL. Pass the path to the preserved ignored `.env` if it is not in this checkout:
+7. After the VM and protected loopback forward are verified, provision the repo-scoped App and the separate read-only checkout key to the new controller. Pass the path to the preserved ignored `.env` if it is not in this checkout:
 
    ```powershell
    .\scripts\provision-vm-github-app.ps1 -ConfigPath 'C:\path\to\preserved\project-jenkins\.env'
    ```
 
-   Enter the VM bootstrap administrator password at the secure prompt. The script reads the existing DPAPI-protected App key, sends it only to loopback, stores it in Jenkins, and verifies repository access. Untrusted App use is restricted to the target repository's Contents read permission; the App private key and Checks write capability stay on the controller. Upstream Branch Source limits the App token in untrusted build contexts, while the Checks publisher resolves the same credential in a trusted controller context; this allows check publication without handing Checks-write access to build code. Preserve this distinction when changing credentials or plugin configuration, and verify the App-attributed check on a controlled PR.
+   Enter the VM bootstrap administrator password at the secure prompt. The script reads the existing DPAPI-protected App key and read-only checkout key, sends them only to loopback, stores them as separate Jenkins credentials, and verifies App repository access. Branch Source's untrusted-context permission restriction does not constrain trusted contexts such as repository indexing, and the Checks publisher uses the App credential in a trusted controller context. Therefore the App must not be used for agent checkout: `SSHCheckoutTrait` uses the separate repository-scoped read-only deploy key. Verify the agent has no copy of that key after checkout and before any pipeline shell step, and confirm the published check is attributed to the App.
 8. Recheck that Jenkins returns through `http://127.0.0.1:18080/` after restarts and that the Docker cloud can reconnect.
 
 ## Pinned Jenkins and plugin security review
@@ -88,7 +89,7 @@ The pinned `github-branch-source`, `git-client`, `pipeline-multibranch`, `pipeli
 - The checked-in centrally trusted Pipeline runs owner-only same-repository PRs during this bounded shadow. It reads `SCMRevisionAction` on the controller and verifies the Branch Source `PullRequestSCMRevision.getPullHash()` before publishing any PR check or allocating a container. Denied PRs receive an explicit failed primary result and a neutral Candidate “blocked/not run” result. If the head SHA cannot be verified or the publisher cannot resolve it, the build fails closed; a missing required check must never be treated as success.
 - The inline pipeline's Groovy sandbox is disabled only because the trusted controller-side SHA verification requires access to the Jenkins run's internal SCM revision action. This makes `project-jenkins` pipeline changes privileged controller code: review those changes before import, keep the target Jenkinsfile unused, and never interpolate target-controlled content into Groovy evaluation.
 - GitHub Branch Source publishes checks against the PR head SHA. Verify the actual App attribution and exact head SHA on controlled test PRs; do not infer it from a Jenkins build URL.
-- Each authorized build gets one unprivileged, resource-limited Docker agent (4 CPU, 8 GiB memory, no additional swap), one executor, and no persistent workspace/cache, host mounts, controller state, Docker socket, production secret, or SSH key. Docker once-retention is configured for zero idle minutes; the Pipeline also deletes its workspace in `finally`. Verify actual container removal after success, failure, and cancellation before accepting this boundary.
+- Each authorized build gets one unprivileged, resource-limited Docker agent (4 CPU, 8 GiB memory, no additional swap), one executor, and no persistent workspace/cache, host mounts, controller state, Docker socket, or production secret. The controller-side GitHub App is never used for checkout. The separate repository-scoped read-only SSH key is used only by the SCM checkout operation; prove it is absent from the agent before any repository-controlled command runs. Docker once-retention is configured for zero idle minutes; the Pipeline also deletes its workspace in `finally`. Verify actual container removal after success, failure, and cancellation before accepting this boundary.
 - Standard Node 22 checks and the relevant Cloudflare Candidate checks share one checkout and one `npm ci`. Candidate is neutral/not-applicable for changes outside configured paths; classification errors fail the primary gate closed.
 - Direct fork PRs are excluded. Do not broaden the author allowlist until the disposable boundary, exact-SHA reporting, cleanup, denial reporting, and recovery have all passed.
 

@@ -30,6 +30,7 @@ services:
       CASC_JENKINS_CONFIG: /usr/share/jenkins/casc/jenkins.yaml
       JAVA_OPTS: -Djenkins.install.runSetupWizard=false
       JENKINS_GITHUB_APP_CREDENTIAL_ID: ${JENKINS_GITHUB_APP_CREDENTIAL_ID:?Set the local App credential ID in the ignored local .env file}
+      JENKINS_CHECKOUT_SSH_CREDENTIAL_ID: ${JENKINS_CHECKOUT_SSH_CREDENTIAL_ID:-jenkins-readonly-checkout}
       JENKINS_PRIMARY_CHECK_NAME: ${JENKINS_PRIMARY_CHECK_NAME:?Set the primary check name in the ignored local .env file}
       JENKINS_CANDIDATE_CHECK_NAME: ${JENKINS_CANDIDATE_CHECK_NAME:?Set the candidate check name in the ignored local .env file}
       JENKINS_APP_DIRECTORY: ${JENKINS_APP_DIRECTORY:?Set the application directory in the ignored local .env file}
@@ -79,6 +80,7 @@ services:
       CASC_JENKINS_CONFIG: /usr/share/jenkins/casc/jenkins.yaml
       JAVA_OPTS: -Djenkins.install.runSetupWizard=false
       JENKINS_GITHUB_APP_CREDENTIAL_ID: ${JENKINS_GITHUB_APP_CREDENTIAL_ID:?Set the local App credential ID in the ignored local .env file}
+      JENKINS_CHECKOUT_SSH_CREDENTIAL_ID: ${JENKINS_CHECKOUT_SSH_CREDENTIAL_ID:-jenkins-readonly-checkout}
       JENKINS_PRIMARY_CHECK_NAME: ${JENKINS_PRIMARY_CHECK_NAME:?Set the primary check name in the ignored local .env file}
       JENKINS_CANDIDATE_CHECK_NAME: ${JENKINS_CANDIDATE_CHECK_NAME:?Set the candidate check name in the ignored local .env file}
       JENKINS_APP_DIRECTORY: ${JENKINS_APP_DIRECTORY:?Set the application directory in the ignored local .env file}

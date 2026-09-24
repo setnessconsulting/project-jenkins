@@ -4,7 +4,7 @@ USER root
 
 RUN set -eux; \
     apt-get update; \
-    apt-get install --yes --no-install-recommends ca-certificates curl git xz-utils; \
+    apt-get install --yes --no-install-recommends ca-certificates curl git openssh-client xz-utils; \
     rm -rf /var/lib/apt/lists/*; \
     curl --fail --location --silent --show-error \
       https://nodejs.org/dist/v22.23.2/node-v22.23.2-linux-x64.tar.xz \
@@ -12,13 +12,16 @@ RUN set -eux; \
     printf '%s  %s\n' \
       'd60acfe00a2932254bb0ad20e01b0d74397a0875595de719654b214f4b03f307' \
       '/tmp/node-v22.23.2-linux-x64.tar.xz' | sha256sum --check --strict; \
-    install -d -o jenkins -g jenkins -m 0755 /opt/setness-jenkins/tools/node-v22.23.2-linux-x64 /home/jenkins/agent; \
+    install -d -o jenkins -g jenkins -m 0755 /opt/setness-jenkins/tools/node-v22.23.2-linux-x64 /home/jenkins/agent /home/jenkins/.ssh; \
     tar --extract --xz --file /tmp/node-v22.23.2-linux-x64.tar.xz \
       --directory /opt/setness-jenkins/tools/node-v22.23.2-linux-x64 \
       --strip-components=1; \
     chown -R jenkins:jenkins /opt/setness-jenkins /home/jenkins/agent; \
     rm -f /tmp/node-v22.23.2-linux-x64.tar.xz; \
     apt-get clean
+
+COPY --chown=jenkins:jenkins agent/known_hosts /home/jenkins/.ssh/known_hosts
+RUN chmod 0644 /home/jenkins/.ssh/known_hosts
 
 USER jenkins
 
