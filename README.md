@@ -4,4 +4,4 @@ This repository evaluates Jenkins as a self-hosted CI/CD option, starting with t
 
 The plan is deliberately comparative: the existing self-hosted GitHub Actions runner may achieve the same minute reduction with less migration work. Jenkins should be adopted only if the first-repository pilot proves its checks, operational reliability, and total effort are better for this use case.
 
-See [the adversarial pilot and decision plan](docs/jenkins-pilot-plan.md). This repository is public; do not put credentials, tokens, private build output, or environment-specific secret values here.
+See [the adversarial pilot and decision plan](docs/jenkins-pilot-plan.md) and the [local shadow-pilot runbook](docs/local-controller.md). This repository is public; do not put credentials, tokens, private build output, or environment-specific secret values here.
