@@ -100,6 +100,13 @@ pipeline {
                             error('Owner-only Jenkins shadow: PR author is not allowlisted; no target checkout or repository command was run.')
                         }
                         env.JENKINS_PILOT_AUTHORIZATION = 'AUTHORIZED'
+                        publishChecks(
+                            name: 'cloudflare-candidate',
+                            title: 'Cloudflare Candidate (classification pending)',
+                            summary: 'Checking Candidate applicability; no Candidate commands have run yet.',
+                            text: "PR #${changeId}: awaiting trusted changed-path classification.",
+                            status: 'IN_PROGRESS'
+                        )
                     }
                 }
             }
@@ -186,6 +193,17 @@ pipeline {
                         env.JENKINS_CLOUDFLARE_CANDIDATE = candidatePaths.isEmpty()
                             ? 'NOT_APPLICABLE'
                             : 'RELEVANT'
+
+                        if (env.JENKINS_CLOUDFLARE_CANDIDATE == 'NOT_APPLICABLE') {
+                            publishChecks(
+                                name: 'cloudflare-candidate',
+                                title: 'Cloudflare Candidate (not applicable)',
+                                summary: 'Not applicable: no configured Cloudflare Candidate path changed.',
+                                text: "PR #${changeId}: Candidate path classification completed before standard CI.",
+                                status: 'COMPLETED',
+                                conclusion: 'NEUTRAL'
+                            )
+                        }
 
                         if (env.JENKINS_CLOUDFLARE_CANDIDATE == 'UNCLASSIFIED') {
                             error('Unable to classify this pull request for Cloudflare Candidate checks; failing closed.')

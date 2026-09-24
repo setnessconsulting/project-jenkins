@@ -58,6 +58,8 @@ $requiredContracts = @(
     'env.JENKINS_CLOUDFLARE_CANDIDATE_RESULT = currentBuild.currentResult',
     "name: 'cloudflare-candidate'",
     "name: 'jenkins-pr-gate'",
+    "title: 'Cloudflare Candidate (classification pending)'",
+    "status: 'IN_PROGRESS'",
     'summary: gateSummary',
     'text: gateText',
     'deleteDir()',
@@ -70,11 +72,13 @@ foreach ($contract in $requiredContracts) {
 }
 
 $authorizationGuardIndex = $pipeline.IndexOf('isAuthorizedPullRequestAuthor(env.CHANGE_AUTHOR')
+$candidatePendingIndex = $pipeline.IndexOf("title: 'Cloudflare Candidate (classification pending)'")
 $checkoutIndex = $pipeline.IndexOf('checkout scm')
 $authorizationStageIndex = $pipeline.IndexOf("stage('Authorize pull request')")
 $selfTestStageIndex = $pipeline.IndexOf("stage('Pipeline policy self-test')")
-if ($authorizationGuardIndex -lt 0 -or $checkoutIndex -lt 0 -or
-    $authorizationGuardIndex -ge $checkoutIndex -or
+if ($authorizationGuardIndex -lt 0 -or $candidatePendingIndex -lt 0 -or $checkoutIndex -lt 0 -or
+    $authorizationGuardIndex -ge $candidatePendingIndex -or
+    $candidatePendingIndex -ge $checkoutIndex -or
     $authorizationStageIndex -lt 0 -or $authorizationStageIndex -ge $selfTestStageIndex) {
     throw 'The trusted author allowlist must run before policy/build stages and before target checkout.'
 }
