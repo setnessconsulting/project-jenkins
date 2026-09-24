@@ -51,6 +51,22 @@ String gateCheckConclusion(String buildResult) {
     }
 }
 
+String candidateCheckSummary(String authorization, String candidateState, String candidateResult, String changedPathCount) {
+    if (authorization != 'AUTHORIZED') {
+        return 'Not run: owner-only policy rejected this PR before checkout or repository commands.'
+    }
+    if (candidateState == 'UNCLASSIFIED') {
+        return 'Unable to classify this pull request for Cloudflare Candidate checks; jenkins-pr-gate must fail closed.'
+    }
+    if (candidateState == 'NOT_APPLICABLE') {
+        return 'Not applicable: no configured Cloudflare Candidate path changed.'
+    }
+    if (candidateResult == 'SUCCESS' || candidateResult == 'FAILURE') {
+        return "Cloudflare Candidate ${candidateResult.toLowerCase()} for ${changedPathCount} relevant changed path(s)."
+    }
+    return 'Cloudflare Candidate checks were not run because an earlier stage did not complete or the build was cancelled; see jenkins-pr-gate.'
+}
+
 def candidatePathRules = /* JENKINS_PILOT_CANDIDATE_PATH_RULES */
 def trustedPullRequestAuthors = /* JENKINS_PILOT_TRUSTED_PR_AUTHORS */
 
@@ -124,6 +140,10 @@ pipeline {
                     assert gateCheckConclusion('SUCCESS') == 'SUCCESS'
                     assert gateCheckConclusion('FAILURE') == 'FAILURE'
                     assert gateCheckConclusion('ABORTED') == 'CANCELED'
+                    assert candidateCheckSummary('AUTHORIZED', 'NOT_APPLICABLE', 'NOT_RUN', '0') ==
+                        'Not applicable: no configured Cloudflare Candidate path changed.'
+                    assert candidateCheckSummary('DENIED', 'UNCLASSIFIED', 'NOT_RUN', '0').startsWith('Not run: owner-only policy')
+                    assert candidateCheckSummary('AUTHORIZED', 'RELEVANT', 'FAILURE', '2').contains('failure for 2 relevant changed path(s)')
 
                     echo 'Jenkins gate policy self-test passed.'
                 }
@@ -264,15 +284,12 @@ npx wrangler deploy --dry-run --config dist/server/wrangler.json
                         if (shouldFailGateClosed(candidateState, candidateRunResult, currentBuild.currentResult)) {
                             currentBuild.result = 'FAILURE'
                         }
-                        def candidateSummary = authorization != 'AUTHORIZED'
-                            ? 'Not run: owner-only policy rejected this PR before checkout or repository commands.'
-                            : (candidateState == 'UNCLASSIFIED'
-                                ? 'Unable to classify this pull request for Cloudflare Candidate checks; jenkins-pr-gate must fail closed.'
-                                : (candidateApplicable
-                                    ? (candidateRunResult != 'SUCCESS' && candidateRunResult != 'FAILURE'
-                                        ? 'Cloudflare Candidate checks were not run because an earlier stage did not complete or the build was cancelled; see jenkins-pr-gate.'
-                                        : "Cloudflare Candidate ${candidateRunResult.toLowerCase()} for ${env.JENKINS_CLOUDFLARE_CHANGED_PATH_COUNT} relevant changed path(s).")
-                                    : 'Not applicable: no configured Cloudflare Candidate path changed.')
+                        def candidateSummary = candidateCheckSummary(
+                            authorization,
+                            candidateState,
+                            candidateRunResult,
+                            env.JENKINS_CLOUDFLARE_CHANGED_PATH_COUNT ?: '0'
+                        )
 
                         try {
                             publishChecks(
@@ -290,9 +307,12 @@ npx wrangler deploy --dry-run --config dist/server/wrangler.json
 
                         def standardResult = env.JENKINS_PILOT_STANDARD_RESULT ?: 'NOT_RUN'
                         def finalResult = currentBuild.currentResult ?: 'FAILURE'
+                        def gateCandidateSummary = candidateApplicable
+                            ? candidateRunResult.toLowerCase()
+                            : 'not applicable'
                         def gateSummary = authorization != 'AUTHORIZED'
                             ? 'Failed closed: this owner-only shadow rejected the PR before checkout or repository commands.'
-                            : "Standard CI ${standardResult.toLowerCase()}; Cloudflare Candidate ${candidateApplicable ? candidateRunResult.toLowerCase() : 'not applicable'}."
+                            : "Standard CI ${standardResult.toLowerCase()}; Cloudflare Candidate ${gateCandidateSummary}."
                         def gateText = """Pull request: #${changeId ?: 'unknown'}
 Authorization: ${authorization}
 Standard CI: ${standardResult}

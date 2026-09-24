@@ -105,11 +105,11 @@ multibranchPipelineJob(jobName) {
         Node pullRequestDiscovery = sourceTraits.appendNode('org.jenkinsci.plugins.github_branch_source.OriginPullRequestDiscoveryTrait')
         pullRequestDiscovery.appendNode('strategyId', '1')
 
-        // Suppress the Checks plugin's automatic lifecycle publisher so it
-        // cannot overwrite the reviewer summary from the trusted Pipeline.
+        // Keep automatic lifecycle publication enabled so a Pipeline parse
+        // failure cannot leave a prior successful check stale on this SHA.
         Node gateChecks = sourceTraits.appendNode('io.jenkins.plugins.checks.github.status.GitHubSCMSourceStatusChecksTrait')
         gateChecks.appendNode('name', 'jenkins-pr-gate')
-        gateChecks.appendNode('skip', 'true')
+        gateChecks.appendNode('skip', 'false')
         gateChecks.appendNode('skipNotifications', 'true')
 
         Node checksSettings = sourceTraits.appendNode('io.jenkins.plugins.checks.github.config.GitHubSCMSourceChecksTrait')

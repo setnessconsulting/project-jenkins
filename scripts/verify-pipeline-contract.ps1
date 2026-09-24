@@ -46,6 +46,8 @@ $requiredContracts = @(
     "assert isAuthorizedPullRequestAuthor(trustedPullRequestAuthors[0], trustedPullRequestAuthors)",
     "assert !isAuthorizedPullRequestAuthor('untrusted-contributor', trustedPullRequestAuthors)",
     "assert !isAuthorizedPullRequestAuthor(null, trustedPullRequestAuthors)",
+    "assert candidateCheckSummary('AUTHORIZED', 'NOT_APPLICABLE', 'NOT_RUN', '0') ==",
+    "assert candidateCheckSummary('DENIED', 'UNCLASSIFIED', 'NOT_RUN', '0').startsWith('Not run: owner-only policy')",
     "assert candidateCheckConclusion('UNCLASSIFIED', 'NOT_RUN') == 'FAILURE'",
     "assert candidateCheckConclusion('RELEVANT', 'CANCELED') == 'CANCELED'",
     "'Not applicable: no configured Cloudflare Candidate path changed.'",
@@ -81,9 +83,9 @@ if (-not $jobs.Contains("trustedAuthorsMarker = '/* JENKINS_PILOT_TRUSTED_PR_AUT
     throw 'The trusted PR author allowlist must be injected from ignored local controller configuration.'
 }
 if (-not $jobs.Contains("sourceTraits.appendNode('io.jenkins.plugins.checks.github.status.GitHubSCMSourceStatusChecksTrait')") -or
-    -not $jobs.Contains("gateChecks.appendNode('skip', 'true')") -or
+    -not $jobs.Contains("gateChecks.appendNode('skip', 'false')") -or
     -not $jobs.Contains("gateChecks.appendNode('skipNotifications', 'true')")) {
-    throw 'The automatic status publisher and legacy Status API notifications must be disabled so explicit check summaries remain authoritative.'
+    throw 'The primary check lifecycle publisher must remain enabled (including on Pipeline parse failures) without emitting legacy Status API notifications.'
 }
 if (-not $gitIgnore.Contains('*.env')) {
     throw 'Local environment files must be ignored by Git.'
