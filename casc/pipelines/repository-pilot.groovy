@@ -187,13 +187,13 @@ pipeline {
                     env.JENKINS_PILOT_STANDARD_RESULT = 'NOT_RUN'
 
                     if (isPullRequest) {
-                        // GitHub Branch Source is configured to build the PR
-                        // merge revision. Compare it with the first parent
-                        // (target branch) so first-build changelog gaps cannot
-                        // silently classify a relevant PR as not applicable.
+                        // GitHub Branch Source's synthetic merge revision has
+                        // the PR head as first parent and target/base as the
+                        // second parent. Compare against the target parent so
+                        // classification includes only changes from this PR.
                         def diff = sh(
                             returnStdout: true,
-                            script: 'git diff --name-only HEAD^1 HEAD'
+                            script: 'git diff --name-only HEAD^2 HEAD'
                         ).trim()
                         def changedPaths = diff ? diff.readLines() : []
 

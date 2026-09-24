@@ -42,6 +42,7 @@ $requiredContracts = @(
     'def trustedPullRequestAuthors = /* JENKINS_PILOT_TRUSTED_PR_AUTHORS */',
     'isAuthorizedPullRequestAuthor(env.CHANGE_AUTHOR, trustedPullRequestAuthors)',
     'Owner-only Jenkins shadow: PR author is not allowlisted',
+    'git diff --name-only HEAD^2 HEAD',
     "assert classifyCandidateChanges([], candidatePathRules) == 'NOT_APPLICABLE'",
     "if (path.toLowerCase().endsWith('.md'))",
     'def directoryRules = candidatePathRules.findAll { rule -> rule.endsWith(''/'') }',
