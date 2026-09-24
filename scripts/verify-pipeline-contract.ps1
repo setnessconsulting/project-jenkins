@@ -287,5 +287,9 @@ $candidateGuardIndex = $pipeline.IndexOf("if (isPullRequest && env.JENKINS_CLOUD
 if ($candidateStageIndex -lt 0 -or $candidateGuardIndex -lt 0 -or $candidateStageIndex -lt $candidateGuardIndex) {
     throw 'Cloudflare Candidate commands must remain restricted to relevant pull requests.'
 }
+if (-not $pipeline.Contains("withEnv(['CLOUDFLARE_ENV=staging'])") -or
+    $pipeline.Contains("sh 'CLOUDFLARE_ENV=staging npm run cloudflare:validate'")) {
+    throw 'Every Candidate validation command must run in the staging environment, without provider credentials or deployment capability.'
+}
 
 Write-Output 'Compose isolation, one-use agent limits, controller-before-checkout authorization, App permission scope, check reporting, and trusted-pipeline contracts passed.'

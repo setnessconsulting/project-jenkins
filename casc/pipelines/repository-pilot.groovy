@@ -353,31 +353,33 @@ npm --version
                         if (isPullRequest && env.JENKINS_CLOUDFLARE_CANDIDATE == 'RELEVANT') {
                             stage('Cloudflare Candidate') {
                                 dir(appDirectory) {
-                                    try {
-                                        stage('MDX validation') {
-                                            sh 'npm run mdx:check'
+                                    withEnv(['CLOUDFLARE_ENV=staging']) {
+                                        try {
+                                            stage('MDX validation') {
+                                                sh 'npm run mdx:check'
+                                            }
+                                            stage('Vinext check') {
+                                                sh 'npx vinext check'
+                                            }
+                                            stage('Vinext staging build') {
+                                                sh 'npm run build:vinext:staging'
+                                            }
+                                            stage('Cloudflare configuration validation') {
+                                                sh 'npm run cloudflare:validate'
+                                            }
+                                            stage('Wrangler validation') {
+                                                sh 'npm run wrangler:check'
+                                            }
+                                            stage('Wrangler dry-run deploy') {
+                                                sh 'npx wrangler deploy --dry-run --config dist/server/wrangler.json'
+                                            }
+                                            env.JENKINS_CLOUDFLARE_CANDIDATE_RESULT = 'SUCCESS'
+                                        } catch (err) {
+                                            env.JENKINS_CLOUDFLARE_CANDIDATE_RESULT = currentBuild.currentResult == 'ABORTED'
+                                                ? 'CANCELED'
+                                                : 'FAILURE'
+                                            throw err
                                         }
-                                        stage('Vinext check') {
-                                            sh 'npx vinext check'
-                                        }
-                                        stage('Vinext staging build') {
-                                            sh 'npm run build:vinext:staging'
-                                        }
-                                        stage('Cloudflare configuration validation') {
-                                            sh 'CLOUDFLARE_ENV=staging npm run cloudflare:validate'
-                                        }
-                                        stage('Wrangler validation') {
-                                            sh 'npm run wrangler:check'
-                                        }
-                                        stage('Wrangler dry-run deploy') {
-                                            sh 'npx wrangler deploy --dry-run --config dist/server/wrangler.json'
-                                        }
-                                        env.JENKINS_CLOUDFLARE_CANDIDATE_RESULT = 'SUCCESS'
-                                    } catch (err) {
-                                        env.JENKINS_CLOUDFLARE_CANDIDATE_RESULT = currentBuild.currentResult == 'ABORTED'
-                                            ? 'CANCELED'
-                                            : 'FAILURE'
-                                        throw err
                                     }
                                 }
                             }
