@@ -37,7 +37,22 @@ boolean shouldFailGateClosed(String candidateState, String candidateResult, Stri
         candidateResult != 'SUCCESS'
 }
 
+boolean isAuthorizedPullRequestAuthor(String author, List<String> trustedAuthors) {
+    def normalizedAuthor = author?.trim()
+    return normalizedAuthor != null && !normalizedAuthor.isEmpty() &&
+        trustedAuthors.any { trusted -> trusted.equalsIgnoreCase(normalizedAuthor) }
+}
+
+String gateCheckConclusion(String buildResult) {
+    switch (buildResult) {
+        case 'SUCCESS': return 'SUCCESS'
+        case 'ABORTED': return 'CANCELED'
+        default: return 'FAILURE'
+    }
+}
+
 def candidatePathRules = /* JENKINS_PILOT_CANDIDATE_PATH_RULES */
+def trustedPullRequestAuthors = /* JENKINS_PILOT_TRUSTED_PR_AUTHORS */
 
 pipeline {
     agent {
@@ -56,6 +71,24 @@ pipeline {
     }
 
     stages {
+        stage('Authorize pull request') {
+            steps {
+                script {
+                    def branchName = env.BRANCH_NAME ?: ''
+                    def changeId = env.CHANGE_ID?.trim()
+                    def isPullRequest = changeId || branchName.matches('PR-[0-9]+')
+                    env.JENKINS_PILOT_AUTHORIZATION = isPullRequest ? 'DENIED' : 'NOT_A_PR'
+
+                    if (isPullRequest) {
+                        if (!isAuthorizedPullRequestAuthor(env.CHANGE_AUTHOR, trustedPullRequestAuthors)) {
+                            error('Owner-only Jenkins shadow: PR author is not allowlisted; no target checkout or repository command was run.')
+                        }
+                        env.JENKINS_PILOT_AUTHORIZATION = 'AUTHORIZED'
+                    }
+                }
+            }
+        }
+
         stage('Pipeline policy self-test') {
             steps {
                 script {
@@ -85,6 +118,12 @@ pipeline {
                     assert !shouldFailGateClosed('RELEVANT', 'NOT_RUN', 'FAILURE')
                     assert !shouldFailGateClosed('RELEVANT', 'SUCCESS', 'SUCCESS')
                     assert !shouldFailGateClosed('NOT_APPLICABLE', 'NOT_RUN', 'SUCCESS')
+                    assert isAuthorizedPullRequestAuthor(trustedPullRequestAuthors[0], trustedPullRequestAuthors)
+                    assert !isAuthorizedPullRequestAuthor('untrusted-contributor', trustedPullRequestAuthors)
+                    assert !isAuthorizedPullRequestAuthor(null, trustedPullRequestAuthors)
+                    assert gateCheckConclusion('SUCCESS') == 'SUCCESS'
+                    assert gateCheckConclusion('FAILURE') == 'FAILURE'
+                    assert gateCheckConclusion('ABORTED') == 'CANCELED'
 
                     echo 'Jenkins gate policy self-test passed.'
                 }
@@ -107,6 +146,7 @@ pipeline {
                         : 'NOT_APPLICABLE'
                     env.JENKINS_CLOUDFLARE_CHANGED_PATH_COUNT = '0'
                     env.JENKINS_CLOUDFLARE_CANDIDATE_RESULT = 'NOT_RUN'
+                    env.JENKINS_PILOT_STANDARD_RESULT = 'NOT_RUN'
 
                     if (isPullRequest) {
                         // GitHub Branch Source is configured to build the PR
@@ -140,7 +180,9 @@ pipeline {
         stage('Standard CI') {
             steps {
                 dir('web') {
-                    sh '''#!/usr/bin/env bash
+                    script {
+                        try {
+                            sh '''#!/usr/bin/env bash
 set -euo pipefail
 
 test "$(node --version)" = "v22.23.2"
@@ -154,6 +196,14 @@ npm run blog:validate
 npm run seo:baseline
 npm run test
 '''
+                            env.JENKINS_PILOT_STANDARD_RESULT = 'SUCCESS'
+                        } catch (err) {
+                            env.JENKINS_PILOT_STANDARD_RESULT = currentBuild.currentResult == 'ABORTED'
+                                ? 'CANCELED'
+                                : 'FAILURE'
+                            throw err
+                        }
+                    }
                 }
             }
         }
@@ -202,29 +252,70 @@ npx wrangler deploy --dry-run --config dist/server/wrangler.json
                     def changeId = env.CHANGE_ID?.trim()
                     def isPullRequest = changeId || branchName.matches('PR-[0-9]+')
                     if (isPullRequest) {
-                        def candidateState = env.JENKINS_CLOUDFLARE_CANDIDATE ?: 'UNCLASSIFIED'
+                        def authorization = env.JENKINS_PILOT_AUTHORIZATION ?: 'DENIED'
+                        def candidateState = authorization == 'AUTHORIZED'
+                            ? (env.JENKINS_CLOUDFLARE_CANDIDATE ?: 'UNCLASSIFIED')
+                            : 'UNCLASSIFIED'
                         def candidateApplicable = candidateState == 'RELEVANT'
                         def candidateRunResult = env.JENKINS_CLOUDFLARE_CANDIDATE_RESULT ?: 'NOT_RUN'
-                        def result = candidateCheckConclusion(candidateState, candidateRunResult)
+                        def candidateConclusion = authorization == 'AUTHORIZED'
+                            ? candidateCheckConclusion(candidateState, candidateRunResult)
+                            : 'FAILURE'
                         if (shouldFailGateClosed(candidateState, candidateRunResult, currentBuild.currentResult)) {
                             currentBuild.result = 'FAILURE'
                         }
-                        def summary = candidateState == 'UNCLASSIFIED'
-                            ? 'Unable to classify this pull request for Cloudflare Candidate checks; jenkins-pr-gate must fail closed.'
-                            : (candidateApplicable
-                                ? (candidateRunResult != 'SUCCESS' && candidateRunResult != 'FAILURE'
-                                    ? 'Cloudflare Candidate checks were not run because an earlier stage did not complete or the build was cancelled; see jenkins-pr-gate.'
-                                    : "Cloudflare Candidate ${candidateRunResult.toLowerCase()} for ${env.JENKINS_CLOUDFLARE_CHANGED_PATH_COUNT} relevant changed path(s).")
-                                : 'Not applicable: no configured Cloudflare Candidate path changed.')
+                        def candidateSummary = authorization != 'AUTHORIZED'
+                            ? 'Not run: owner-only policy rejected this PR before checkout or repository commands.'
+                            : (candidateState == 'UNCLASSIFIED'
+                                ? 'Unable to classify this pull request for Cloudflare Candidate checks; jenkins-pr-gate must fail closed.'
+                                : (candidateApplicable
+                                    ? (candidateRunResult != 'SUCCESS' && candidateRunResult != 'FAILURE'
+                                        ? 'Cloudflare Candidate checks were not run because an earlier stage did not complete or the build was cancelled; see jenkins-pr-gate.'
+                                        : "Cloudflare Candidate ${candidateRunResult.toLowerCase()} for ${env.JENKINS_CLOUDFLARE_CHANGED_PATH_COUNT} relevant changed path(s).")
+                                    : 'Not applicable: no configured Cloudflare Candidate path changed.')
 
-                        publishChecks(
-                            name: 'cloudflare-candidate',
-                            title: candidateApplicable ? 'Cloudflare Candidate' : 'Cloudflare Candidate (not applicable)',
-                            summary: summary,
-                            status: 'COMPLETED',
-                            conclusion: result
-                        )
+                        try {
+                            publishChecks(
+                                name: 'cloudflare-candidate',
+                                title: candidateApplicable ? 'Cloudflare Candidate' : 'Cloudflare Candidate (not applicable)',
+                                summary: candidateSummary,
+                                text: "PR #${changeId ?: 'unknown'}\nAuthorization: ${authorization}\nCandidate status: ${candidateState}\nCandidate suite result: ${candidateRunResult}",
+                                status: 'COMPLETED',
+                                conclusion: candidateConclusion
+                            )
+                        } catch (err) {
+                            currentBuild.result = 'FAILURE'
+                            echo 'Could not publish cloudflare-candidate.'
+                        }
 
+                        def standardResult = env.JENKINS_PILOT_STANDARD_RESULT ?: 'NOT_RUN'
+                        def finalResult = currentBuild.currentResult ?: 'FAILURE'
+                        def gateSummary = authorization != 'AUTHORIZED'
+                            ? 'Failed closed: this owner-only shadow rejected the PR before checkout or repository commands.'
+                            : "Standard CI ${standardResult.toLowerCase()}; Cloudflare Candidate ${candidateApplicable ? candidateRunResult.toLowerCase() : 'not applicable'}."
+                        def gateText = """Pull request: #${changeId ?: 'unknown'}
+Authorization: ${authorization}
+Standard CI: ${standardResult}
+Cloudflare Candidate: ${candidateState} (${candidateRunResult})
+Final Jenkins result: ${finalResult}
+
+Standard suite: Node 22, npm ci, typecheck, lint, build, blog validation, SEO baseline, tests.
+Candidate suite (when applicable): MDX, Vinext check and staging build, Cloudflare config, Wrangler validation, dry-run deploy.
+"""
+
+                        try {
+                            publishChecks(
+                                name: 'jenkins-pr-gate',
+                                title: "Jenkins PR gate: ${finalResult}",
+                                summary: gateSummary,
+                                text: gateText,
+                                status: 'COMPLETED',
+                                conclusion: gateCheckConclusion(finalResult)
+                            )
+                        } catch (err) {
+                            currentBuild.result = 'FAILURE'
+                            echo 'Could not publish jenkins-pr-gate.'
+                        }
                     }
                 }
                 finally {

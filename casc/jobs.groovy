@@ -31,6 +31,11 @@ if (pipelineTemplate.count(candidateRulesMarker) != 1) {
     throw new IllegalStateException('The trusted Pipeline template has a missing or duplicate candidate-rule marker.')
 }
 def trustedPipeline = pipelineTemplate.replace(candidateRulesMarker, JsonOutput.toJson(candidatePathRules))
+def trustedAuthorsMarker = '/* JENKINS_PILOT_TRUSTED_PR_AUTHORS */'
+if (trustedPipeline.count(trustedAuthorsMarker) != 1) {
+    throw new IllegalStateException('The trusted Pipeline template has a missing or duplicate owner allowlist marker.')
+}
+trustedPipeline = trustedPipeline.replace(trustedAuthorsMarker, JsonOutput.toJson([targetOwner]))
 
 multibranchPipelineJob(jobName) {
     displayName('Repository CI gate (shadow)')
@@ -100,8 +105,11 @@ multibranchPipelineJob(jobName) {
         Node pullRequestDiscovery = sourceTraits.appendNode('org.jenkinsci.plugins.github_branch_source.OriginPullRequestDiscoveryTrait')
         pullRequestDiscovery.appendNode('strategyId', '1')
 
+        // Suppress the Checks plugin's automatic lifecycle publisher so it
+        // cannot overwrite the reviewer summary from the trusted Pipeline.
         Node gateChecks = sourceTraits.appendNode('io.jenkins.plugins.checks.github.status.GitHubSCMSourceStatusChecksTrait')
         gateChecks.appendNode('name', 'jenkins-pr-gate')
+        gateChecks.appendNode('skip', 'true')
         gateChecks.appendNode('skipNotifications', 'true')
 
         Node checksSettings = sourceTraits.appendNode('io.jenkins.plugins.checks.github.config.GitHubSCMSourceChecksTrait')
