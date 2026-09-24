@@ -8,16 +8,35 @@ $composePath = Join-Path $repositoryRoot 'compose.yaml'
 $jenkinsConfigPath = Join-Path $repositoryRoot 'casc/jenkins.yaml'
 $jobsPath = Join-Path $repositoryRoot 'casc/jobs.groovy'
 $gitIgnorePath = Join-Path $repositoryRoot '.gitignore'
+$pluginsPath = Join-Path $repositoryRoot 'plugins.txt'
+$agentDockerfilePath = Join-Path $repositoryRoot 'agent/Dockerfile'
+$knownHostsPath = Join-Path $repositoryRoot 'agent/known_hosts'
+$credentialScriptPath = Join-Path $repositoryRoot 'scripts/provision-vm-github-app.ps1'
+$pilotConfigParserPath = Join-Path $repositoryRoot 'scripts/pilot-config.ps1'
+$hypervPreflightPath = Join-Path $repositoryRoot 'scripts/hyperv-preflight.ps1'
+$newVmScriptPath = Join-Path $repositoryRoot 'scripts/new-jenkins-vm.ps1'
+$vmStartScriptPath = Join-Path $repositoryRoot 'scripts/vm/start-jenkins.sh'
+$rollbackScriptPath = Join-Path $repositoryRoot 'scripts/rollback-jenkins-vm-forward.ps1'
+$windowsControllerShimPath = Join-Path $repositoryRoot 'scripts/start-controller.ps1'
+
 $pipeline = Get-Content -LiteralPath $pipelinePath -Raw
 $compose = Get-Content -LiteralPath $composePath -Raw
 $jenkinsConfig = Get-Content -LiteralPath $jenkinsConfigPath -Raw
 $jobs = Get-Content -LiteralPath $jobsPath -Raw
 $gitIgnore = Get-Content -LiteralPath $gitIgnorePath -Raw
-$lines = Get-Content -LiteralPath $pipelinePath
+$plugins = Get-Content -LiteralPath $pluginsPath -Raw
+$agentDockerfile = Get-Content -LiteralPath $agentDockerfilePath -Raw
+$knownHosts = Get-Content -LiteralPath $knownHostsPath -Raw
+$credentialScript = Get-Content -LiteralPath $credentialScriptPath -Raw
+$pilotConfigParser = Get-Content -LiteralPath $pilotConfigParserPath -Raw
+$hypervPreflight = Get-Content -LiteralPath $hypervPreflightPath -Raw
+$newVmScript = Get-Content -LiteralPath $newVmScriptPath -Raw
+$vmStartScript = Get-Content -LiteralPath $vmStartScriptPath -Raw
+$windowsControllerShim = Get-Content -LiteralPath $windowsControllerShimPath -Raw
 
 $environmentBlockFound = $false
 $insideEnvironmentBlock = $false
-foreach ($line in $lines) {
+foreach ($line in (Get-Content -LiteralPath $pipelinePath)) {
     if (-not $insideEnvironmentBlock -and $line.Trim() -eq 'environment {') {
         $environmentBlockFound = $true
         $insideEnvironmentBlock = $true
@@ -40,9 +59,36 @@ if (-not $environmentBlockFound -or $insideEnvironmentBlock) {
 $requiredContracts = @(
     'def candidatePathRules = /* JENKINS_PILOT_CANDIDATE_PATH_RULES */',
     'def trustedPullRequestAuthors = /* JENKINS_PILOT_TRUSTED_PR_AUTHORS */',
-    'isAuthorizedPullRequestAuthor(env.CHANGE_AUTHOR, trustedPullRequestAuthors)',
+    'def primaryCheckName = /* JENKINS_PILOT_PRIMARY_CHECK_NAME */',
+    'def candidateCheckName = /* JENKINS_PILOT_CANDIDATE_CHECK_NAME */',
+    'def appDirectory = /* JENKINS_PILOT_APP_DIRECTORY */',
+    'String verifiedPullRequestHeadSha(def run, String expectedChangeId)',
+    'agent none',
+    "stage('Authorize pull request')",
+    "isAuthorizedPullRequestAuthor(env.CHANGE_AUTHOR, trustedPullRequestAuthors)",
+    'verifiedPullRequestHeadSha(currentBuild.rawBuild, changeId)',
+    'jenkins.scm.api.SCMRevisionAction.class',
+    'org.jenkinsci.plugins.github_branch_source.PullRequestSCMRevision',
+    'pullRequestHead.getId() != expectedChangeId',
+    "System.getenv('JENKINS_TARGET_REPO_OWNER')",
+    "System.getenv('JENKINS_TARGET_REPO_NAME')",
+    'pullRequestHead.getSourceOwner()',
+    'pullRequestHead.getSourceRepo()',
+    'revision.getPullHash()',
+    'Verified PR head SHA:',
+    'if (!(verifiedHeadSha ==~ /(?i)[0-9a-f]{40}|[0-9a-f]{64}/))',
+    'no GitHub checks were published and no repository code was run.',
     'Owner-only Jenkins shadow: PR author is not allowlisted',
-    'git diff --name-only HEAD^2 HEAD',
+    'name: primaryCheckName',
+    "title: 'Required CI check: BLOCKED'",
+    "conclusion: 'FAILURE'",
+    'name: candidateCheckName',
+    "title: 'Cloudflare Candidate (blocked)'",
+    'Controller could not publish the pre-checkout policy result',
+    "stage('Pipeline policy self-test')",
+    "stage('Execute trusted checks')",
+    "label 'setness-ephemeral'",
+    'git diff --name-only HEAD^1 HEAD',
     "assert classifyCandidateChanges([], candidatePathRules) == 'NOT_APPLICABLE'",
     "if (path.toLowerCase().endsWith('.md'))",
     'def directoryRules = candidatePathRules.findAll { rule -> rule.endsWith(''/'') }',
@@ -51,12 +97,10 @@ $requiredContracts = @(
     "assert isAuthorizedPullRequestAuthor(trustedPullRequestAuthors[0], trustedPullRequestAuthors)",
     "assert !isAuthorizedPullRequestAuthor('untrusted-contributor', trustedPullRequestAuthors)",
     "assert !isAuthorizedPullRequestAuthor(null, trustedPullRequestAuthors)",
-    "assert candidateCheckSummary('AUTHORIZED', 'NOT_APPLICABLE', 'NOT_RUN', '0') ==",
-    "assert candidateCheckSummary('DENIED', 'UNCLASSIFIED', 'NOT_RUN', '0').startsWith('Not run: owner-only policy')",
-    "assert candidateCheckSummary('AUTHORIZED', 'RELEVANT', 'CANCELED', '2').startsWith('Cancelled:')",
-    "assert candidateCheckSummary('AUTHORIZED', 'RELEVANT', 'NOT_RUN', '2').startsWith('Not run: Standard CI')",
+    "assert candidateCheckConclusion('BLOCKED', 'NOT_RUN') == 'NEUTRAL'",
     "assert candidateCheckConclusion('UNCLASSIFIED', 'NOT_RUN') == 'FAILURE'",
     "assert candidateCheckConclusion('RELEVANT', 'CANCELED') == 'CANCELED'",
+    "assert candidateCheckSummary('DENIED', 'BLOCKED', 'NOT_RUN', '0').startsWith('Not run: owner-only policy')",
     "stage('Node 22 runtime')",
     "stage('Install dependencies (npm ci)')",
     "stage('Typecheck')",
@@ -76,16 +120,10 @@ $requiredContracts = @(
     "assert shouldFailGateClosed('RELEVANT', 'NOT_RUN', 'SUCCESS')",
     "if (shouldFailGateClosed(candidateState, candidateRunResult, currentBuild.currentResult))",
     "currentBuild.result = 'FAILURE'",
-    "env.JENKINS_CLOUDFLARE_CANDIDATE = isPullRequest",
-    'env.JENKINS_CLOUDFLARE_CANDIDATE_RESULT = currentBuild.currentResult',
-    "name: 'cloudflare-candidate'",
-    "name: 'jenkins-pr-gate'",
-    "title: 'Cloudflare Candidate (classification pending)'",
-    "status: 'IN_PROGRESS'",
     'summary: gateSummary',
     'text: gateText',
     'deleteDir()',
-    'throw err'
+    'checkout scm'
 )
 foreach ($contract in $requiredContracts) {
     if (-not $pipeline.Contains($contract)) {
@@ -94,60 +132,190 @@ foreach ($contract in $requiredContracts) {
 }
 
 $authorizationGuardIndex = $pipeline.IndexOf('isAuthorizedPullRequestAuthor(env.CHANGE_AUTHOR')
-$candidatePendingIndex = $pipeline.IndexOf("title: 'Cloudflare Candidate (classification pending)'")
+$headShaVerificationIndex = $pipeline.IndexOf('verifiedPullRequestHeadSha(currentBuild.rawBuild, changeId)')
+$blockedPublisherIndex = $pipeline.IndexOf("title: 'Required CI check: BLOCKED'")
+$executeStageIndex = $pipeline.IndexOf("stage('Execute trusted checks')")
+$agentAllocationIndex = $pipeline.IndexOf("label 'setness-ephemeral'")
 $checkoutIndex = $pipeline.IndexOf('checkout scm')
+$firstShellIndex = $pipeline.IndexOf('sh ''')
 $authorizationStageIndex = $pipeline.IndexOf("stage('Authorize pull request')")
 $selfTestStageIndex = $pipeline.IndexOf("stage('Pipeline policy self-test')")
-if ($authorizationGuardIndex -lt 0 -or $candidatePendingIndex -lt 0 -or $checkoutIndex -lt 0 -or
-    $authorizationGuardIndex -ge $candidatePendingIndex -or
-    $candidatePendingIndex -ge $checkoutIndex -or
-    $authorizationStageIndex -lt 0 -or $authorizationStageIndex -ge $selfTestStageIndex) {
-    throw 'The trusted author allowlist must run before policy/build stages and before target checkout.'
+if ($authorizationGuardIndex -lt 0 -or $headShaVerificationIndex -lt 0 -or $blockedPublisherIndex -lt 0 -or
+    $executeStageIndex -lt 0 -or $agentAllocationIndex -lt 0 -or $checkoutIndex -lt 0 -or
+    $firstShellIndex -lt 0 -or $authorizationStageIndex -lt 0 -or $selfTestStageIndex -lt 0 -or
+    $authorizationStageIndex -ge $selfTestStageIndex -or
+    $headShaVerificationIndex -ge $blockedPublisherIndex -or
+    $headShaVerificationIndex -ge $executeStageIndex -or
+    $authorizationGuardIndex -ge $blockedPublisherIndex -or
+    $blockedPublisherIndex -ge $executeStageIndex -or
+    $executeStageIndex -ge $agentAllocationIndex -or
+    $agentAllocationIndex -ge $checkoutIndex -or
+    $checkoutIndex -ge $firstShellIndex) {
+    throw 'Authorization and denial publication must run on the controller before agent provisioning, checkout, and repository commands.'
 }
-if (-not $jobs.Contains("trustedAuthorsMarker = '/* JENKINS_PILOT_TRUSTED_PR_AUTHORS */'") -or
-    -not $jobs.Contains('JsonOutput.toJson([targetOwner])')) {
-    throw 'The trusted PR author allowlist must be injected from ignored local controller configuration.'
+$postBlockIndex = $pipeline.IndexOf('    post {')
+if ($postBlockIndex -lt 0) {
+    throw 'Could not find the post-build check publisher block.'
+}
+$postHeadShaGuardIndex = $pipeline.IndexOf('if (!(verifiedHeadSha ==~ /(?i)[0-9a-f]{40}|[0-9a-f]{64}/))', $postBlockIndex)
+$postCandidatePublisherIndex = $pipeline.IndexOf('name: candidateCheckName', $postBlockIndex)
+$postGatePublisherIndex = $pipeline.IndexOf('name: primaryCheckName', $postBlockIndex)
+if ($postHeadShaGuardIndex -lt $postBlockIndex -or
+    $postCandidatePublisherIndex -lt $postHeadShaGuardIndex -or
+    $postGatePublisherIndex -lt $postHeadShaGuardIndex) {
+    throw 'The post-build publisher must refuse every check publication unless the controller-verified PR head SHA is valid.'
+}
+if (-not $jobs.Contains('scanCredentialsId(appCredentialId)') -or
+    -not $jobs.Contains("sourceTraits.appendNode('org.jenkinsci.plugins.github_branch_source.SSHCheckoutTrait')") -or
+    -not $jobs.Contains("sshCheckout.appendNode('credentialsId', checkoutCredentialId)") -or
+    -not $jobs.Contains("trustedAuthorsMarker = '/* JENKINS_PILOT_TRUSTED_PR_AUTHORS */'") -or
+    -not $jobs.Contains('JsonOutput.toJson([targetOwner])') -or
+    -not $jobs.Contains('JENKINS_GITHUB_APP_CREDENTIAL_ID') -or
+    -not $jobs.Contains('JENKINS_PRIMARY_CHECK_NAME') -or
+    -not $jobs.Contains('JENKINS_CANDIDATE_CHECK_NAME') -or
+    -not $jobs.Contains('JENKINS_APP_DIRECTORY') -or
+    -not $jobs.Contains('JENKINS_SITE_URL')) {
+    throw 'The trusted PR author allowlist, repo-scoped GitHub App, private check contexts, and target paths must come from local controller configuration.'
+}
+if (-not $pilotConfigParser.Contains("'JENKINS_GITHUB_APP_CREDENTIAL_ID'") -or
+    -not $pilotConfigParser.Contains("'github-app'") -or
+    -not $pilotConfigParser.Contains('AppCredentialId = $appCredentialId') -or
+    -not $pilotConfigParser.Contains("'JENKINS_CHECKOUT_SSH_CREDENTIAL_ID'") -or
+    -not $pilotConfigParser.Contains('CheckoutCredentialId = $checkoutCredentialId') -or
+    -not $pilotConfigParser.Contains('$checkoutCredentialId -eq $appCredentialId') -or
+    -not $credentialScript.Contains('$appCredentialId = $pilotConfig.AppCredentialId') -or
+    -not $credentialScript.Contains('$checkoutCredentialId = $pilotConfig.CheckoutCredentialId') -or
+    -not $credentialScript.Contains('$encryptedCheckoutKeyPath') -or
+    -not $credentialScript.Contains('BasicSSHUserPrivateKey') -or
+    -not $credentialScript.Contains('PILOT_VM_GITHUB_APP_AND_READ_ONLY_CHECKOUT_CONFIGURED') -or
+    $credentialScript -match '\$appCredentialId\s*=\s*["'']' -or
+    $credentialScript -match '\$checkoutCredentialId\s*=\s*["'']') {
+    throw 'The VM provisioner must use separate, validated local App and read-only checkout credentials rather than embedding private identifiers.'
+}
+if (-not $credentialScript.Contains('Controller-only GitHub App for discovery and Checks') -or
+    -not $credentialScript.Contains('Repository-scoped read-only checkout deploy key')) {
+    throw 'The App and SSH checkout credentials must remain separate and be provisioned as distinct credential types.'
 }
 if (-not $jobs.Contains("sourceTraits.appendNode('io.jenkins.plugins.checks.github.status.GitHubSCMSourceStatusChecksTrait')") -or
     -not $jobs.Contains("gateChecks.appendNode('skip', 'false')") -or
     -not $jobs.Contains("gateChecks.appendNode('skipNotifications', 'true')")) {
-    throw 'The primary check lifecycle publisher must remain enabled (including on Pipeline parse failures) without emitting legacy Status API notifications.'
+    throw 'The primary GitHub Checks lifecycle publisher must remain enabled without legacy Status API notifications.'
 }
 if (-not $gitIgnore.Contains('*.env')) {
     throw 'Local environment files must be ignored by Git.'
 }
 
-if (-not $compose.Contains('127.0.0.1:${JENKINS_HTTP_PORT:-18080}:8080')) {
-    throw 'The Jenkins UI must remain bound to loopback only.'
+if (-not $compose.Contains('${JENKINS_HTTP_BIND_IP:-127.0.0.1}:${JENKINS_HTTP_PORT:-18080}:8080')) {
+    throw 'Jenkins must default to loopback and support binding only to the VM host-only address.'
+}
+foreach ($privateConfigurationKey in @('JENKINS_GITHUB_APP_CREDENTIAL_ID', 'JENKINS_CHECKOUT_SSH_CREDENTIAL_ID', 'JENKINS_PRIMARY_CHECK_NAME', 'JENKINS_CANDIDATE_CHECK_NAME', 'JENKINS_APP_DIRECTORY', 'JENKINS_SITE_URL')) {
+    if (-not $compose.Contains($privateConfigurationKey)) {
+        throw "Private target configuration must be injected from local runtime settings: $privateConfigurationKey."
+    }
 }
 if (-not $jenkinsConfig.Contains('numExecutors: 0')) {
     throw 'The Jenkins controller must have zero build executors.'
 }
-if ($compose.Contains('docker.sock')) {
-    throw 'The Compose configuration must not expose the Docker socket to a service.'
+$controllerSectionMatch = [regex]::Match($compose, '(?ms)^  controller:\r?\n(?<body>.*?)(?=^  agent-image:)')
+$agentImageSectionMatch = [regex]::Match($compose, '(?ms)^  agent-image:\r?\n(?<body>.*?)(?=^  [A-Za-z0-9_-]+:\s*$|^volumes:\s*$)')
+if (-not $controllerSectionMatch.Success -or -not $agentImageSectionMatch.Success) {
+    throw 'Could not locate the controller and build-agent image Compose services.'
 }
-
-$agentSectionMatch = [regex]::Match($compose, '(?ms)^  agent:\r?\n(?<body>.*?)(?=^volumes:\s*$)')
-if (-not $agentSectionMatch.Success) {
-    throw 'Could not locate the isolated Compose agent service.'
+$controllerSection = $controllerSectionMatch.Groups['body'].Value
+$agentImageSection = $agentImageSectionMatch.Groups['body'].Value
+if (-not $controllerSection.Contains('/var/run/docker.sock:/var/run/docker.sock') -or
+    [regex]::Matches($compose, '/var/run/docker.sock').Count -ne 2) {
+    throw 'Only the controller may mount the VM Docker socket and use the Docker cloud.'
 }
-$agentSection = $agentSectionMatch.Groups['body'].Value
-if ($agentSection -match '(?m)^    volumes:\s*$' -or
-    $agentSection.Contains('jenkins_home')) {
-    throw 'The build agent must not mount controller state or host volumes.'
+if ($agentImageSection -match '(?m)^    volumes:\s*$' -or
+    $agentImageSection.Contains('jenkins_home') -or
+    $agentImageSection.Contains('docker.sock') -or
+    $agentImageSection.Contains('JENKINS_SECRET')) {
+    throw 'The ephemeral build image must not receive host/controller mounts or a persistent agent secret.'
+}
+$restoreSectionMatch = [regex]::Match($compose, '(?ms)^  restore-check:\r?\n(?<body>.*?)(?=^volumes:\s*$)')
+if (-not $restoreSectionMatch.Success) {
+    throw 'The network-isolated backup restore-check service is missing.'
+}
+$restoreSection = $restoreSectionMatch.Groups['body'].Value
+if (-not $restoreSection.Contains('network_mode: none') -or
+    $restoreSection.Contains('/var/run/docker.sock') -or
+    $restoreSection.Contains('setness-jenkins-private') -or
+    $restoreSection -match '(?m)^    ports:\s*$') {
+    throw 'The restore rehearsal controller must have no network, published port, or Docker socket.'
+}
+if (-not $compose.Contains('name: ${JENKINS_HOME_VOLUME:-setness-jenkins-vm-home}')) {
+    throw 'The restore drill must be able to mount a distinct named volume without changing the active Jenkins home.'
+}
+if (-not $windowsControllerShim.Contains('Hyper-V-only') -or $windowsControllerShim.Contains('docker compose')) {
+    throw 'The Windows launcher must fail closed instead of starting the VM-authoritative controller on Docker Desktop.'
+}
+foreach ($legacyScript in @('enroll-agent.ps1', 'add-readonly-deploy-key.ps1', 'provision-github-credentials.ps1', 'show-admin-password.ps1')) {
+    if (Test-Path -LiteralPath (Join-Path $PSScriptRoot $legacyScript)) {
+        throw "The legacy persistent-agent credential path must not remain in the Hyper-V rollout: $legacyScript."
+    }
+}
+if (-not (Test-Path -LiteralPath $rollbackScriptPath -PathType Leaf)) {
+    throw 'The exact loopback forward rollback script is missing.'
+}
+if (-not $jenkinsConfig.Contains('containerCap: 1') -or
+    -not $jenkinsConfig.Contains('instanceCap: 1') -or
+    -not $jenkinsConfig.Contains('$class: com.nirima.jenkins.plugins.docker.strategy.DockerOnceRetentionStrategy') -or
+    -not $jenkinsConfig.Contains('idleMinutes: 0') -or
+    -not $jenkinsConfig.Contains('labelString: "setness-ephemeral"') -or
+    -not $jenkinsConfig.Contains('removeVolumes: true') -or
+    -not $jenkinsConfig.Contains('memoryLimit: 8192') -or
+    -not $jenkinsConfig.Contains('memorySwap: 8192') -or
+    -not $jenkinsConfig.Contains('cpus: "4.0"') -or
+    -not $jenkinsConfig.Contains('privileged: false') -or
+    -not $jenkinsConfig.Contains('network: "setness-jenkins-private"')) {
+    throw 'The Docker cloud must provision a single resource-limited, unprivileged, one-build agent on its private network.'
+}
+if ($jenkinsConfig.Contains('permanent:') -or $jenkinsConfig.Contains('setness-linux-agent')) {
+    throw 'A persistent Jenkins agent must not be configured.'
+}
+if (-not $plugins.Contains('docker-plugin:1327.v9524f1ee134e')) {
+    throw 'The Docker cloud plugin must be explicitly version-pinned.'
+}
+if (-not $agentDockerfile.Contains('openssh-client') -or
+    -not $agentDockerfile.Contains('agent/known_hosts') -or
+    -not $knownHosts.Contains('github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl')) {
+    throw 'The SSH checkout agent must include the pinned GitHub host key and SSH client.'
+}
+if ($agentDockerfile.Contains('JENKINS_SECRET') -or $agentDockerfile.Contains('GITHUB_APP')) {
+    throw 'The one-use agent image must not contain App keys or persistent-agent secrets.'
+}
+if (-not $credentialScript.Contains('DefaultPermissionsStrategy.CONTENTS_READ') -or
+    $credentialScript.Contains('DefaultPermissionsStrategy.INHERIT_ALL')) {
+    throw 'The repository-discovery App must retain its least-privilege default for untrusted contexts; checkout must use the separate SSH credential.'
+}
+if (-not $hypervPreflight.Contains("KeyProtectorType -eq 'RecoveryPassword'") -or
+    -not $newVmScript.Contains('RECOVERY-KEY-VERIFIED') -or
+    -not $newVmScript.Contains('[string] $RecoveryKeyConfirmation')) {
+    throw 'VM creation must require a BitLocker recovery-password protector and explicit operator confirmation that recovery material is retrievable.'
+}
+if (-not $vmStartScript.Contains('[[ "$action" == start || "$action" == install || "$action" == restart ]]') -or
+    -not $vmStartScript.Contains('export JENKINS_ADMIN_PASSWORD="$(<"$admin_password_file")"')) {
+    throw 'Every controller-starting action, including first install, must load the protected bootstrap password rather than a placeholder.'
 }
 if (-not $jobs.Contains('InlineDefinitionBranchProjectFactory') -or
-    -not $jobs.Contains("inlineFactory.appendNode('script', trustedPipeline)")) {
-    throw 'The job must execute the checked-in trusted Pipeline, not a repository Jenkinsfile.'
+    -not $jobs.Contains("inlineFactory.appendNode('script', trustedPipeline)") -or
+    -not $jobs.Contains("inlineFactory.appendNode('sandbox', 'false')") -or
+    $jobs.Contains("inlineFactory.appendNode('sandbox', 'true')")) {
+    throw 'The job must execute the checked-in trusted Pipeline, not a Jenkinsfile from the target PR.'
 }
 if ([regex]::Matches($pipeline, "(?m)^\s*sh 'npm ci'\s*$").Count -ne 1) {
     throw 'The trusted pipeline must install Node dependencies only once per build.'
 }
 
 $candidateStageIndex = $pipeline.IndexOf("stage('Cloudflare Candidate')")
-$candidateGuardIndex = $pipeline.IndexOf("return isPullRequest && env.JENKINS_CLOUDFLARE_CANDIDATE == 'RELEVANT'")
-if ($candidateStageIndex -lt 0 -or $candidateGuardIndex -lt $candidateStageIndex) {
+$candidateGuardIndex = $pipeline.IndexOf("if (isPullRequest && env.JENKINS_CLOUDFLARE_CANDIDATE == 'RELEVANT')")
+if ($candidateStageIndex -lt 0 -or $candidateGuardIndex -lt 0 -or $candidateStageIndex -lt $candidateGuardIndex) {
     throw 'Cloudflare Candidate commands must remain restricted to relevant pull requests.'
 }
+if (-not $pipeline.Contains("withEnv(['CLOUDFLARE_ENV=staging'])") -or
+    $pipeline.Contains("sh 'CLOUDFLARE_ENV=staging npm run cloudflare:validate'")) {
+    throw 'Every Candidate validation command must run in the staging environment, without provider credentials or deployment capability.'
+}
 
-Write-Output 'Repository isolation, owner-before-checkout, explicit check-reporting, staged reviewer output, and trusted-pipeline contracts passed. Jenkins also runs behavioral policy assertions before checkout on each build.'
+Write-Output 'Compose isolation, one-use agent limits, controller-before-checkout authorization, separated GitHub App and read-only checkout credentials, check reporting, BitLocker recovery gates, and trusted-pipeline contracts passed.'

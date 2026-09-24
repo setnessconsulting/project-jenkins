@@ -1,0 +1,18 @@
+[Unit]
+Description=Private Setness Jenkins pilot controller
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=root
+WorkingDirectory=/opt/setnessconsulting/project-jenkins
+ExecStart=/usr/bin/bash /opt/setnessconsulting/project-jenkins/scripts/vm/start-jenkins.sh start
+ExecStop=/usr/bin/bash /opt/setnessconsulting/project-jenkins/scripts/vm/start-jenkins.sh stop
+TimeoutStartSec=0
+TimeoutStopSec=90
+
+[Install]
+WantedBy=multi-user.target

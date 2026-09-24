@@ -50,6 +50,18 @@ function Get-JenkinsPilotConfig {
     $owner = [string] $values['JENKINS_TARGET_REPO_OWNER']
     $repository = [string] $values['JENKINS_TARGET_REPO_NAME']
     $appId = [string] $values['JENKINS_GITHUB_APP_ID']
+    $appCredentialId = if ($values.ContainsKey('JENKINS_GITHUB_APP_CREDENTIAL_ID')) {
+        [string] $values['JENKINS_GITHUB_APP_CREDENTIAL_ID']
+    }
+    else {
+        'github-app'
+    }
+    $checkoutCredentialId = if ($values.ContainsKey('JENKINS_CHECKOUT_SSH_CREDENTIAL_ID')) {
+        [string] $values['JENKINS_CHECKOUT_SSH_CREDENTIAL_ID']
+    }
+    else {
+        'jenkins-readonly-checkout'
+    }
     $jobName = [string] $values['JENKINS_MULTIBRANCH_JOB_NAME']
     $markerFile = [string] $values['JENKINS_MARKER_FILE']
     if ($owner -notmatch '^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$') {
@@ -60,6 +72,15 @@ function Get-JenkinsPilotConfig {
     }
     if ($appId -notmatch '^\d+$') {
         throw 'The configured GitHub App ID must contain digits only.'
+    }
+    if ($appCredentialId -notmatch '^[A-Za-z0-9._-]{1,100}$') {
+        throw 'The configured GitHub App credential ID is invalid.'
+    }
+    if ($checkoutCredentialId -notmatch '^[A-Za-z0-9._-]{1,100}$') {
+        throw 'The configured read-only checkout credential ID is invalid.'
+    }
+    if ($checkoutCredentialId -eq $appCredentialId) {
+        throw 'The GitHub App and read-only checkout credentials must use separate credential IDs.'
     }
     if ($jobName -notmatch '^[A-Za-z0-9._-]{1,100}$') {
         throw 'The configured Jenkins multibranch job name is invalid.'
@@ -88,6 +109,8 @@ function Get-JenkinsPilotConfig {
         Repository = $repository
         FullName = "$owner/$repository"
         AppId = $appId
+        AppCredentialId = $appCredentialId
+        CheckoutCredentialId = $checkoutCredentialId
         JobName = $jobName
         MarkerFile = $markerFile
         CandidatePaths = $candidatePaths

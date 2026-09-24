@@ -1,4 +1,4 @@
-name: setness-jenkins-pilot
+name: setness-jenkins-vm
 
 services:
   controller:
@@ -17,14 +17,26 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=256m
     ports:
-      - "127.0.0.1:${JENKINS_HTTP_PORT:-18080}:8080"
+      # In the Ubuntu VM this binds only to its host-only address. The Windows
+      # host forwards its loopback-only 127.0.0.1:18080 listener to that IP.
+      - "${JENKINS_HTTP_BIND_IP:-127.0.0.1}:${JENKINS_HTTP_PORT:-18080}:8080"
     expose:
       - "8080"
+    # The Docker cloud is controller-only. Docker daemon access is effectively
+    # host-root; the dedicated Ubuntu VM is the security boundary.
+    group_add:
+      - "${DOCKER_SOCKET_GID:?Start Jenkins inside the protected Ubuntu VM}"
     environment:
       CASC_JENKINS_CONFIG: /usr/share/jenkins/casc/jenkins.yaml
       JAVA_OPTS: -Djenkins.install.runSetupWizard=false
-      JENKINS_ADMIN_ID: ${JENKINS_ADMIN_ID:?Start Jenkins through scripts/start-controller.ps1}
-      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:?Start Jenkins through scripts/start-controller.ps1}
+      JENKINS_GITHUB_APP_CREDENTIAL_ID: ${JENKINS_GITHUB_APP_CREDENTIAL_ID:?Set the local App credential ID in the ignored local .env file}
+      JENKINS_CHECKOUT_SSH_CREDENTIAL_ID: ${JENKINS_CHECKOUT_SSH_CREDENTIAL_ID:-jenkins-readonly-checkout}
+      JENKINS_PRIMARY_CHECK_NAME: ${JENKINS_PRIMARY_CHECK_NAME:?Set the primary check name in the ignored local .env file}
+      JENKINS_CANDIDATE_CHECK_NAME: ${JENKINS_CANDIDATE_CHECK_NAME:?Set the candidate check name in the ignored local .env file}
+      JENKINS_APP_DIRECTORY: ${JENKINS_APP_DIRECTORY:?Set the application directory in the ignored local .env file}
+      JENKINS_SITE_URL: ${JENKINS_SITE_URL:?Set the site URL in the ignored local .env file}
+      JENKINS_ADMIN_ID: ${JENKINS_ADMIN_ID:?Start Jenkins through scripts/vm/start-jenkins.sh}
+      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:?Start Jenkins through scripts/vm/start-jenkins.sh}
       JENKINS_TARGET_REPO_OWNER: ${JENKINS_TARGET_REPO_OWNER:?Set the target in the ignored local .env file}
       JENKINS_TARGET_REPO_NAME: ${JENKINS_TARGET_REPO_NAME:?Set the target in the ignored local .env file}
       JENKINS_GITHUB_APP_ID: ${JENKINS_GITHUB_APP_ID:?Set the installed App ID in the ignored local .env file}
@@ -34,6 +46,7 @@ services:
     volumes:
       - jenkins_home:/var/jenkins_home
       - ./casc:/usr/share/jenkins/casc:ro
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - jenkins-private
     logging:
@@ -42,41 +55,53 @@ services:
         max-size: 10m
         max-file: "3"
 
-  agent:
+  agent-image:
+    profiles:
+      - build-images
     build:
       context: .
       dockerfile: agent/Dockerfile
     image: jenkins-pilot-agent:node-22.23.2
+
+  restore-check:
+    profiles:
+      - restore-check
+    image: jenkins-pilot-controller:2.568.3-pilot1
     init: true
-    restart: unless-stopped
-    cpus: 4.0
-    mem_limit: 8g
+    restart: "no"
+    network_mode: none
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
     tmpfs:
-      - /tmp:rw,nosuid,nodev,size=3g
+      - /tmp:rw,noexec,nosuid,size=256m
     environment:
-      JENKINS_URL: http://controller:8080/
-      JENKINS_AGENT_NAME: setness-linux-agent
-      JENKINS_SECRET: ${JENKINS_AGENT_SECRET:-}
-      JENKINS_WEB_SOCKET: "true"
-      JENKINS_AGENT_WORKDIR: /home/jenkins/agent
-    depends_on:
-      controller:
-        condition: service_started
-    networks:
-      - jenkins-private
-    logging:
-      driver: json-file
-      options:
-        max-size: 10m
-        max-file: "3"
+      CASC_JENKINS_CONFIG: /usr/share/jenkins/casc/jenkins.yaml
+      JAVA_OPTS: -Djenkins.install.runSetupWizard=false
+      JENKINS_GITHUB_APP_CREDENTIAL_ID: ${JENKINS_GITHUB_APP_CREDENTIAL_ID:?Set the local App credential ID in the ignored local .env file}
+      JENKINS_CHECKOUT_SSH_CREDENTIAL_ID: ${JENKINS_CHECKOUT_SSH_CREDENTIAL_ID:-jenkins-readonly-checkout}
+      JENKINS_PRIMARY_CHECK_NAME: ${JENKINS_PRIMARY_CHECK_NAME:?Set the primary check name in the ignored local .env file}
+      JENKINS_CANDIDATE_CHECK_NAME: ${JENKINS_CANDIDATE_CHECK_NAME:?Set the candidate check name in the ignored local .env file}
+      JENKINS_APP_DIRECTORY: ${JENKINS_APP_DIRECTORY:?Set the application directory in the ignored local .env file}
+      JENKINS_SITE_URL: ${JENKINS_SITE_URL:?Set the site URL in the ignored local .env file}
+      JENKINS_ADMIN_ID: ${JENKINS_ADMIN_ID:?Start the isolated restore check from scripts/vm/restore-jenkins-backup.sh}
+      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:?Start the isolated restore check from scripts/vm/restore-jenkins-backup.sh}
+      JENKINS_TARGET_REPO_OWNER: ${JENKINS_TARGET_REPO_OWNER:?Set the target in the ignored local .env file}
+      JENKINS_TARGET_REPO_NAME: ${JENKINS_TARGET_REPO_NAME:?Set the target in the ignored local .env file}
+      JENKINS_GITHUB_APP_ID: ${JENKINS_GITHUB_APP_ID:?Set the installed App ID in the ignored local .env file}
+      JENKINS_MULTIBRANCH_JOB_NAME: ${JENKINS_MULTIBRANCH_JOB_NAME:?Set the local job name in the ignored .env file}
+      JENKINS_MARKER_FILE: ${JENKINS_MARKER_FILE:?Set the marker file in the ignored local .env file}
+      JENKINS_CANDIDATE_PATHS: ${JENKINS_CANDIDATE_PATHS:?Set candidate paths in the ignored local .env file}
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - ./casc:/usr/share/jenkins/casc:ro
 
 volumes:
   jenkins_home:
+    name: ${JENKINS_HOME_VOLUME:-setness-jenkins-vm-home}
 
 networks:
   jenkins-private:
+    name: setness-jenkins-private
     driver: bridge
