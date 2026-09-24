@@ -50,6 +50,12 @@ function Get-JenkinsPilotConfig {
     $owner = [string] $values['JENKINS_TARGET_REPO_OWNER']
     $repository = [string] $values['JENKINS_TARGET_REPO_NAME']
     $appId = [string] $values['JENKINS_GITHUB_APP_ID']
+    $appCredentialId = if ($values.ContainsKey('JENKINS_GITHUB_APP_CREDENTIAL_ID')) {
+        [string] $values['JENKINS_GITHUB_APP_CREDENTIAL_ID']
+    }
+    else {
+        'github-app'
+    }
     $jobName = [string] $values['JENKINS_MULTIBRANCH_JOB_NAME']
     $markerFile = [string] $values['JENKINS_MARKER_FILE']
     if ($owner -notmatch '^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$') {
@@ -60,6 +66,9 @@ function Get-JenkinsPilotConfig {
     }
     if ($appId -notmatch '^\d+$') {
         throw 'The configured GitHub App ID must contain digits only.'
+    }
+    if ($appCredentialId -notmatch '^[A-Za-z0-9._-]{1,100}$') {
+        throw 'The configured GitHub App credential ID is invalid.'
     }
     if ($jobName -notmatch '^[A-Za-z0-9._-]{1,100}$') {
         throw 'The configured Jenkins multibranch job name is invalid.'
@@ -88,6 +97,7 @@ function Get-JenkinsPilotConfig {
         Repository = $repository
         FullName = "$owner/$repository"
         AppId = $appId
+        AppCredentialId = $appCredentialId
         JobName = $jobName
         MarkerFile = $markerFile
         CandidatePaths = $candidatePaths

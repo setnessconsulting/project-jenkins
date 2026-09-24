@@ -25,9 +25,16 @@ jobs:
       JENKINS_TARGET_REPO_OWNER: ci-owner
       JENKINS_TARGET_REPO_NAME: ci-repository
       JENKINS_GITHUB_APP_ID: "12345678"
+      JENKINS_GITHUB_APP_CREDENTIAL_ID: github-app
       JENKINS_MULTIBRANCH_JOB_NAME: ci-job
       JENKINS_MARKER_FILE: package.json
-      JENKINS_CANDIDATE_PATHS: web/
+      JENKINS_CANDIDATE_PATHS: sample-app/
+      JENKINS_PRIMARY_CHECK_NAME: required-ci
+      JENKINS_CANDIDATE_CHECK_NAME: candidate-validation
+      JENKINS_APP_DIRECTORY: sample-app
+      JENKINS_SITE_URL: https://example.invalid
+      JENKINS_HTTP_BIND_IP: 192.168.218.2
+      DOCKER_SOCKET_GID: "999"
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -38,7 +45,7 @@ jobs:
         run: git diff --check HEAD^ HEAD
 
       - name: Validate Compose model
-        run: docker compose --file compose.yaml config --quiet
+        run: docker compose --profile build-images --file compose.yaml config --quiet
 
       - name: Validate trusted pipeline contract
         shell: pwsh
