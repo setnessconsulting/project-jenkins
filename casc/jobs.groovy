@@ -79,9 +79,11 @@ def e2ePipelineTemplate = new File(
     '/* JENKINS_PILOT_E2E_DETAILS_BASE */': "https://github.com/${targetOwner}/${targetRepository}/commit/",
     '/* JENKINS_PILOT_E2E_CHECKOUT_CREDENTIAL_ID */': checkoutCredentialId,
     '/* JENKINS_PILOT_E2E_APP_CREDENTIAL_ID */': appCredentialId,
-    '/* JENKINS_PILOT_E2E_APP_ID */': JsonOutput.toJson(githubAppId),
-    '/* JENKINS_PILOT_E2E_REPOSITORY_OWNER */': JsonOutput.toJson(targetOwner),
-    '/* JENKINS_PILOT_E2E_REPOSITORY_NAME */': JsonOutput.toJson(targetRepository),
+    // Encode once in the shared replace below. Pre-encoding these values
+    // would double-quote App ID / owner / repository and break App+SHA checks.
+    '/* JENKINS_PILOT_E2E_APP_ID */': githubAppId,
+    '/* JENKINS_PILOT_E2E_REPOSITORY_OWNER */': targetOwner,
+    '/* JENKINS_PILOT_E2E_REPOSITORY_NAME */': targetRepository,
     '/* JENKINS_PILOT_E2E_APP_DIRECTORY */': appDirectory
 ].each { marker, value ->
     if (e2ePipelineTemplate.count(marker) != 1) {

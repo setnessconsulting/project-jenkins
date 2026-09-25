@@ -382,10 +382,16 @@ if (-not $jobs.Contains("cron('37 6 * * *')") -or
     -not $jobs.Contains("'/* JENKINS_PILOT_E2E_REPOSITORY */'") -or
     -not $jobs.Contains("'/* JENKINS_PILOT_E2E_DETAILS_BASE */'") -or
     -not $jobs.Contains("'/* JENKINS_PILOT_E2E_APP_CREDENTIAL_ID */'") -or
-    -not $jobs.Contains("'/* JENKINS_PILOT_E2E_APP_ID */'") -or
-    -not $jobs.Contains("'/* JENKINS_PILOT_E2E_REPOSITORY_OWNER */'") -or
-    -not $jobs.Contains("'/* JENKINS_PILOT_E2E_REPOSITORY_NAME */'")) {
+    -not $jobs.Contains("'/* JENKINS_PILOT_E2E_APP_ID */': githubAppId") -or
+    -not $jobs.Contains("'/* JENKINS_PILOT_E2E_REPOSITORY_OWNER */': targetOwner") -or
+    -not $jobs.Contains("'/* JENKINS_PILOT_E2E_REPOSITORY_NAME */': targetRepository") -or
+    -not $jobs.Contains('e2ePipelineTemplate.replace(marker, JsonOutput.toJson(value))')) {
     throw 'CasC must install the independent scheduled/manual E2E job from the checked-in trusted Pipeline.'
+}
+if ($jobs.Contains("'/* JENKINS_PILOT_E2E_APP_ID */': JsonOutput.toJson") -or
+    $jobs.Contains("'/* JENKINS_PILOT_E2E_REPOSITORY_OWNER */': JsonOutput.toJson") -or
+    $jobs.Contains("'/* JENKINS_PILOT_E2E_REPOSITORY_NAME */': JsonOutput.toJson")) {
+    throw 'E2E App ID, owner, and repository markers must be JSON-encoded exactly once; pre-encoding them breaks App attribution and SHA validation.'
 }
 if ($agentDockerfile.Contains('JENKINS_SECRET') -or $agentDockerfile.Contains('GITHUB_APP')) {
     throw 'The one-use agent image must not contain App keys or persistent-agent secrets.'
