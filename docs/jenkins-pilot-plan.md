@@ -27,7 +27,7 @@ The comparison must include the existing self-hosted GitHub Actions path, not ju
 - The available Actions Usage Metrics view is a partial current-month snapshot, not a complete baseline period. A completed representative period and per-workflow runner/billing details are still required. A hosted Actions job that fails before any step starts is inconclusive for parity, not an application-CI failure.
 - Fewer Actions minutes do not necessarily mean lower cash spend if the account is within its included allowance. Report minute reduction and actual billed-cost reduction separately.
 - The current workflow inventory includes standard CI, Cloudflare Candidate, a separate tutor-site workflow, nightly/manual E2E, and deployment. Capture exact triggers and path filters in the private Epic/readiness record and re-read them before implementation; the Candidate workflow overlaps much of standard CI and adds staging compatibility checks and a deploy dry run.
-- The first Jenkins scope requested is standard CI plus Cloudflare Candidate. This is not yet a complete disposition of every workflow. Before calling Jenkins the repository-wide authority, explicitly migrate, retain, or retire Tutor Web CI, nightly E2E, and deployment. Any retained Actions minutes must be visible in the comparison.
+- The Setness rollout target is all verification: standard CI, Cloudflare Candidate, Tutor Web CI, and scheduled/manual E2E. Tutor Web and E2E are separate trusted Jenkins lanes with their own toolchains and acceptance evidence. Production deployment remains manual and outside Jenkins; any residual Actions workflow must be explicitly identified in the comparison.
 
 ### Existing self-hosted CI alternative
 
