@@ -9,6 +9,7 @@ def candidateCheckName = System.getenv('JENKINS_CANDIDATE_CHECK_NAME')?.trim()
 def appDirectory = System.getenv('JENKINS_APP_DIRECTORY')?.trim()
 def tutorWebDirectory = System.getenv('JENKINS_TUTOR_WEB_DIRECTORY')?.trim()
 def e2eJobName = System.getenv('JENKINS_E2E_JOB_NAME')?.trim()
+def e2eScheduleEnabledValue = (System.getenv('JENKINS_E2E_SCHEDULE_ENABLED') ?: 'false').trim().toLowerCase()
 def siteUrl = System.getenv('JENKINS_SITE_URL')?.trim()
 def githubAppId = System.getenv('JENKINS_GITHUB_APP_ID')?.trim()
 def appCredentialId = System.getenv('JENKINS_GITHUB_APP_CREDENTIAL_ID')?.trim()
@@ -17,6 +18,11 @@ def candidatePathRules = (System.getenv('JENKINS_CANDIDATE_PATHS') ?: '')
     .split(',')
     .collect { it.trim() }
     .findAll { !it.isEmpty() }
+
+if (!(e2eScheduleEnabledValue in ['true', 'false'])) {
+    throw new IllegalStateException('JENKINS_E2E_SCHEDULE_ENABLED must be true or false.')
+}
+def e2eScheduleEnabled = e2eScheduleEnabledValue == 'true'
 
 if (!(targetOwner ==~ /[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/) ||
         !(targetRepository ==~ /[A-Za-z0-9._-]{1,100}/) ||
@@ -207,8 +213,10 @@ pipelineJob(e2eJobName) {
     parameters {
         stringParam('TARGET_SHA', 'main', 'Use main for the nightly run or provide a full commit SHA for a manual run.')
     }
-    triggers {
-        cron('37 6 * * *')
+    if (e2eScheduleEnabled) {
+        triggers {
+            cron('37 6 * * *')
+        }
     }
     definition {
         cps {

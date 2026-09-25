@@ -68,6 +68,15 @@ function Get-JenkinsPilotConfig {
     $markerFile = [string] $values['JENKINS_MARKER_FILE']
     $tutorWebDirectory = [string] $values['JENKINS_TUTOR_WEB_DIRECTORY']
     $e2eJobName = [string] $values['JENKINS_E2E_JOB_NAME']
+    $e2eScheduleEnabled = if ($values.ContainsKey('JENKINS_E2E_SCHEDULE_ENABLED')) {
+        ([string] $values['JENKINS_E2E_SCHEDULE_ENABLED']).Trim()
+    }
+    else {
+        'false'
+    }
+    if ($e2eScheduleEnabled -notmatch '(?i)^(true|false)$') {
+        throw 'The Jenkins E2E schedule setting must be true or false.'
+    }
     if ($owner -notmatch '^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$') {
         throw 'The configured GitHub owner name is invalid.'
     }
@@ -128,5 +137,6 @@ function Get-JenkinsPilotConfig {
         CandidatePaths = $candidatePaths
         TutorWebDirectory = $tutorWebDirectory
         E2eJobName = $e2eJobName
+        E2eScheduleEnabled = [bool]::Parse($e2eScheduleEnabled)
     }
 }
