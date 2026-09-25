@@ -45,6 +45,7 @@ services:
       JENKINS_CANDIDATE_PATHS: ${JENKINS_CANDIDATE_PATHS:?Set candidate paths in the ignored local .env file}
       JENKINS_TUTOR_WEB_DIRECTORY: ${JENKINS_TUTOR_WEB_DIRECTORY:?Set the Tutor Web path in the ignored local .env file}
       JENKINS_E2E_JOB_NAME: ${JENKINS_E2E_JOB_NAME:?Set the E2E job name in the ignored local .env file}
+      JENKINS_E2E_SCHEDULE_ENABLED: ${JENKINS_E2E_SCHEDULE_ENABLED:-false}
     volumes:
       - jenkins_home:/var/jenkins_home
       - ./casc:/usr/share/jenkins/casc:ro

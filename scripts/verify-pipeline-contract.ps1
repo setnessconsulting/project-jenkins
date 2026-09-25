@@ -8,6 +8,7 @@ $controllerDockerfilePath = Join-Path $repositoryRoot 'Dockerfile'
 $composePath = Join-Path $repositoryRoot 'compose.yaml'
 $jenkinsConfigPath = Join-Path $repositoryRoot 'casc/jenkins.yaml'
 $jobsPath = Join-Path $repositoryRoot 'casc/jobs.groovy'
+$environmentExamplePath = Join-Path $repositoryRoot '.env.example'
 $gitIgnorePath = Join-Path $repositoryRoot '.gitignore'
 $pluginsPath = Join-Path $repositoryRoot 'plugins.txt'
 $agentDockerfilePath = Join-Path $repositoryRoot 'agent/Dockerfile'
@@ -30,6 +31,7 @@ $controllerDockerfile = Get-Content -LiteralPath $controllerDockerfilePath -Raw
 $compose = Get-Content -LiteralPath $composePath -Raw
 $jenkinsConfig = Get-Content -LiteralPath $jenkinsConfigPath -Raw
 $jobs = Get-Content -LiteralPath $jobsPath -Raw
+$environmentExample = Get-Content -LiteralPath $environmentExamplePath -Raw
 $gitIgnore = Get-Content -LiteralPath $gitIgnorePath -Raw
 $plugins = Get-Content -LiteralPath $pluginsPath -Raw
 $agentDockerfile = Get-Content -LiteralPath $agentDockerfilePath -Raw
@@ -368,7 +370,7 @@ if (-not $e2ePipeline.Contains('TARGET_SHA') -or
     -not $e2ePipeline.Contains('test "$(npx playwright --version)" = "Version 1.62.1"') -or
     -not $e2ePipeline.Contains('finally') -or
     -not $e2ePipeline.Contains('deleteDir()')) {
-    throw 'The separate centrally trusted E2E job must retain its daily UTC schedule, exact-SHA guard, pinned toolchain, full test set, and cleanup.'
+    throw 'The separate centrally trusted E2E job must retain its exact-SHA guard, pinned toolchain, full test set, and cleanup.'
 }
 if ($e2ePipeline -match '(?im)^\s*(?:echo|println)\s+.*(?:installationToken|privateKey|credential\.getPassword)') {
     throw 'The controller-side E2E publisher must never log GitHub App credential material.'
@@ -376,9 +378,19 @@ if ($e2ePipeline -match '(?im)^\s*(?:echo|println)\s+.*(?:installationToken|priv
 if (-not $controllerDockerfile.Contains('jdk21')) {
     throw 'The explicit E2E Checks API publisher requires the pinned Java 21 controller runtime.'
 }
-if (-not $jobs.Contains("cron('37 6 * * *')") -or
+if (-not $jobs.Contains("System.getenv('JENKINS_E2E_SCHEDULE_ENABLED')") -or
+    -not $jobs.Contains("e2eScheduleEnabledValue in ['true', 'false']") -or
+    -not $jobs.Contains("if (e2eScheduleEnabled) {") -or
+    -not $jobs.Contains("cron('37 6 * * *')") -or
+    -not $environmentExample.Contains('JENKINS_E2E_SCHEDULE_ENABLED=false') -or
+    -not $compose.Contains('JENKINS_E2E_SCHEDULE_ENABLED: ${JENKINS_E2E_SCHEDULE_ENABLED:-false}') -or
+    -not $pilotConfigParser.Contains("'JENKINS_E2E_SCHEDULE_ENABLED'") -or
+    -not $pilotConfigParser.Contains("must be true or false") -or
+    -not $pilotConfigParser.Contains('E2eScheduleEnabled = [bool]::Parse($e2eScheduleEnabled)') -or
+    $jobs -notmatch '(?s)if \(e2eScheduleEnabled\)\s*\{\s*triggers\s*\{\s*cron\(''37 6 \* \* \*''\)\s*\}\s*\}' -or
     -not $jobs.Contains('pipelineJob(e2eJobName)') -or
     -not $jobs.Contains('script(e2ePipelineTemplate)') -or
+    -not $jobs.Contains("stringParam('TARGET_SHA'") -or
     -not $jobs.Contains("'/* JENKINS_PILOT_E2E_REPOSITORY */'") -or
     -not $jobs.Contains("'/* JENKINS_PILOT_E2E_DETAILS_BASE */'") -or
     -not $jobs.Contains("'/* JENKINS_PILOT_E2E_APP_CREDENTIAL_ID */'") -or
@@ -386,7 +398,12 @@ if (-not $jobs.Contains("cron('37 6 * * *')") -or
     -not $jobs.Contains("'/* JENKINS_PILOT_E2E_REPOSITORY_OWNER */': targetOwner") -or
     -not $jobs.Contains("'/* JENKINS_PILOT_E2E_REPOSITORY_NAME */': targetRepository") -or
     -not $jobs.Contains('e2ePipelineTemplate.replace(marker, JsonOutput.toJson(value))')) {
-    throw 'CasC must install the independent scheduled/manual E2E job from the checked-in trusted Pipeline.'
+    throw 'CasC must install a manual E2E job and enable the daily UTC trigger only through the explicit opt-in setting.'
+}
+$scheduleGuardIndex = $jobs.IndexOf('if (e2eScheduleEnabled)')
+$targetShaParameterIndex = $jobs.IndexOf("stringParam('TARGET_SHA'")
+if ($scheduleGuardIndex -lt 0 -or $targetShaParameterIndex -lt 0 -or $targetShaParameterIndex -gt $scheduleGuardIndex) {
+    throw 'The E2E manual TARGET_SHA parameter must remain available independently of the opt-in daily schedule.'
 }
 if ($jobs.Contains("'/* JENKINS_PILOT_E2E_APP_ID */': JsonOutput.toJson") -or
     $jobs.Contains("'/* JENKINS_PILOT_E2E_REPOSITORY_OWNER */': JsonOutput.toJson") -or
