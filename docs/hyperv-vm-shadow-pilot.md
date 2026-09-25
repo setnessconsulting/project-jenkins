@@ -7,7 +7,7 @@ GitHub Actions remains the authoritative merge gate throughout this runbook. Do 
 ## Stop conditions
 
 - Do not create the VM or move credentials until elevated preflight confirms Hyper-V is enabled, the VM storage volume is fully encrypted and actively protected by BitLocker, and a recovery-password protector exists. Independently confirm that the recovery key is retrievable from its approved backup; the script cannot verify escrow.
-- If Hyper-V is unavailable, disk protection is not fully active, the proposed isolated network overlaps an existing host network, or the VM cannot recover after restart, stop. Do not substitute Docker Desktop or WSL2.
+- If Hyper-V remains unavailable after enabling it, disk protection is not fully active, the proposed isolated network overlaps an existing host network, or the VM cannot recover after restart, stop. Do not substitute Docker Desktop or WSL2.
 - The Docker socket is mounted only into the Jenkins controller inside this VM. Docker daemon access is effectively host-root, so the VM is the security boundary. Build agents never receive the socket.
 - Keep the current Docker Desktop volume and the existing Windows DPAPI recovery material. Do not use `docker compose down -v`.
 - Keep the repo-scoped read-only SSH deploy key separate from the GitHub App. The App credential is for controller-side discovery and Checks publication; the key is used only by the Branch Source SSH checkout trait. Do not widen builds to other authors or forks during initial qualification.
@@ -21,7 +21,14 @@ GitHub Actions remains the authoritative merge gate throughout this runbook. Do 
    .\scripts\hyperv-preflight.ps1
    ```
 
-   This is read-only. It must confirm Hyper-V, the VM management service, full BitLocker protection and a recovery-password protector on the chosen storage volume, at least 8 logical CPUs, 32 GiB host memory, and 140 GiB free space. A failure is a stop, not a request to enable features or move data. Separately confirm the recovery key is retrievable from its approved backup without displaying it in logs or chat.
+   This is read-only and reports Hyper-V, VMMS, BitLocker protection and recovery-protector presence, plus host capacity even when one prerequisite fails. It must confirm the VM management service, full BitLocker protection and a recovery-password protector on the chosen storage volume, at least 8 logical CPUs, 32 GiB host memory, and 140 GiB free space. If Hyper-V is disabled but disk protection, recovery readiness, and host capacity pass—and you have confirmed that the recovery key is retrievable from its approved backup—enable the Windows feature from the elevated session and reboot, then rerun preflight:
+
+   ```powershell
+   Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -All -NoRestart
+   Restart-Computer
+   ```
+
+   If active encryption or retrievable recovery material is missing, stop before creating the VM or moving credentials; no encryption change is implied by the pilot authorization. Do not display the recovery key in logs or chat.
 3. Only after that passes, create the VM, providing the independently verified ISO hash:
 
    ```powershell
@@ -40,7 +47,7 @@ The VM script sets automatic startup and clean guest shutdown for Windows restar
 
 ## Fresh Jenkins bootstrap
 
-1. Clone this repository inside the guest at `/opt/setnessconsulting/project-jenkins` after the implementation PR is reviewed and merged. Create an ignored `.env` from `.env.example`, set `JENKINS_HTTP_BIND_IP=192.168.218.2`, and fill in the private target's owner/repository, App ID and credential ID, job name, marker, and Candidate path rules. Keep `.env` mode `0600`; never commit it or copy its private values into public docs.
+1. Clone this repository inside the guest at `/opt/setnessconsulting/project-jenkins` after the implementation PR is reviewed and merged. Create an ignored `.env` from `.env.example`, set `JENKINS_HTTP_BIND_IP=192.168.218.2`, and fill in the private target's owner/repository, App ID and credential ID, job name, marker, Candidate path rules, Tutor Web directory, and separate E2E job name. Keep `.env` mode `0600`; never commit it or copy its private values into public docs.
 2. Initialize the guest-local administrator secret, then build and start a fresh controller:
 
    ```bash
@@ -49,7 +56,7 @@ The VM script sets automatic startup and clean guest shutdown for Windows restar
    ```
 
    The generated password is stored root-only at `/etc/setness-jenkins/secrets/admin-password` on the BitLocker-protected VM disk. Read it only from the VM console when the Windows-side credential provisioning script prompts. The script creates a new Docker named volume `setness-jenkins-vm-home`; it does not reference the old Docker Desktop volume.
-3. Verify the JCasC page and Jenkins system information show zero controller executors, one Docker cloud with a one-container cap, and only the intended `setness-ephemeral` label. Confirm that only the controller has `/var/run/docker.sock` mounted. The agent image has no credential or persistent workspace mount.
+3. Verify the JCasC page and Jenkins system information show zero controller executors, one Docker cloud with a one-container cap, and only the intended one-use Node 22, Node 24, and Playwright labels. Confirm that only the controller has `/var/run/docker.sock` mounted. Build agents have no credential or persistent workspace mount.
 4. Install and enable the guest service so controller recovery is automatic after a VM or Windows restart:
 
    ```bash
@@ -91,6 +98,9 @@ The pinned `github-branch-source`, `git-client`, `pipeline-multibranch`, `pipeli
 - GitHub Branch Source publishes checks against the PR head SHA. Verify the actual App attribution and exact head SHA on controlled test PRs; do not infer it from a Jenkins build URL.
 - Each authorized build gets one unprivileged, resource-limited Docker agent (4 CPU, 8 GiB memory, no additional swap), one executor, and no persistent workspace/cache, host mounts, controller state, Docker socket, or production secret. The controller-side GitHub App is never used for checkout. The separate repository-scoped read-only SSH key is used only by the SCM checkout operation; prove it is absent from the agent before any repository-controlled command runs. Docker once-retention is configured for zero idle minutes; the Pipeline also deletes its workspace in `finally`. Verify actual container removal after success, failure, and cancellation before accepting this boundary.
 - Standard Node 22 checks and the relevant Cloudflare Candidate checks share one checkout and one `npm ci`. Candidate is neutral/not-applicable for changes outside configured paths; classification errors fail the primary gate closed.
+- The centrally defined repository job also exposes `RUN_CLOUDFLARE_CANDIDATE` for an owner-triggered rerun, preserving the Candidate workflow's manual dispatch path. On a PR it publishes the Candidate result against the controller-verified PR head SHA. On `main`, the manual result is recorded in Jenkins only and is not presented as a PR check.
+- Applicable Tutor Web PR changes run the existing Node 24 install/typecheck/lint/build sequence in a separate one-use agent. Main-branch builds also run Tutor Web to avoid missing changes when repository polling coalesces multiple pushes; this deliberately favors complete verification over duplicating the Actions path filter exactly.
+- The separate `jenkins-e2e` job keeps the existing 06:37 UTC daily schedule and owner-triggered manual path. Its image preinstalls pinned Playwright/Chromium and required system packages at image build time. Each run accepts `main` or a complete commit SHA, verifies the resolved SHA, then uses a controller-side publisher with the configured GitHub App credential to create and complete a non-required `jenkins-e2e` check against the explicit repository and verified SHA. The publisher confirms the App ID and returned SHA, links to the commit-check view, runs the existing three web E2E suites, and deletes its workspace. Verify the App attribution, exact commit SHA, and schedule/manual behavior live before considering the E2E workflow fully migrated.
 - Direct fork PRs are excluded. Do not broaden the author allowlist until the disposable boundary, exact-SHA reporting, cleanup, denial reporting, and recovery have all passed.
 
 ## Shadow qualification and cutover boundary
@@ -100,7 +110,7 @@ This VM only enables testing; it does not qualify Jenkins for cutover. Before Je
 - At least 10 distinct exact-head-SHA comparisons spanning source, lockfile, docs-only, Jenkins config, Candidate changes, and deliberate failures. Include stale heads, cancellation, cleanup, denied authors, Candidate not-applicable behavior, and reviewer-visible summaries. Use fresh matching Actions results; do not trigger a billable fallback run without owner approval for that specific run.
 - Confirm disposable containers disappear after pass, failure, and cancellation; no agent can access controller state, Docker socket, App key, Checks write token, or production credentials.
 - Prove Windows/VM restart and reconnection, backup and restore of fresh Jenkins home plus encryption material, and owner-controlled same-SHA Actions fallback. A full backup includes `secrets/master.key` and `secrets/hudson.util.Secret`; keep it only on encrypted storage unless separately encrypted before transfer.
-- Capture a complete Actions billing period, billable hosted minutes and total workflow minutes by workflow/runner type, and remaining effort for self-hosted Actions. Keep deploy runs separate from CI savings; retain scheduled/manual E2E and Tutor Web workflows on Actions.
+- Capture a complete Actions billing period, billable hosted minutes and total workflow minutes by workflow/runner type, and remaining effort for self-hosted Actions. Keep deploy runs separate from CI savings. During shadow, Actions remains authoritative for standard CI, Candidate, Tutor Web, and E2E; after individual qualification and GO, migrate all four verification lanes to Jenkins and retain owner-controlled Actions fallback. Keep Vercel deployment manual and outside Jenkins.
 - Keep branch protections and Actions unchanged until the GO review. Only then use the documented dual-gate transition and read back the enforced ruleset before removing any existing requirement.
 
 If a gate fails, keep Actions authoritative and Jenkins shadow-only.

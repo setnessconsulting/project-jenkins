@@ -27,7 +27,11 @@ virt="$(systemd-detect-virt 2>/dev/null || true)"
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 backup_root='/var/backups/setness-jenkins'
 controller_image='jenkins-pilot-controller:2.568.3-pilot1'
-agent_image='jenkins-pilot-agent:node-22.23.2'
+agent_images=(
+  'jenkins-pilot-agent:node-22.23.3'
+  'jenkins-pilot-agent:node-24.21.0'
+  'jenkins-pilot-agent:node-22.23.3-playwright-1.62.1'
+)
 [[ -n "$backup_directory" ]] || fail 'pass one backup directory created by backup-jenkins.sh.'
 backup_directory="$(realpath -e -- "$backup_directory")"
 [[ "$backup_directory" == "$backup_root"/* ]] || fail 'the selected backup is outside the protected local backup directory.'
@@ -49,8 +53,10 @@ git -c safe.directory="$repo_root" -C "$repo_root" diff --quiet && git -c safe.d
 [[ -z "$(git -c safe.directory="$repo_root" -C "$repo_root" status --porcelain --untracked-files=all)" ]] || fail 'the Jenkins configuration checkout must be clean; ignored .env is intentionally excluded from this check.'
 controller_ids="$(docker ps --filter 'label=com.docker.compose.project=setness-jenkins-vm' --filter 'label=com.docker.compose.service=controller' --format '{{.ID}}')"
 [[ -z "$controller_ids" ]] || fail 'stop the pilot controller before restore testing.'
-agent_ids="$(docker ps --filter "ancestor=${agent_image}" --format '{{.ID}}')"
-[[ -z "$agent_ids" ]] || fail 'wait for one-use build containers to be removed before restore testing.'
+for agent_image in "${agent_images[@]}"; do
+  agent_ids="$(docker ps --filter "ancestor=${agent_image}" --format '{{.ID}}')"
+  [[ -z "$agent_ids" ]] || fail 'wait for one-use build containers to be removed before restore testing.'
+done
 
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 restore_volume="setness-jenkins-restore-${stamp}"

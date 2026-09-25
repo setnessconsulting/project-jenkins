@@ -65,7 +65,7 @@ case "$action" in
     docker info --format '{{.OperatingSystem}}' >/dev/null || fail 'the guest Docker daemon is not ready.'
     "${compose[@]}" config --quiet
     if [[ "$action" == install || "$action" == restart ]]; then
-      "${compose[@]}" build controller agent-image
+      "${compose[@]}" build controller agent-image node24-agent-image e2e-agent-image
     fi
     if [[ "$action" == restart ]]; then
       "${compose[@]}" up -d --force-recreate controller

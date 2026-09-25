@@ -1,8 +1,5 @@
 String classifyCandidateChanges(List<String> changedPaths, List<String> pathRules) {
     for (String path : changedPaths) {
-        if (path.toLowerCase().endsWith('.md')) {
-            continue
-        }
         for (String rule : pathRules) {
             if (rule.endsWith('/') ? path.startsWith(rule) : path == rule) {
                 return 'RELEVANT'
@@ -10,6 +7,20 @@ String classifyCandidateChanges(List<String> changedPaths, List<String> pathRule
         }
     }
     return 'NOT_APPLICABLE'
+}
+
+String classifyTutorWebChanges(List<String> changedPaths, String tutorDirectory, String workflowPath) {
+    if (tutorDirectory == null || !(tutorDirectory ==~ /[A-Za-z0-9._\/-]+/) ||
+        tutorDirectory.startsWith('/') || tutorDirectory.split('/').any { it in ['.', '..'] } ||
+        workflowPath != '.github/workflows/tutor-web-ci.yml') {
+        return 'UNCLASSIFIED'
+    }
+    if (changedPaths == null) {
+        return 'UNCLASSIFIED'
+    }
+    return changedPaths.any { path ->
+        path.startsWith("${tutorDirectory}/") || path == workflowPath
+    } ? 'RELEVANT' : 'NOT_APPLICABLE'
 }
 
 String candidateCheckConclusion(String candidateState, String candidateResult) {
@@ -31,13 +42,19 @@ String candidateCheckConclusion(String candidateState, String candidateResult) {
     return 'NEUTRAL'
 }
 
-boolean shouldFailGateClosed(String candidateState, String candidateResult, String primaryResult) {
-    if (!(candidateState in ['RELEVANT', 'NOT_APPLICABLE'])) {
+boolean shouldFailGateClosed(
+    String candidateState,
+    String candidateResult,
+    String primaryResult,
+    String tutorState = 'NOT_APPLICABLE',
+    String tutorResult = 'NOT_RUN'
+) {
+    if (!(candidateState in ['RELEVANT', 'NOT_APPLICABLE']) ||
+        !(tutorState in ['RELEVANT', 'NOT_APPLICABLE'])) {
         return true
     }
-    return candidateState == 'RELEVANT' &&
-        primaryResult == 'SUCCESS' &&
-        candidateResult != 'SUCCESS'
+    return (candidateState == 'RELEVANT' && primaryResult == 'SUCCESS' && candidateResult != 'SUCCESS') ||
+        (tutorState == 'RELEVANT' && tutorResult != 'SUCCESS')
 }
 
 boolean isAuthorizedPullRequestAuthor(String author, List<String> trustedAuthors) {
@@ -96,6 +113,9 @@ String candidateCheckSummary(String authorization, String candidateState, String
         return 'Not applicable: no configured Cloudflare Candidate path changed.'
     }
     if (candidateResult == 'SUCCESS' || candidateResult == 'FAILURE') {
+        if (changedPathCount == 'manual request') {
+            return "Cloudflare Candidate ${candidateResult.toLowerCase()} for an owner-triggered manual run."
+        }
         return "Cloudflare Candidate ${candidateResult.toLowerCase()} for ${changedPathCount} relevant changed path(s)."
     }
     if (candidateResult == 'CANCELED') {
@@ -107,14 +127,47 @@ String candidateCheckSummary(String authorization, String candidateState, String
     return 'Cloudflare Candidate result is unknown; failing closed.'
 }
 
+String tutorWebCheckSummary(String tutorState, String tutorResult) {
+    if (tutorState == 'NOT_APPLICABLE') {
+        return 'not applicable: no Tutor Web source or workflow changes.'
+    }
+    if (tutorState == 'UNCLASSIFIED') {
+        return 'unclassified: required gate must fail closed.'
+    }
+    if (tutorState != 'RELEVANT') {
+        return 'blocked: required gate must fail closed.'
+    }
+    return "${tutorResult.toLowerCase()} on Node 24 (typecheck, lint, build)."
+}
+
+String pullRequestCheckDetailsUrl(String changeId) {
+    def targetOwner = System.getenv('JENKINS_TARGET_REPO_OWNER')?.trim()
+    def targetRepository = System.getenv('JENKINS_TARGET_REPO_NAME')?.trim()
+    if (changeId == null || !(changeId ==~ /[0-9]+/) ||
+        !(targetOwner ==~ /[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/) ||
+        !(targetRepository ==~ /[A-Za-z0-9._-]{1,100}/)) {
+        return null
+    }
+    return "https://github.com/${targetOwner}/${targetRepository}/pull/${changeId}/checks"
+}
+
 def candidatePathRules = /* JENKINS_PILOT_CANDIDATE_PATH_RULES */
 def trustedPullRequestAuthors = /* JENKINS_PILOT_TRUSTED_PR_AUTHORS */
 def primaryCheckName = /* JENKINS_PILOT_PRIMARY_CHECK_NAME */
 def candidateCheckName = /* JENKINS_PILOT_CANDIDATE_CHECK_NAME */
 def appDirectory = /* JENKINS_PILOT_APP_DIRECTORY */
+def tutorWebDirectory = /* JENKINS_PILOT_TUTOR_WEB_DIRECTORY */
 
 pipeline {
     agent none
+
+    parameters {
+        booleanParam(
+            name: 'RUN_CLOUDFLARE_CANDIDATE',
+            defaultValue: false,
+            description: 'Owner-triggered Candidate rerun for this branch, matching the Actions workflow_dispatch option.'
+        )
+    }
 
     options {
         timeout(time: 90, unit: 'MINUTES')
@@ -144,6 +197,10 @@ pipeline {
                     if (isPullRequest) {
                         env.JENKINS_PILOT_PR_HEAD_SHA = verifiedHeadSha
                     }
+                    def checkDetailsUrl = isPullRequest ? pullRequestCheckDetailsUrl(changeId) : null
+                    if (isPullRequest && checkDetailsUrl == null) {
+                        error('Could not construct a reviewer-accessible GitHub check details URL from trusted repository metadata.')
+                    }
 
                     if (isPullRequest && !isAuthorizedPullRequestAuthor(env.CHANGE_AUTHOR, trustedPullRequestAuthors)) {
                         env.JENKINS_CLOUDFLARE_CANDIDATE = 'BLOCKED'
@@ -160,6 +217,7 @@ pipeline {
                                 title: 'Required CI check: BLOCKED',
                                 summary: 'Failed closed: owner-only shadow policy rejected this PR before checkout.',
                                 text: "PR #${changeId}\nVerified PR head SHA: ${verifiedHeadSha}\nAuthor: ${env.CHANGE_AUTHOR ?: 'unknown'}\nNo checkout or repository command was run.",
+                                detailsURL: checkDetailsUrl,
                                 status: 'COMPLETED',
                                 conclusion: 'FAILURE'
                             )
@@ -168,6 +226,7 @@ pipeline {
                                 title: 'Cloudflare Candidate (blocked)',
                                 summary: 'Not run: owner-only policy blocked this PR before checkout or repository commands.',
                                 text: "PR #${changeId}\nVerified PR head SHA: ${verifiedHeadSha}\nCandidate applicability was not evaluated because this PR was denied.",
+                                detailsURL: checkDetailsUrl,
                                 status: 'COMPLETED',
                                 conclusion: 'NEUTRAL'
                             )
@@ -182,10 +241,19 @@ pipeline {
                         env.JENKINS_PILOT_AUTHORIZATION = 'AUTHORIZED'
                         try {
                             publishChecks(
+                                name: primaryCheckName,
+                                title: 'Required CI check: RUNNING',
+                                summary: 'PR head verified; standard and applicable repository checks are running.',
+                                text: "PR #${changeId}\nVerified PR head SHA: ${verifiedHeadSha}\nAuthorization: ${env.CHANGE_AUTHOR}\nStandard CI: pending. Tutor Web and Cloudflare Candidate applicability will be classified from the checked-out change.",
+                                detailsURL: checkDetailsUrl,
+                                status: 'IN_PROGRESS'
+                            )
+                            publishChecks(
                                 name: candidateCheckName,
                                 title: 'Cloudflare Candidate (classification pending)',
                                 summary: 'Checking Candidate applicability; no Candidate commands have run yet.',
                                 text: "PR #${changeId}; verified head ${verifiedHeadSha}: awaiting trusted changed-path classification.",
+                                detailsURL: checkDetailsUrl,
                                 status: 'IN_PROGRESS'
                             )
                         } catch (publicationError) {
@@ -200,9 +268,18 @@ pipeline {
             steps {
                 script {
                     assert classifyCandidateChanges([], candidatePathRules) == 'NOT_APPLICABLE'
+                    assert classifyCandidateChanges(['README.md'], candidatePathRules) == 'NOT_APPLICABLE'
+                    assert classifyTutorWebChanges(["${tutorWebDirectory}/package.json"], tutorWebDirectory, '.github/workflows/tutor-web-ci.yml') == 'RELEVANT'
+                    assert classifyTutorWebChanges(['.github/workflows/tutor-web-ci.yml'], tutorWebDirectory, '.github/workflows/tutor-web-ci.yml') == 'RELEVANT'
+                    assert classifyTutorWebChanges(['docs/README.md'], tutorWebDirectory, '.github/workflows/tutor-web-ci.yml') == 'NOT_APPLICABLE'
+                    assert classifyTutorWebChanges(['tutor-web/package.json'], '../tutor-web', '.github/workflows/tutor-web-ci.yml') == 'UNCLASSIFIED'
 
                     def relevantFixtures = candidatePathRules.collect { rule ->
                         rule.endsWith('/') ? "${rule}jenkins-policy-fixture.txt" : rule
+                    }
+                    def markdownCandidateDirectory = candidatePathRules.find { rule -> rule.endsWith('/') }
+                    if (markdownCandidateDirectory != null) {
+                        assert classifyCandidateChanges(["${markdownCandidateDirectory}README.md"], candidatePathRules) == 'RELEVANT'
                     }
                     relevantFixtures.each { fixture ->
                         assert classifyCandidateChanges([fixture], candidatePathRules) == 'RELEVANT'
@@ -210,7 +287,7 @@ pipeline {
 
                     def directoryRules = candidatePathRules.findAll { rule -> rule.endsWith('/') }
                     directoryRules.each { rule ->
-                        assert classifyCandidateChanges(["${rule}README.md"], candidatePathRules) == 'NOT_APPLICABLE'
+                        assert classifyCandidateChanges(["${rule}README.md"], candidatePathRules) == 'RELEVANT'
                         assert classifyCandidateChanges(["${rule}pilot-example.mdx"], candidatePathRules) == 'RELEVANT'
                     }
 
@@ -232,6 +309,9 @@ pipeline {
                     assert !shouldFailGateClosed('RELEVANT', 'NOT_RUN', 'FAILURE')
                     assert !shouldFailGateClosed('RELEVANT', 'SUCCESS', 'SUCCESS')
                     assert !shouldFailGateClosed('NOT_APPLICABLE', 'NOT_RUN', 'SUCCESS')
+                    assert shouldFailGateClosed('NOT_APPLICABLE', 'NOT_RUN', 'SUCCESS', 'UNCLASSIFIED', 'NOT_RUN')
+                    assert shouldFailGateClosed('NOT_APPLICABLE', 'NOT_RUN', 'SUCCESS', 'RELEVANT', 'FAILURE')
+                    assert !shouldFailGateClosed('NOT_APPLICABLE', 'NOT_RUN', 'SUCCESS', 'RELEVANT', 'SUCCESS')
                     assert isAuthorizedPullRequestAuthor(trustedPullRequestAuthors[0], trustedPullRequestAuthors)
                     assert !isAuthorizedPullRequestAuthor('untrusted-contributor', trustedPullRequestAuthors)
                     assert !isAuthorizedPullRequestAuthor(null, trustedPullRequestAuthors)
@@ -244,6 +324,12 @@ pipeline {
                     assert candidateCheckSummary('AUTHORIZED', 'RELEVANT', 'CANCELED', '2').startsWith('Cancelled:')
                     assert candidateCheckSummary('AUTHORIZED', 'RELEVANT', 'NOT_RUN', '2').startsWith('Not run: Standard CI')
                     assert candidateCheckSummary('AUTHORIZED', 'RELEVANT', 'FAILURE', '2').contains('failure for 2 relevant changed path(s)')
+                    assert candidateCheckSummary('AUTHORIZED', 'RELEVANT', 'SUCCESS', 'manual request') ==
+                        'Cloudflare Candidate success for an owner-triggered manual run.'
+                    assert tutorWebCheckSummary('NOT_APPLICABLE', 'NOT_RUN').startsWith('not applicable:')
+                    assert tutorWebCheckSummary('RELEVANT', 'SUCCESS').contains('Node 24')
+                    assert pullRequestCheckDetailsUrl('42').endsWith('/pull/42/checks')
+                    assert pullRequestCheckDetailsUrl('../42') == null
 
                     echo 'Jenkins gate policy self-test passed.'
                 }
@@ -256,11 +342,14 @@ pipeline {
             }
 
             steps {
-                script {
+                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE', catchInterruptions: false) { script {
                     env.JENKINS_CLOUDFLARE_CANDIDATE = 'UNCLASSIFIED'
                     env.JENKINS_CLOUDFLARE_CHANGED_PATH_COUNT = '0'
                     env.JENKINS_CLOUDFLARE_CANDIDATE_RESULT = 'NOT_RUN'
                     env.JENKINS_PILOT_STANDARD_RESULT = 'NOT_RUN'
+                    env.JENKINS_TUTOR_WEB = 'UNCLASSIFIED'
+                    env.JENKINS_TUTOR_WEB_CHANGED_PATH_COUNT = '0'
+                    env.JENKINS_TUTOR_WEB_RESULT = 'NOT_RUN'
 
                     try {
                         stage('Checkout and classify') {
@@ -283,11 +372,22 @@ pipeline {
                                     script: 'git diff --name-only HEAD^1 HEAD'
                                 ).trim()
                                 def changedPaths = diff ? diff.readLines() : []
+                                env.JENKINS_TUTOR_WEB = classifyTutorWebChanges(
+                                    changedPaths,
+                                    tutorWebDirectory,
+                                    '.github/workflows/tutor-web-ci.yml'
+                                )
+                                env.JENKINS_TUTOR_WEB_CHANGED_PATH_COUNT = changedPaths.count { path ->
+                                    path.startsWith("${tutorWebDirectory}/") || path == '.github/workflows/tutor-web-ci.yml'
+                                }.toString()
                                 def candidatePaths = changedPaths.findAll { path ->
                                     classifyCandidateChanges([path], candidatePathRules) == 'RELEVANT'
                                 }
-                                env.JENKINS_CLOUDFLARE_CHANGED_PATH_COUNT = candidatePaths.size().toString()
-                                env.JENKINS_CLOUDFLARE_CANDIDATE = candidatePaths.isEmpty()
+                                def manualCandidateRequested = params.RUN_CLOUDFLARE_CANDIDATE == true
+                                env.JENKINS_CLOUDFLARE_CHANGED_PATH_COUNT = manualCandidateRequested
+                                    ? 'manual request'
+                                    : candidatePaths.size().toString()
+                                env.JENKINS_CLOUDFLARE_CANDIDATE = candidatePaths.isEmpty() && !manualCandidateRequested
                                     ? 'NOT_APPLICABLE'
                                     : 'RELEVANT'
 
@@ -297,10 +397,23 @@ pipeline {
                                         title: 'Cloudflare Candidate (not applicable)',
                                         summary: 'Not applicable: no configured Cloudflare Candidate path changed.',
                                         text: "PR #${changeId}: Candidate path classification completed before standard CI.",
+                                        detailsURL: pullRequestCheckDetailsUrl(changeId),
                                         status: 'COMPLETED',
                                         conclusion: 'NEUTRAL'
                                     )
                                 }
+                            } else if (branchName == 'main') {
+                                // Branch Source scans can coalesce several main pushes into one
+                                // build. Run Tutor Web on each main build rather than risk missing
+                                // changes by diffing only the last commit in a push range.
+                                env.JENKINS_TUTOR_WEB = 'RELEVANT'
+                                env.JENKINS_TUTOR_WEB_CHANGED_PATH_COUNT = 'main branch update'
+                                if (params.RUN_CLOUDFLARE_CANDIDATE == true) {
+                                    env.JENKINS_CLOUDFLARE_CANDIDATE = 'RELEVANT'
+                                    env.JENKINS_CLOUDFLARE_CHANGED_PATH_COUNT = 'manual request'
+                                }
+                            } else {
+                                env.JENKINS_TUTOR_WEB = 'NOT_APPLICABLE'
                             }
                         }
 
@@ -311,7 +424,7 @@ pipeline {
                                         sh '''#!/usr/bin/env bash
 set -euo pipefail
 
-test "$(node --version)" = "v22.23.2"
+test "$(node --version)" = "v22.23.3"
 node --version
 npm --version
 '''
@@ -350,7 +463,7 @@ npm --version
                         def branchName = env.BRANCH_NAME ?: ''
                         def changeId = env.CHANGE_ID?.trim()
                         def isPullRequest = changeId || branchName.matches('PR-[0-9]+')
-                        if (isPullRequest && env.JENKINS_CLOUDFLARE_CANDIDATE == 'RELEVANT') {
+                        if (env.JENKINS_CLOUDFLARE_CANDIDATE == 'RELEVANT') {
                             stage('Cloudflare Candidate') {
                                 dir(appDirectory) {
                                     withEnv(['CLOUDFLARE_ENV=staging']) {
@@ -389,15 +502,74 @@ npm --version
                             def standardResult = env.JENKINS_PILOT_STANDARD_RESULT ?: 'NOT_RUN'
                             def candidateState = env.JENKINS_CLOUDFLARE_CANDIDATE ?: 'UNCLASSIFIED'
                             def candidateResult = env.JENKINS_CLOUDFLARE_CANDIDATE_RESULT ?: 'NOT_RUN'
+                            def tutorState = env.JENKINS_TUTOR_WEB ?: 'UNCLASSIFIED'
+                            def tutorResult = env.JENKINS_TUTOR_WEB_RESULT ?: 'NOT_RUN'
                             def candidateSummary = candidateState == 'NOT_APPLICABLE'
                                 ? 'not applicable'
                                 : "${candidateState.toLowerCase()} / ${candidateResult.toLowerCase()}"
-                            echo "Standard CI: ${standardResult}; Cloudflare Candidate: ${candidateState} (${candidateResult})."
-                            echo "Reviewer result: Standard CI ${standardResult.toLowerCase()}; Cloudflare Candidate ${candidateSummary}."
+                            def tutorSummary = tutorWebCheckSummary(tutorState, tutorResult)
+                            echo "Standard CI: ${standardResult}; Tutor Web: ${tutorState} (${tutorResult}); Cloudflare Candidate: ${candidateState} (${candidateResult})."
+                            echo "Reviewer result: Standard CI ${standardResult.toLowerCase()}; Tutor Web ${tutorSummary}; Cloudflare Candidate ${candidateSummary}."
                         }
                     } finally {
                         deleteDir()
                     }
+                    }
+                }
+            }
+        }
+
+        stage('Tutor Web CI') {
+            when {
+                expression {
+                    def branchName = env.BRANCH_NAME ?: ''
+                    def changeId = env.CHANGE_ID?.trim()
+                    def isPullRequest = changeId != null || branchName.matches('PR-[0-9]+')
+                    return (isPullRequest || branchName == 'main') &&
+                        env.JENKINS_TUTOR_WEB != 'NOT_APPLICABLE'
+                }
+            }
+            agent {
+                label 'setness-node24-ephemeral'
+            }
+            steps {
+                script {
+                    env.JENKINS_TUTOR_WEB_RESULT = 'NOT_RUN'
+                    deleteDir()
+                    try {
+                        checkout scm
+                        dir(tutorWebDirectory) {
+                            stage('Node 24 runtime') {
+                                sh '''#!/usr/bin/env bash
+set -euo pipefail
+test "$(node --version)" = "v24.21.0"
+node --version
+npm --version
+'''
+                            }
+                            stage('Install Tutor Web dependencies') {
+                                sh 'npm install --no-audit --no-fund'
+                            }
+                            stage('Tutor Web typecheck') {
+                                sh 'npm run typecheck'
+                            }
+                            stage('Tutor Web lint') {
+                                sh 'npm run lint'
+                            }
+                            stage('Tutor Web build') {
+                                sh 'npm run build'
+                            }
+                        }
+                        env.JENKINS_TUTOR_WEB_RESULT = 'SUCCESS'
+                    } catch (err) {
+                        env.JENKINS_TUTOR_WEB_RESULT = currentBuild.currentResult == 'ABORTED'
+                            ? 'CANCELED'
+                            : 'FAILURE'
+                        throw err
+                    } finally {
+                        deleteDir()
+                    }
+                  }
                 }
             }
         }
@@ -418,10 +590,19 @@ npm --version
                         def authorization = env.JENKINS_PILOT_AUTHORIZATION ?: 'DENIED'
                         def candidateState = env.JENKINS_CLOUDFLARE_CANDIDATE ?:
                             (authorization == 'AUTHORIZED' ? 'UNCLASSIFIED' : 'BLOCKED')
+                        def tutorState = env.JENKINS_TUTOR_WEB ?:
+                            (authorization == 'AUTHORIZED' ? 'UNCLASSIFIED' : 'BLOCKED')
                         def candidateApplicable = candidateState == 'RELEVANT'
                         def candidateRunResult = env.JENKINS_CLOUDFLARE_CANDIDATE_RESULT ?: 'NOT_RUN'
                         def candidateConclusion = candidateCheckConclusion(candidateState, candidateRunResult)
-                        if (shouldFailGateClosed(candidateState, candidateRunResult, currentBuild.currentResult)) {
+                        def tutorRunResult = env.JENKINS_TUTOR_WEB_RESULT ?: 'NOT_RUN'
+                        if (shouldFailGateClosed(
+                            candidateState,
+                            candidateRunResult,
+                            currentBuild.currentResult,
+                            tutorState,
+                            tutorRunResult
+                        )) {
                             currentBuild.result = 'FAILURE'
                         }
 
@@ -437,6 +618,7 @@ npm --version
                                 title: candidateApplicable ? 'Cloudflare Candidate' : 'Cloudflare Candidate (not applicable/blocked)',
                                 summary: candidateSummary,
                                 text: "PR #${changeId ?: 'unknown'}\nVerified PR head SHA: ${verifiedHeadSha}\nAuthorization: ${authorization}\nCandidate status: ${candidateState}\nCandidate suite result: ${candidateRunResult}",
+                                detailsURL: pullRequestCheckDetailsUrl(changeId),
                                 status: 'COMPLETED',
                                 conclusion: candidateConclusion
                             )
@@ -447,20 +629,23 @@ npm --version
 
                         def standardResult = env.JENKINS_PILOT_STANDARD_RESULT ?: 'NOT_RUN'
                         def finalResult = currentBuild.currentResult ?: 'FAILURE'
+                        def tutorSummary = tutorWebCheckSummary(tutorState, tutorRunResult)
                         def gateCandidateSummary = candidateApplicable
                             ? candidateRunResult.toLowerCase()
                             : candidateState == 'BLOCKED' ? 'blocked before checkout' : 'not applicable'
                         def gateSummary = authorization != 'AUTHORIZED'
                             ? 'Failed closed: this owner-only shadow rejected the PR before checkout or repository commands.'
-                            : "Standard CI ${standardResult.toLowerCase()}; Cloudflare Candidate ${gateCandidateSummary}."
+                            : "Standard CI ${standardResult.toLowerCase()}; Tutor Web ${tutorSummary}; Cloudflare Candidate ${gateCandidateSummary}."
                         def gateText = """Pull request: #${changeId ?: 'unknown'}
 Verified PR head SHA: ${env.JENKINS_PILOT_PR_HEAD_SHA ?: 'unverified'}
 Authorization: ${authorization}
 Standard CI: ${standardResult}
+Tutor Web: ${tutorState} (${tutorRunResult})
 Cloudflare Candidate: ${candidateState} (${candidateRunResult})
 Final Jenkins result: ${finalResult}
 
 Standard suite: Node 22, npm ci, typecheck, lint, build, blog validation, SEO baseline, tests.
+Tutor Web suite (when applicable): Node 24, npm install, typecheck, lint, build.
 Candidate suite (when applicable): MDX, Vinext check and staging build, Cloudflare config, Wrangler validation, dry-run deploy.
 """
 
@@ -470,6 +655,7 @@ Candidate suite (when applicable): MDX, Vinext check and staging build, Cloudfla
                                 title: "Required CI check: ${finalResult}",
                                 summary: gateSummary,
                                 text: gateText,
+                                detailsURL: pullRequestCheckDetailsUrl(changeId),
                                 status: 'COMPLETED',
                                 conclusion: gateCheckConclusion(finalResult)
                             )

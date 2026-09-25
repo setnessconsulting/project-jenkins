@@ -40,7 +40,9 @@ function Get-JenkinsPilotConfig {
         'JENKINS_GITHUB_APP_ID',
         'JENKINS_MULTIBRANCH_JOB_NAME',
         'JENKINS_MARKER_FILE',
-        'JENKINS_CANDIDATE_PATHS'
+        'JENKINS_CANDIDATE_PATHS',
+        'JENKINS_TUTOR_WEB_DIRECTORY',
+        'JENKINS_E2E_JOB_NAME'
     )) {
         if (-not $values.ContainsKey($requiredName) -or [string]::IsNullOrWhiteSpace($values[$requiredName])) {
             throw "Required local pilot configuration key is missing: $requiredName."
@@ -64,6 +66,8 @@ function Get-JenkinsPilotConfig {
     }
     $jobName = [string] $values['JENKINS_MULTIBRANCH_JOB_NAME']
     $markerFile = [string] $values['JENKINS_MARKER_FILE']
+    $tutorWebDirectory = [string] $values['JENKINS_TUTOR_WEB_DIRECTORY']
+    $e2eJobName = [string] $values['JENKINS_E2E_JOB_NAME']
     if ($owner -notmatch '^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$') {
         throw 'The configured GitHub owner name is invalid.'
     }
@@ -90,6 +94,14 @@ function Get-JenkinsPilotConfig {
         $markerFile -match '(^|/)\.\.?(/|$)') {
         throw 'The configured marker file must be a relative repository path.'
     }
+    if ($tutorWebDirectory -notmatch '^[A-Za-z0-9._/-]+$' -or
+        $tutorWebDirectory.StartsWith('/') -or
+        $tutorWebDirectory -match '(^|/)\.\.?(/|$)') {
+        throw 'The configured Tutor Web directory must be a relative repository path.'
+    }
+    if ($e2eJobName -notmatch '^[A-Za-z0-9._-]{1,100}$' -or $e2eJobName -eq $jobName) {
+        throw 'The configured E2E job name must be valid and distinct from the multibranch gate job.'
+    }
 
     $candidatePaths = @($values['JENKINS_CANDIDATE_PATHS'] -split ',' | ForEach-Object { $_.Trim() })
     $invalidCandidatePaths = @($candidatePaths | Where-Object {
@@ -114,5 +126,7 @@ function Get-JenkinsPilotConfig {
         JobName = $jobName
         MarkerFile = $markerFile
         CandidatePaths = $candidatePaths
+        TutorWebDirectory = $tutorWebDirectory
+        E2eJobName = $e2eJobName
     }
 }

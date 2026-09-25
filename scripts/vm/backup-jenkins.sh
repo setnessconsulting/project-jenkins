@@ -17,7 +17,11 @@ expected_volume_path="/var/lib/docker/volumes/${volume_name}/_data"
 backup_root='/var/backups/setness-jenkins'
 secret_root='/etc/setness-jenkins/secrets'
 controller_image='jenkins-pilot-controller:2.568.3-pilot1'
-agent_image='jenkins-pilot-agent:node-22.23.2'
+agent_images=(
+  'jenkins-pilot-agent:node-22.23.3'
+  'jenkins-pilot-agent:node-24.21.0'
+  'jenkins-pilot-agent:node-22.23.3-playwright-1.62.1'
+)
 
 [[ -f "$repo_root/compose.yaml" && -f "$repo_root/.env" ]] || fail 'the checked-out Compose repository and ignored .env are required.'
 [[ "$(stat -c '%a' "$repo_root/.env")" == 600 ]] || fail 'the ignored runtime .env must be mode 0600 before it is backed up.'
@@ -31,8 +35,10 @@ git -c safe.directory="$repo_root" -C "$repo_root" diff --quiet && git -c safe.d
 
 controller_ids="$(docker ps --filter 'label=com.docker.compose.project=setness-jenkins-vm' --filter 'label=com.docker.compose.service=controller' --format '{{.ID}}')"
 [[ -z "$controller_ids" ]] || fail 'stop the Jenkins controller before taking a consistent backup.'
-agent_ids="$(docker ps --filter "ancestor=${agent_image}" --format '{{.ID}}')"
-[[ -z "$agent_ids" ]] || fail 'wait for all one-use build containers to be removed before backing up.'
+for agent_image in "${agent_images[@]}"; do
+  agent_ids="$(docker ps --filter "ancestor=${agent_image}" --format '{{.ID}}')"
+  [[ -z "$agent_ids" ]] || fail 'wait for all one-use build containers to be removed before backing up.'
+done
 volume_users="$(docker ps --filter "volume=${volume_name}" --format '{{.ID}}')"
 [[ -z "$volume_users" ]] || fail 'a running container still uses the Jenkins home volume; stop it before taking a consistent backup.'
 

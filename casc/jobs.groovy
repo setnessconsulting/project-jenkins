@@ -7,7 +7,10 @@ def markerFile = System.getenv('JENKINS_MARKER_FILE')?.trim()
 def primaryCheckName = System.getenv('JENKINS_PRIMARY_CHECK_NAME')?.trim()
 def candidateCheckName = System.getenv('JENKINS_CANDIDATE_CHECK_NAME')?.trim()
 def appDirectory = System.getenv('JENKINS_APP_DIRECTORY')?.trim()
+def tutorWebDirectory = System.getenv('JENKINS_TUTOR_WEB_DIRECTORY')?.trim()
+def e2eJobName = System.getenv('JENKINS_E2E_JOB_NAME')?.trim()
 def siteUrl = System.getenv('JENKINS_SITE_URL')?.trim()
+def githubAppId = System.getenv('JENKINS_GITHUB_APP_ID')?.trim()
 def appCredentialId = System.getenv('JENKINS_GITHUB_APP_CREDENTIAL_ID')?.trim()
 def checkoutCredentialId = System.getenv('JENKINS_CHECKOUT_SSH_CREDENTIAL_ID')?.trim() ?: 'jenkins-readonly-checkout'
 def candidatePathRules = (System.getenv('JENKINS_CANDIDATE_PATHS') ?: '')
@@ -25,11 +28,15 @@ if (!(targetOwner ==~ /[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/) ||
 if (!(primaryCheckName ==~ /[A-Za-z0-9][A-Za-z0-9 ._-]{0,99}/) ||
         !(candidateCheckName ==~ /[A-Za-z0-9][A-Za-z0-9 ._-]{0,99}/) ||
         !(appCredentialId ==~ /[A-Za-z0-9._-]{1,100}/) ||
+        !(githubAppId ==~ /[0-9]{1,20}/) ||
         !(checkoutCredentialId ==~ /[A-Za-z0-9._-]{1,100}/) ||
         !(appDirectory ==~ /[A-Za-z0-9._\/-]+/) || appDirectory.startsWith('/') ||
         appDirectory.split('/').any { segment -> segment == '.' || segment == '..' } ||
+        !(tutorWebDirectory ==~ /[A-Za-z0-9._\/-]+/) || tutorWebDirectory.startsWith('/') ||
+        tutorWebDirectory.split('/').any { segment -> segment == '.' || segment == '..' } ||
+        !(e2eJobName ==~ /[A-Za-z0-9._-]{1,100}/) || e2eJobName == jobName ||
         !siteUrl?.startsWith('https://') || siteUrl.contains('@') || siteUrl.contains(' ')) {
-    throw new IllegalStateException('Set valid private check names, relative application directory, and HTTPS site URL in the ignored local .env file.')
+    throw new IllegalStateException('Set valid private check names, relative application directories, a separate E2E job name, and HTTPS site URL in the ignored local .env file.')
 }
 if (candidatePathRules.isEmpty() || candidatePathRules.any { rule ->
         !(rule ==~ /[A-Za-z0-9._\/-]+/) || rule.startsWith('/') ||
@@ -50,6 +57,7 @@ def trustedPipeline = pipelineTemplate.replace(candidateRulesMarker, JsonOutput.
     '/* JENKINS_PILOT_PRIMARY_CHECK_NAME */': primaryCheckName,
     '/* JENKINS_PILOT_CANDIDATE_CHECK_NAME */': candidateCheckName,
     '/* JENKINS_PILOT_APP_DIRECTORY */': appDirectory,
+    '/* JENKINS_PILOT_TUTOR_WEB_DIRECTORY */': tutorWebDirectory,
     '/* JENKINS_PILOT_SITE_URL */': siteUrl
 ].each { marker, value ->
     if (trustedPipeline.count(marker) != 1) {
@@ -62,6 +70,27 @@ if (trustedPipeline.count(trustedAuthorsMarker) != 1) {
     throw new IllegalStateException('The trusted Pipeline template has a missing or duplicate owner allowlist marker.')
 }
 trustedPipeline = trustedPipeline.replace(trustedAuthorsMarker, JsonOutput.toJson([targetOwner]))
+
+def e2ePipelineTemplate = new File(
+    '/usr/share/jenkins/casc/pipelines/e2e.groovy'
+).getText('UTF-8')
+[
+    '/* JENKINS_PILOT_E2E_REPOSITORY */': "git@github.com:${targetOwner}/${targetRepository}.git",
+    '/* JENKINS_PILOT_E2E_DETAILS_BASE */': "https://github.com/${targetOwner}/${targetRepository}/commit/",
+    '/* JENKINS_PILOT_E2E_CHECKOUT_CREDENTIAL_ID */': checkoutCredentialId,
+    '/* JENKINS_PILOT_E2E_APP_CREDENTIAL_ID */': appCredentialId,
+    // Encode once in the shared replace below. Pre-encoding these values
+    // would double-quote App ID / owner / repository and break App+SHA checks.
+    '/* JENKINS_PILOT_E2E_APP_ID */': githubAppId,
+    '/* JENKINS_PILOT_E2E_REPOSITORY_OWNER */': targetOwner,
+    '/* JENKINS_PILOT_E2E_REPOSITORY_NAME */': targetRepository,
+    '/* JENKINS_PILOT_E2E_APP_DIRECTORY */': appDirectory
+].each { marker, value ->
+    if (e2ePipelineTemplate.count(marker) != 1) {
+        throw new IllegalStateException('The centrally trusted E2E Pipeline template has a missing or duplicate local configuration marker.')
+    }
+    e2ePipelineTemplate = e2ePipelineTemplate.replace(marker, JsonOutput.toJson(value))
+}
 
 multibranchPipelineJob(jobName) {
     displayName('Repository CI gate (shadow)')
@@ -134,11 +163,12 @@ multibranchPipelineJob(jobName) {
         Node sshCheckout = sourceTraits.appendNode('org.jenkinsci.plugins.github_branch_source.SSHCheckoutTrait')
         sshCheckout.appendNode('credentialsId', checkoutCredentialId)
 
-        // Keep automatic lifecycle publication enabled so a Pipeline parse
-        // failure cannot leave a prior successful check stale on this SHA.
+        // The trusted Pipeline publishes both pending and final output with
+        // reviewer-readable summaries. A missing check on a parse failure
+        // remains fail-closed because GitHub cannot satisfy the required gate.
         Node gateChecks = sourceTraits.appendNode('io.jenkins.plugins.checks.github.status.GitHubSCMSourceStatusChecksTrait')
         gateChecks.appendNode('name', primaryCheckName)
-        gateChecks.appendNode('skip', 'false')
+        gateChecks.appendNode('skip', 'true')
         gateChecks.appendNode('skipNotifications', 'true')
 
         Node checksSettings = sourceTraits.appendNode('io.jenkins.plugins.checks.github.config.GitHubSCMSourceChecksTrait')
@@ -161,5 +191,29 @@ multibranchPipelineJob(jobName) {
         // before checkout so blocked PRs can receive a SHA-verified failure.
         // The target repository cannot supply or override this script.
         inlineFactory.appendNode('sandbox', 'false')
+    }
+}
+
+pipelineJob(e2eJobName) {
+    displayName('Playwright E2E (scheduled/manual)')
+    description('''
+        Centrally trusted scheduled and owner-triggered E2E verification.
+        This job is separate from the PR merge gate and has no deployment credentials.
+    '''.stripIndent().trim())
+    logRotator {
+        daysToKeep(30)
+        numToKeep(50)
+    }
+    parameters {
+        stringParam('TARGET_SHA', 'main', 'Use main for the nightly run or provide a full commit SHA for a manual run.')
+    }
+    triggers {
+        cron('37 6 * * *')
+    }
+    definition {
+        cps {
+            script(e2ePipelineTemplate)
+            sandbox(false)
+        }
     }
 }

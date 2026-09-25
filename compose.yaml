@@ -28,7 +28,7 @@ services:
       - "${DOCKER_SOCKET_GID:?Start Jenkins inside the protected Ubuntu VM}"
     environment:
       CASC_JENKINS_CONFIG: /usr/share/jenkins/casc/jenkins.yaml
-      JAVA_OPTS: -Djenkins.install.runSetupWizard=false
+      JAVA_OPTS: -Djenkins.install.runSetupWizard=false -Duser.timezone=UTC
       JENKINS_GITHUB_APP_CREDENTIAL_ID: ${JENKINS_GITHUB_APP_CREDENTIAL_ID:?Set the local App credential ID in the ignored local .env file}
       JENKINS_CHECKOUT_SSH_CREDENTIAL_ID: ${JENKINS_CHECKOUT_SSH_CREDENTIAL_ID:-jenkins-readonly-checkout}
       JENKINS_PRIMARY_CHECK_NAME: ${JENKINS_PRIMARY_CHECK_NAME:?Set the primary check name in the ignored local .env file}
@@ -43,6 +43,8 @@ services:
       JENKINS_MULTIBRANCH_JOB_NAME: ${JENKINS_MULTIBRANCH_JOB_NAME:?Set the local job name in the ignored .env file}
       JENKINS_MARKER_FILE: ${JENKINS_MARKER_FILE:?Set the marker file in the ignored local .env file}
       JENKINS_CANDIDATE_PATHS: ${JENKINS_CANDIDATE_PATHS:?Set candidate paths in the ignored local .env file}
+      JENKINS_TUTOR_WEB_DIRECTORY: ${JENKINS_TUTOR_WEB_DIRECTORY:?Set the Tutor Web path in the ignored local .env file}
+      JENKINS_E2E_JOB_NAME: ${JENKINS_E2E_JOB_NAME:?Set the E2E job name in the ignored local .env file}
     volumes:
       - jenkins_home:/var/jenkins_home
       - ./casc:/usr/share/jenkins/casc:ro
@@ -61,7 +63,21 @@ services:
     build:
       context: .
       dockerfile: agent/Dockerfile
-    image: jenkins-pilot-agent:node-22.23.2
+    image: jenkins-pilot-agent:node-22.23.3
+  node24-agent-image:
+    profiles:
+      - build-images
+    build:
+      context: .
+      dockerfile: agent/Node24.Dockerfile
+    image: jenkins-pilot-agent:node-24.21.0
+  e2e-agent-image:
+    profiles:
+      - build-images
+    build:
+      context: .
+      dockerfile: agent/Playwright.Dockerfile
+    image: jenkins-pilot-agent:node-22.23.3-playwright-1.62.1
 
   restore-check:
     profiles:
@@ -78,7 +94,7 @@ services:
       - /tmp:rw,noexec,nosuid,size=256m
     environment:
       CASC_JENKINS_CONFIG: /usr/share/jenkins/casc/jenkins.yaml
-      JAVA_OPTS: -Djenkins.install.runSetupWizard=false
+      JAVA_OPTS: -Djenkins.install.runSetupWizard=false -Duser.timezone=UTC
       JENKINS_GITHUB_APP_CREDENTIAL_ID: ${JENKINS_GITHUB_APP_CREDENTIAL_ID:?Set the local App credential ID in the ignored local .env file}
       JENKINS_CHECKOUT_SSH_CREDENTIAL_ID: ${JENKINS_CHECKOUT_SSH_CREDENTIAL_ID:-jenkins-readonly-checkout}
       JENKINS_PRIMARY_CHECK_NAME: ${JENKINS_PRIMARY_CHECK_NAME:?Set the primary check name in the ignored local .env file}
@@ -93,6 +109,8 @@ services:
       JENKINS_MULTIBRANCH_JOB_NAME: ${JENKINS_MULTIBRANCH_JOB_NAME:?Set the local job name in the ignored .env file}
       JENKINS_MARKER_FILE: ${JENKINS_MARKER_FILE:?Set the marker file in the ignored local .env file}
       JENKINS_CANDIDATE_PATHS: ${JENKINS_CANDIDATE_PATHS:?Set candidate paths in the ignored local .env file}
+      JENKINS_TUTOR_WEB_DIRECTORY: ${JENKINS_TUTOR_WEB_DIRECTORY:?Set the Tutor Web path in the ignored local .env file}
+      JENKINS_E2E_JOB_NAME: ${JENKINS_E2E_JOB_NAME:?Set the E2E job name in the ignored local .env file}
     volumes:
       - jenkins_home:/var/jenkins_home
       - ./casc:/usr/share/jenkins/casc:ro
