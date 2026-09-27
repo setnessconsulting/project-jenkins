@@ -27,8 +27,7 @@ jenkins:
             mode: EXCLUSIVE
             instanceCap: 1
             retentionStrategy:
-              dockerOnce:
-                idleMinutes: 0
+              idleMinutes: 0
             remoteFs: "/home/jenkins/agent"
             pullStrategy: PULL_NEVER
             removeVolumes: true
@@ -51,8 +50,7 @@ jenkins:
             mode: EXCLUSIVE
             instanceCap: 1
             retentionStrategy:
-              dockerOnce:
-                idleMinutes: 0
+              idleMinutes: 0
             remoteFs: "/home/jenkins/agent"
             pullStrategy: PULL_NEVER
             removeVolumes: true
@@ -75,8 +73,7 @@ jenkins:
             mode: EXCLUSIVE
             instanceCap: 1
             retentionStrategy:
-              dockerOnce:
-                idleMinutes: 0
+              idleMinutes: 0
             remoteFs: "/home/jenkins/agent"
             pullStrategy: PULL_NEVER
             removeVolumes: true
