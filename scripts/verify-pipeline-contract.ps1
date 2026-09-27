@@ -568,6 +568,28 @@ if (-not $jobs.Contains('test-platform.groovy') -or -not $jobs.Contains('testPla
 if (-not $controllerDockerfile.Contains('integration/test-platform-contract') -or -not $controllerDockerfile.Contains('nodejs.org')) {
     throw 'The controller image must provision the pinned Node runtime and the trusted Test Platform adapter.'
 }
+$controllerNodeInstallMarkers = @(
+    'USER root',
+    'apt-get install --yes --no-install-recommends ca-certificates curl xz-utils',
+    'node-v22.23.3-linux-x64.tar.xz',
+    'df450af89261115ef9f9e3830c3eeb2cc9213b63c720b1af623cb5dcbe2e02de',
+    '--directory /opt/setness-jenkins/tools/node-v22.23.3-linux-x64',
+    'PATH="/opt/setness-jenkins/tools/node-v22.23.3-linux-x64/bin:${PATH}"',
+    'USER jenkins'
+)
+$controllerNodeInstallPositions = @(
+    foreach ($marker in $controllerNodeInstallMarkers) {
+        $controllerDockerfile.IndexOf($marker, [StringComparison]::Ordinal)
+    }
+)
+if ($controllerNodeInstallPositions -contains -1) {
+    throw 'The controller Node runtime must install xz support, verify the pinned archive, and use a Jenkins-owned tool path.'
+}
+for ($index = 1; $index -lt $controllerNodeInstallPositions.Count; $index++) {
+    if ($controllerNodeInstallPositions[$index] -le $controllerNodeInstallPositions[$index - 1]) {
+        throw 'The controller Node runtime must switch to root only for installation and return to Jenkins afterward.'
+    }
+}
 
 $testPlatformFixture = $testPlatformRequestFixture | ConvertFrom-Json
 if ($testPlatformFixture.contract_id -ne $testPlatformCatalog.contract.contract_id -or
