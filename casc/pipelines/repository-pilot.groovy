@@ -569,7 +569,6 @@ npm --version
                     } finally {
                         deleteDir()
                     }
-                  }
                 }
             }
         }
