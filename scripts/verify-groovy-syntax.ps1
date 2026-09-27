@@ -3,6 +3,11 @@ param()
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$javaCommand = Get-Command java -ErrorAction SilentlyContinue
+if (-not $javaCommand) {
+    throw 'Java is required for the Groovy syntax check. CI installs the Jenkins-compatible Java runtime before this step.'
+}
+
 $groovyVersion = '2.4.21'
 $groovySha256 = 'DE65260CF2070442E99882F2F3D72E7531725C1E6A257446CC0CEA525C607BD0'
 $tempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }
@@ -32,7 +37,7 @@ try {
         'casc/pipelines/test-platform.groovy'
     ) | ForEach-Object { Join-Path $repositoryRoot $_ }
 
-    & java -cp $jarPath groovy.ui.GroovyMain (Join-Path $PSScriptRoot 'verify-groovy-syntax.groovy') @pipelinePaths
+    & $javaCommand.Source -cp $jarPath groovy.ui.GroovyMain (Join-Path $PSScriptRoot 'verify-groovy-syntax.groovy') @pipelinePaths
     if ($LASTEXITCODE -ne 0) {
         throw "Jenkins-pinned Groovy syntax validation failed with exit code $LASTEXITCODE."
     }
