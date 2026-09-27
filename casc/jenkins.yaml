@@ -27,8 +27,8 @@ jenkins:
             mode: EXCLUSIVE
             instanceCap: 1
             retentionStrategy:
-              $class: com.nirima.jenkins.plugins.docker.strategy.DockerOnceRetentionStrategy
-              idleMinutes: 0
+              dockerOnce:
+                idleMinutes: 0
             remoteFs: "/home/jenkins/agent"
             pullStrategy: PULL_NEVER
             removeVolumes: true
@@ -51,8 +51,8 @@ jenkins:
             mode: EXCLUSIVE
             instanceCap: 1
             retentionStrategy:
-              $class: com.nirima.jenkins.plugins.docker.strategy.DockerOnceRetentionStrategy
-              idleMinutes: 0
+              dockerOnce:
+                idleMinutes: 0
             remoteFs: "/home/jenkins/agent"
             pullStrategy: PULL_NEVER
             removeVolumes: true
@@ -75,8 +75,8 @@ jenkins:
             mode: EXCLUSIVE
             instanceCap: 1
             retentionStrategy:
-              $class: com.nirima.jenkins.plugins.docker.strategy.DockerOnceRetentionStrategy
-              idleMinutes: 0
+              dockerOnce:
+                idleMinutes: 0
             remoteFs: "/home/jenkins/agent"
             pullStrategy: PULL_NEVER
             removeVolumes: true
