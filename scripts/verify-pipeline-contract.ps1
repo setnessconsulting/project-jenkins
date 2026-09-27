@@ -304,6 +304,16 @@ if (-not $restoreSection.Contains('network_mode: none') -or
     $restoreSection -match '(?m)^    ports:\s*$') {
     throw 'The restore rehearsal controller must have no network, published port, or Docker socket.'
 }
+foreach ($setting in @(
+    'JENKINS_TEST_PLATFORM_JOB_NAME:',
+    'JENKINS_TEST_PLATFORM_NODE:',
+    'JENKINS_TEST_PLATFORM_ADAPTER_ROOT:',
+    'JENKINS_TEST_PLATFORM_EVIDENCE_ROOT:'
+)) {
+    if (-not $restoreSection.Contains($setting)) {
+        throw "The isolated restore controller must receive every required Test Platform setting: $setting."
+    }
+}
 if (-not $compose.Contains('name: ${JENKINS_HOME_VOLUME:-setness-jenkins-vm-home}')) {
     throw 'The restore drill must be able to mount a distinct named volume without changing the active Jenkins home.'
 }
