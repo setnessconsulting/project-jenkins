@@ -1,0 +1,23 @@
+[
+  {
+    "suite_id": "verify",
+    "executor_id": "container-infrastructure",
+    "status": "passed",
+    "observed_repository": "setnessconsulting/project-test-platform",
+    "observed_sha": "000000000000000000000000000000000000000a",
+    "passed_tests": 412,
+    "failed_tests": 0,
+    "skipped_tests": 3,
+    "duration_seconds": 12.5,
+    "artifacts": [
+      "verify/verify.log",
+      "verify/results.json"
+    ],
+    "tool_versions": [
+      {
+        "name": "node",
+        "version": "22.23.3"
+      }
+    ]
+  }
+]

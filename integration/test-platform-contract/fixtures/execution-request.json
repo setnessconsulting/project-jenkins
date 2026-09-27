@@ -1,0 +1,144 @@
+{
+  "schema_version": "1",
+  "contract_id": "jenkins-execution-contract",
+  "contract_version": "1.0.0",
+  "plan_schema_version": "1",
+  "policy_version": "1",
+  "execution_mode": "synthetic-qualification",
+  "head": {
+    "repository": "setnessconsulting/project-test-platform",
+    "sha": "000000000000000000000000000000000000000a"
+  },
+  "plan": {
+    "schema_version": "1",
+    "plan_id": "plan:af04e524159f77f879f5896e",
+    "repository": "setnessconsulting/project-test-platform",
+    "sha": "000000000000000000000000000000000000000a",
+    "profile": {
+      "profile_id": "infrastructure-tool-v1",
+      "version": "1.0.0"
+    },
+    "trust": "pr-untrusted",
+    "policy_version": "1",
+    "suites": [
+      {
+        "suite_id": "verify",
+        "entrypoint": "verify",
+        "trust": "pr-untrusted",
+        "timeout_seconds": 1800,
+        "evidence_classes": [
+          "static",
+          "deterministic",
+          "integration",
+          "adversarial-security"
+        ]
+      }
+    ]
+  },
+  "trust_grant": {
+    "trust": "pr-untrusted",
+    "capabilities": [
+      "repository-read",
+      "synthetic-fixtures",
+      "test-execution"
+    ]
+  },
+  "suites": [
+    {
+      "suite_id": "verify",
+      "entrypoint": "verify",
+      "executor_id": "container-infrastructure",
+      "required_capabilities": [
+        "docker",
+        "network-isolated"
+      ],
+      "evidence_classes": [
+        "static",
+        "deterministic",
+        "contract",
+        "integration",
+        "adversarial-security"
+      ],
+      "timeout_seconds": 1800,
+      "artifacts": [
+        {
+          "artifact_id": "verify-log",
+          "kind": "log",
+          "path": "verify/verify.log",
+          "max_bytes": 4194304,
+          "live": false,
+          "evidence_class": "static"
+        },
+        {
+          "artifact_id": "verify-results",
+          "kind": "result-json",
+          "path": "verify/results.json",
+          "max_bytes": 4194304,
+          "live": false,
+          "evidence_class": "static"
+        }
+      ]
+    }
+  ],
+  "required_capabilities": [
+    "docker",
+    "network-isolated"
+  ],
+  "result_mapping": [
+    {
+      "status": "passed",
+      "result": "pass"
+    },
+    {
+      "status": "failed",
+      "result": "fail"
+    },
+    {
+      "status": "agent-unavailable",
+      "result": "blocked"
+    },
+    {
+      "status": "controller-unavailable",
+      "result": "blocked"
+    },
+    {
+      "status": "timed-out",
+      "result": "blocked"
+    },
+    {
+      "status": "cancelled",
+      "result": "blocked"
+    },
+    {
+      "status": "stale-head",
+      "result": "blocked"
+    },
+    {
+      "status": "checkout-sha-mismatch",
+      "result": "blocked"
+    },
+    {
+      "status": "unsupported-capability",
+      "result": "blocked"
+    },
+    {
+      "status": "rejected-trust",
+      "result": "blocked"
+    },
+    {
+      "status": "malformed-result",
+      "result": "not-evaluable"
+    }
+  ],
+  "cancellation": {
+    "cancel_on_superseded_head": true,
+    "cancel_on_newer_plan": true,
+    "abandon_workspace_on_cancel": true
+  },
+  "stale_head": {
+    "require_current_head": true,
+    "on_stale_head": "blocked",
+    "max_head_age_seconds": 3600
+  },
+  "max_execution_seconds": 1800
+}

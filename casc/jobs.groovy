@@ -98,6 +98,24 @@ def e2ePipelineTemplate = new File(
     e2ePipelineTemplate = e2ePipelineTemplate.replace(marker, JsonOutput.toJson(value))
 }
 
+def testPlatformJobName = System.getenv('JENKINS_TEST_PLATFORM_JOB_NAME')?.trim()
+def testPlatformNodeBinary = System.getenv('JENKINS_TEST_PLATFORM_NODE')?.trim()
+def testPlatformAdapterRoot = System.getenv('JENKINS_TEST_PLATFORM_ADAPTER_ROOT')?.trim()
+def testPlatformEvidenceRoot = (System.getenv('JENKINS_TEST_PLATFORM_EVIDENCE_ROOT')?.trim()) ?: ''
+if (!(testPlatformJobName ==~ /[A-Za-z0-9._-]{1,100}/) ||
+        !(testPlatformNodeBinary ==~ /[A-Za-z0-9._\/-]{1,200}/) ||
+        !(testPlatformAdapterRoot ==~ /[A-Za-z0-9._\/-]{1,200}/) || !testPlatformAdapterRoot.startsWith('/') ||
+        testPlatformAdapterRoot.split('/').any { segment -> segment == '.' || segment == '..' } ||
+        (!testPlatformEvidenceRoot.isEmpty() &&
+            ((!(testPlatformEvidenceRoot ==~ /[A-Za-z0-9._\/-]{1,200}/) || !testPlatformEvidenceRoot.startsWith('/') ||
+                testPlatformEvidenceRoot.split('/').any { segment -> segment == '.' || segment == '..' })))) {
+    throw new IllegalStateException('Set a valid Test Platform job name, controller node binary, and absolute adapter/evidence roots in the ignored .env file.')
+}
+
+def testPlatformPipelineTemplate = new File(
+    '/usr/share/jenkins/casc/pipelines/test-platform.groovy'
+).getText('UTF-8')
+
 multibranchPipelineJob(jobName) {
     displayName('Repository CI gate (shadow)')
     description('''
@@ -221,6 +239,40 @@ pipelineJob(e2eJobName) {
     definition {
         cps {
             script(e2ePipelineTemplate)
+            sandbox(false)
+        }
+    }
+}
+
+// The Test Platform contract consumer is a manual, credential-free job. It
+// has no target-repository SCM binding: the operator places a Test Platform
+// execution request JSON in the controller workspace and starts the job. The
+// trusted Pipeline authorizes the request on the controller before any
+// checkout, so a target pull request can never supply controller-trusted
+// Jenkins logic through this job.
+pipelineJob(testPlatformJobName) {
+    displayName('Test Platform execution contract')
+    description('''
+        Centrally trusted consumer of Test Platform ExecutionPlans (API-390).
+        Manual trigger only. No target repository SCM binding and no credentials.
+    '''.stripIndent().trim())
+    logRotator {
+        daysToKeep(30)
+        numToKeep(50)
+    }
+    parameters {
+        stringParam('TEST_PLATFORM_EXECUTION_REQUEST', 'execution-request.json', 'Path of the Test Platform execution request JSON in the controller workspace.')
+        stringParam('TEST_PLATFORM_RESOLUTION_PATH', 'resolution.json', 'Path for the controller-verified resolution.')
+        stringParam('TEST_PLATFORM_RESULTS_PATH', 'results.json', 'Path for the normalized executor results.')
+        stringParam('TEST_PLATFORM_SUBMISSION_PATH', 'receipt-submission.json', 'Path for the normalized receipt submission.')
+        stringParam('JENKINS_TEST_PLATFORM_NODE', testPlatformNodeBinary, 'Node binary that runs the trusted adapter.')
+        stringParam('JENKINS_TEST_PLATFORM_ADAPTER_ROOT', testPlatformAdapterRoot, 'Controller path of the trusted adapter.')
+        stringParam('TEST_PLATFORM_EVIDENCE_ROOT', testPlatformEvidenceRoot ?: '', 'Optional controller evidence publication root.')
+        stringParam('JENKINS_CHECKOUT_SSH_CREDENTIAL_ID', checkoutCredentialId, 'Read-only checkout credential for the target repository.')
+    }
+    definition {
+        cps {
+            script(testPlatformPipelineTemplate)
             sandbox(false)
         }
     }

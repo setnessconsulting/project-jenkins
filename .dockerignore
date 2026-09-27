@@ -3,3 +3,6 @@
 !plugins.txt
 !agent/
 !agent/Dockerfile
+!integration/
+!integration/test-platform-contract/
+!integration/test-platform-contract/**

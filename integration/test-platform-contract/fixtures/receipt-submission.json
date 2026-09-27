@@ -1,0 +1,68 @@
+{
+  "schema_version": "1",
+  "contract_id": "jenkins-execution-contract",
+  "contract_version": "1.0.0",
+  "plan_id": "plan:af04e524159f77f879f5896e",
+  "head": {
+    "repository": "setnessconsulting/project-test-platform",
+    "sha": "000000000000000000000000000000000000000a"
+  },
+  "execution_mode": "synthetic-qualification",
+  "evidence_origin": "synthetic",
+  "outcomes": [
+    {
+      "schema_version": "1",
+      "suite_id": "verify",
+      "executor_id": "container-infrastructure",
+      "status": "passed",
+      "observed_head": {
+        "repository": "setnessconsulting/project-test-platform",
+        "sha": "000000000000000000000000000000000000000a"
+      },
+      "receipt": {
+        "schema_version": "1",
+        "receipt_id": "receipt:ad55bf417688cb817208199a",
+        "plan_id": "plan:af04e524159f77f879f5896e",
+        "repository": "setnessconsulting/project-test-platform",
+        "sha": "000000000000000000000000000000000000000a",
+        "profile": {
+          "profile_id": "infrastructure-tool-v1",
+          "version": "1.0.0"
+        },
+        "suite_id": "verify",
+        "executor": "container-infrastructure",
+        "trust": "pr-untrusted",
+        "result": "pass",
+        "passed_tests": 412,
+        "failed_tests": 0,
+        "skipped_tests": 3,
+        "duration_seconds": 12.5,
+        "evidence": [
+          {
+            "evidence_id": "verify.verify-log",
+            "evidence_class": "static",
+            "live": false,
+            "source": "jenkins",
+            "reference": "verify/verify.log"
+          },
+          {
+            "evidence_id": "verify.verify-results",
+            "evidence_class": "static",
+            "live": false,
+            "source": "jenkins",
+            "reference": "verify/results.json"
+          }
+        ],
+        "tool_versions": [
+          {
+            "name": "node",
+            "version": "22.23.3"
+          }
+        ],
+        "generated_at": "2026-09-27T17:07:01.217Z"
+      },
+      "diagnostics": []
+    }
+  ],
+  "generated_at": "2026-09-27T17:07:01.217Z"
+}

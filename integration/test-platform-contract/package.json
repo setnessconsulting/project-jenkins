@@ -1,0 +1,14 @@
+{
+  "name": "@setness/jenkins-test-platform-contract",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Trusted Jenkins consumer adapter for Test Platform ExecutionPlan and QualityReceipt contracts (API-390).",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}

@@ -1,0 +1,175 @@
+{
+  "catalog_version": "1.0.0",
+  "description": "Jenkins-owned approved consumer allowlist for the Test Platform Jenkins execution contract. Maintained centrally in project-jenkins. It mirrors approved identities only; it is not a copy of the canonical Test Platform models, and it never carries a command that originates in a target repository.",
+  "contract": {
+    "contract_id": "jenkins-execution-contract",
+    "contract_version": "1.0.0",
+    "plan_schema_versions": ["1"],
+    "receipt_schema_versions": ["1"],
+    "request_schema_versions": ["1"],
+    "submission_schema_versions": ["1"]
+  },
+  "trust_rank": {
+    "pr-untrusted": 0,
+    "trusted-branch": 1,
+    "trusted-manual": 2,
+    "live-qualification": 3
+  },
+  "trust_capabilities": {
+    "pr-untrusted": [
+      "repository-read",
+      "test-execution",
+      "synthetic-fixtures"
+    ],
+    "trusted-branch": [
+      "repository-read",
+      "test-execution",
+      "synthetic-fixtures",
+      "private-evidence-write"
+    ],
+    "trusted-manual": [
+      "repository-read",
+      "test-execution",
+      "synthetic-fixtures",
+      "private-evidence-write",
+      "bounded-test-credentials"
+    ],
+    "live-qualification": [
+      "repository-read",
+      "test-execution",
+      "synthetic-fixtures",
+      "private-evidence-write",
+      "bounded-test-credentials",
+      "bounded-provider-credentials",
+      "live-provider-read"
+    ]
+  },
+  "repositories": [
+    "setnessconsulting/project-test-platform",
+    "setnessconsulting/project-jenkins",
+    "setnessconsulting/project-setness-consulting"
+  ],
+  "limits": {
+    "max_suites": 64,
+    "max_artifacts_per_suite": 8,
+    "max_artifact_bytes": 268435456,
+    "max_evidence_references_per_suite": 8,
+    "max_diagnostics_per_outcome": 8,
+    "max_diagnostic_message_length": 1024,
+    "max_suite_timeout_seconds": 7200,
+    "max_execution_seconds": 86400
+  },
+  "executors": {
+    "node-22-deterministic": {
+      "agent_class": "setness-ephemeral",
+      "max_trust": "live-qualification",
+      "capabilities": [
+        "node-22",
+        "network-isolated",
+        "private-evidence-store"
+      ]
+    },
+    "node-24-deterministic": {
+      "agent_class": "setness-node24-ephemeral",
+      "max_trust": "live-qualification",
+      "capabilities": [
+        "node-24",
+        "network-isolated",
+        "private-evidence-store"
+      ]
+    },
+    "browser-e2e": {
+      "agent_class": "setness-e2e-ephemeral",
+      "max_trust": "live-qualification",
+      "capabilities": [
+        "node-22",
+        "playwright-chromium",
+        "network-isolated",
+        "private-evidence-store"
+      ]
+    },
+    "container-infrastructure": {
+      "agent_class": "setness-ephemeral",
+      "max_trust": "live-qualification",
+      "capabilities": [
+        "docker",
+        "network-isolated",
+        "private-evidence-store"
+      ]
+    }
+  },
+  "suites": {
+    "verify": {
+      "entrypoint": "verify",
+      "executor_id": "container-infrastructure",
+      "required_capabilities": ["docker", "network-isolated"],
+      "timeout_seconds": 1800
+    },
+    "standard": {
+      "entrypoint": "standard",
+      "executor_id": "node-22-deterministic",
+      "required_capabilities": ["node-22", "network-isolated"],
+      "timeout_seconds": 1800
+    },
+    "typecheck": {
+      "entrypoint": "typecheck",
+      "executor_id": "node-22-deterministic",
+      "required_capabilities": ["node-22", "network-isolated"],
+      "timeout_seconds": 900
+    },
+    "tutor-web": {
+      "entrypoint": "tutor-web",
+      "executor_id": "node-24-deterministic",
+      "required_capabilities": ["node-24", "network-isolated"],
+      "timeout_seconds": 1800
+    },
+    "e2e": {
+      "entrypoint": "e2e",
+      "executor_id": "browser-e2e",
+      "required_capabilities": [
+        "node-22",
+        "playwright-chromium",
+        "network-isolated"
+      ],
+      "timeout_seconds": 3600
+    },
+    "qualify": {
+      "entrypoint": "qualify",
+      "executor_id": "container-infrastructure",
+      "required_capabilities": [
+        "docker",
+        "network-isolated",
+        "private-evidence-store"
+      ],
+      "timeout_seconds": 3600
+    },
+    "qualify:live": {
+      "entrypoint": "qualify:live",
+      "executor_id": "container-infrastructure",
+      "required_capabilities": [
+        "docker",
+        "network-isolated",
+        "private-evidence-store"
+      ],
+      "timeout_seconds": 3600
+    }
+  },
+  "executor_profiles": {
+    "node-22-deterministic": {
+      "argv": ["node", "--version"],
+      "workspace": "app"
+    },
+    "node-24-deterministic": {
+      "argv": ["node", "--version"],
+      "workspace": "tutor-web"
+    },
+    "browser-e2e": {
+      "argv": ["npx", "playwright", "--version"],
+      "workspace": "app"
+    },
+    "container-infrastructure": {
+      "argv": ["docker", "version", "--format", "{{.Server.Version}}"],
+      "workspace": "."
+    }
+  }
+}

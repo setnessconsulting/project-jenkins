@@ -25,11 +25,25 @@ $backupScriptPath = Join-Path $repositoryRoot 'scripts/vm/backup-jenkins.sh'
 $restoreScriptPath = Join-Path $repositoryRoot 'scripts/vm/restore-jenkins-backup.sh'
 $rollbackScriptPath = Join-Path $repositoryRoot 'scripts/rollback-jenkins-vm-forward.ps1'
 $windowsControllerShimPath = Join-Path $repositoryRoot 'scripts/start-controller.ps1'
+$testPlatformPipelinePath = Join-Path $repositoryRoot 'casc/pipelines/test-platform.groovy'
+$testPlatformCatalogPath = Join-Path $repositoryRoot 'integration/test-platform-contract/src/approved-catalog.json'
+$testPlatformAdapterPath = Join-Path $repositoryRoot 'integration/test-platform-contract/src/adapter.mjs'
+$testPlatformWirePath = Join-Path $repositoryRoot 'integration/test-platform-contract/src/wire.mjs'
+$testPlatformCliPath = Join-Path $repositoryRoot 'integration/test-platform-contract/src/cli.mjs'
+$testPlatformPackagePath = Join-Path $repositoryRoot 'integration/test-platform-contract/package.json'
+$testPlatformRequestFixturePath = Join-Path $repositoryRoot 'integration/test-platform-contract/fixtures/execution-request.json'
+
+# A Windows checkout keeps CRLF line endings. Normalize every inspected document
+# so the structural contracts below hold on every platform.
+function Read-NormalizedText {
+    param([Parameter(Mandatory = $true)][string] $LiteralPath)
+    return ((Get-Content -LiteralPath $LiteralPath -Raw) -replace "`r`n", "`n")
+}
 
 $pipeline = Get-Content -LiteralPath $pipelinePath -Raw
 $controllerDockerfile = Get-Content -LiteralPath $controllerDockerfilePath -Raw
 $compose = Get-Content -LiteralPath $composePath -Raw
-$jenkinsConfig = Get-Content -LiteralPath $jenkinsConfigPath -Raw
+$jenkinsConfig = Read-NormalizedText -LiteralPath $jenkinsConfigPath
 $jobs = Get-Content -LiteralPath $jobsPath -Raw
 $environmentExample = Get-Content -LiteralPath $environmentExamplePath -Raw
 $gitIgnore = Get-Content -LiteralPath $gitIgnorePath -Raw
@@ -47,6 +61,13 @@ $vmStartScript = Get-Content -LiteralPath $vmStartScriptPath -Raw
 $backupScript = Get-Content -LiteralPath $backupScriptPath -Raw
 $restoreScript = Get-Content -LiteralPath $restoreScriptPath -Raw
 $windowsControllerShim = Get-Content -LiteralPath $windowsControllerShimPath -Raw
+$testPlatformPipeline = Read-NormalizedText -LiteralPath $testPlatformPipelinePath
+$testPlatformCatalog = Read-NormalizedText -LiteralPath $testPlatformCatalogPath
+$testPlatformAdapter = Read-NormalizedText -LiteralPath $testPlatformAdapterPath
+$testPlatformWire = Read-NormalizedText -LiteralPath $testPlatformWirePath
+$testPlatformCli = Read-NormalizedText -LiteralPath $testPlatformCliPath
+$testPlatformPackage = Read-NormalizedText -LiteralPath $testPlatformPackagePath
+$testPlatformRequestFixture = Read-NormalizedText -LiteralPath $testPlatformRequestFixturePath
 
 $environmentBlockFound = $false
 $insideEnvironmentBlock = $false
@@ -475,4 +496,83 @@ if (-not $pipeline.Contains("withEnv(['CLOUDFLARE_ENV=staging'])") -or
     throw 'Every Candidate validation command must run in the staging environment, without provider credentials or deployment capability.'
 }
 
-Write-Output 'Compose isolation, disposable Node 22/Node 24/Playwright agents, controller-before-checkout authorization, separate verification lanes, credential boundaries, check reporting, recovery gates, and trusted-pipeline contracts passed.'
+# --- Test Platform consumer contract (API-390) structural checks ------------
+
+$testPlatformRequiredGuards = @(
+    'The trusted Test Platform adapter is not configured on this controller',
+    'no repository code was run',
+    'JENKINS_PILOT_PR_HEAD_SHA',
+    'test-platform-resolution',
+    'test-platform-results',
+    'agent-unavailable',
+    'checkout-sha-mismatch',
+    'Authorize and resolve Test Platform contract',
+    'git rev-parse HEAD'
+)
+foreach ($guard in $testPlatformRequiredGuards) {
+    if (-not $testPlatformPipeline.Contains($guard)) {
+        throw "The trusted Test Platform pipeline is missing a required guard: $guard"
+    }
+}
+$testPlatformAuthIndex = $testPlatformPipeline.IndexOf('Authorize and resolve Test Platform contract')
+$testPlatformCheckoutIndex = $testPlatformPipeline.IndexOf('git rev-parse HEAD')
+if ($testPlatformAuthIndex -lt 0 -or $testPlatformCheckoutIndex -lt 0 -or $testPlatformAuthIndex -ge $testPlatformCheckoutIndex) {
+    throw 'The Test Platform contract must be authorized on the controller before any checkout.'
+}
+if ($testPlatformPipeline.Contains('${plan.') -or $testPlatformPipeline.Contains('${suite.')) {
+    throw 'The trusted Test Platform pipeline must not interpolate plan-controlled values.'
+}
+
+$testPlatformCatalog = $testPlatformCatalog | ConvertFrom-Json
+if ($testPlatformCatalog.contract.contract_id -ne 'jenkins-execution-contract' -or
+    $testPlatformCatalog.contract.contract_version -ne '1.0.0' -or
+    $testPlatformCatalog.contract.plan_schema_versions -notcontains '1' -or
+    $testPlatformCatalog.contract.receipt_schema_versions -notcontains '1') {
+    throw 'The approved Test Platform catalog must mirror the canonical jenkins-execution-contract 1.0.0 schema versions.'
+}
+foreach ($limitName in @('max_suites', 'max_artifacts_per_suite', 'max_artifact_bytes', 'max_evidence_references_per_suite', 'max_diagnostics_per_outcome', 'max_diagnostic_message_length', 'max_suite_timeout_seconds', 'max_execution_seconds')) {
+    if ($null -eq $testPlatformCatalog.limits.$limitName) {
+        throw "The approved Test Platform catalog is missing the bounded limit: $limitName."
+    }
+}
+foreach ($executorId in @('node-22-deterministic', 'node-24-deterministic', 'browser-e2e', 'container-infrastructure')) {
+    if ($null -eq $testPlatformCatalog.executors.$executorId) {
+        throw "The approved Test Platform catalog is missing the approved executor: $executorId."
+    }
+}
+foreach ($suiteId in @('verify', 'standard', 'typecheck', 'tutor-web', 'e2e', 'qualify', 'qualify:live')) {
+    if ($null -eq $testPlatformCatalog.suites.$suiteId) {
+        throw "The approved Test Platform catalog is missing the approved suite: $suiteId."
+    }
+}
+
+foreach ($adapterGuard in @('ContractRejection', 'verifyRequest', 'buildSubmission')) {
+    if (-not $testPlatformAdapter.Contains($adapterGuard)) {
+        throw "The trusted Test Platform adapter is missing required logic: $adapterGuard"
+    }
+}
+foreach ($wireGuard in @('validateExecutionRequest', 'validateReceiptSubmission', 'validateExecutorResults')) {
+    if (-not $testPlatformWire.Contains($wireGuard)) {
+        throw "The trusted Test Platform consumer wire is missing required validation: $wireGuard"
+    }
+}
+foreach ($cliGuard in @('finalize', 'verify')) {
+    if (-not $testPlatformCli.Contains($cliGuard)) {
+        throw "The trusted Test Platform adapter CLI is missing required subcommand: $cliGuard"
+    }
+}
+
+if (-not $jobs.Contains('test-platform.groovy') -or -not $jobs.Contains('testPlatformPipelineTemplate')) {
+    throw 'CasC must install the trusted Test Platform pipeline exactly like the other trusted pipelines.'
+}
+if (-not $controllerDockerfile.Contains('integration/test-platform-contract') -or -not $controllerDockerfile.Contains('nodejs.org')) {
+    throw 'The controller image must provision the pinned Node runtime and the trusted Test Platform adapter.'
+}
+
+$testPlatformFixture = $testPlatformRequestFixture | ConvertFrom-Json
+if ($testPlatformFixture.contract_id -ne $testPlatformCatalog.contract.contract_id -or
+    $testPlatformFixture.contract_version -ne $testPlatformCatalog.contract.contract_version) {
+    throw 'The synthetic Test Platform request fixture must match the approved catalog contract identity.'
+}
+
+Write-Output 'Compose isolation, disposable Node 22/Node 24/Playwright agents, controller-before-checkout authorization, separate verification lanes, credential boundaries, check reporting, recovery gates, trusted-pipeline contracts, and the Test Platform consumer contract passed.'
