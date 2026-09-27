@@ -295,9 +295,19 @@ foreach ($legacyScript in @('enroll-agent.ps1', 'add-readonly-deploy-key.ps1', '
 if (-not (Test-Path -LiteralPath $rollbackScriptPath -PathType Leaf)) {
     throw 'The exact loopback forward rollback script is missing.'
 }
+$oneBuildRetentionStrategyCount = [regex]::Matches(
+    $jenkinsConfig,
+    '(?m)^[ \t]+retentionStrategy:\r?\n[ \t]+idleMinutes: 0$'
+).Count
+$oneBuildTemplateCapCount = [regex]::Matches(
+    $jenkinsConfig,
+    '(?m)^[ \t]+instanceCapStr: "1"$'
+).Count
 if (-not $jenkinsConfig.Contains('containerCap: 1') -or
-    -not $jenkinsConfig.Contains('instanceCap: 1') -or
-    -not $jenkinsConfig.Contains('$class: com.nirima.jenkins.plugins.docker.strategy.DockerOnceRetentionStrategy') -or
+    $oneBuildTemplateCapCount -ne 3 -or
+    $oneBuildRetentionStrategyCount -ne 3 -or
+    $jenkinsConfig.Contains('$class: com.nirima.jenkins.plugins.docker.strategy.DockerOnceRetentionStrategy') -or
+    $jenkinsConfig.Contains('dockerOnce:') -or
     -not $jenkinsConfig.Contains('idleMinutes: 0') -or
     -not $jenkinsConfig.Contains('labelString: "setness-ephemeral"') -or
     -not $jenkinsConfig.Contains('removeVolumes: true') -or
@@ -306,7 +316,7 @@ if (-not $jenkinsConfig.Contains('containerCap: 1') -or
     -not $jenkinsConfig.Contains('cpus: "4.0"') -or
     -not $jenkinsConfig.Contains('privileged: false') -or
     -not $jenkinsConfig.Contains('network: "setness-jenkins-private"')) {
-    throw 'The Docker cloud must provision a single resource-limited, unprivileged, one-build agent on its private network.'
+    throw 'The Docker cloud must configure three correctly bounded one-build templates through the plugin CasC schema and provision resource-limited, unprivileged containers on its private network.'
 }
 if ($jenkinsConfig.Contains('permanent:') -or $jenkinsConfig.Contains('setness-linux-agent')) {
     throw 'A persistent Jenkins agent must not be configured.'

@@ -25,9 +25,8 @@ jenkins:
           - name: "setness-node22-one-build"
             labelString: "setness-ephemeral"
             mode: EXCLUSIVE
-            instanceCap: 1
+            instanceCapStr: "1"
             retentionStrategy:
-              $class: com.nirima.jenkins.plugins.docker.strategy.DockerOnceRetentionStrategy
               idleMinutes: 0
             remoteFs: "/home/jenkins/agent"
             pullStrategy: PULL_NEVER
@@ -49,9 +48,8 @@ jenkins:
           - name: "setness-node24-one-build"
             labelString: "setness-node24-ephemeral"
             mode: EXCLUSIVE
-            instanceCap: 1
+            instanceCapStr: "1"
             retentionStrategy:
-              $class: com.nirima.jenkins.plugins.docker.strategy.DockerOnceRetentionStrategy
               idleMinutes: 0
             remoteFs: "/home/jenkins/agent"
             pullStrategy: PULL_NEVER
@@ -73,9 +71,8 @@ jenkins:
           - name: "setness-e2e-one-build"
             labelString: "setness-e2e-ephemeral"
             mode: EXCLUSIVE
-            instanceCap: 1
+            instanceCapStr: "1"
             retentionStrategy:
-              $class: com.nirima.jenkins.plugins.docker.strategy.DockerOnceRetentionStrategy
               idleMinutes: 0
             remoteFs: "/home/jenkins/agent"
             pullStrategy: PULL_NEVER
