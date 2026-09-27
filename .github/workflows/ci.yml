@@ -35,6 +35,9 @@ jobs:
       JENKINS_CANDIDATE_CHECK_NAME: candidate-validation
       JENKINS_APP_DIRECTORY: sample-app
       JENKINS_SITE_URL: https://example.invalid
+      JENKINS_TEST_PLATFORM_JOB_NAME: sample-test-platform
+      JENKINS_TEST_PLATFORM_NODE: node
+      JENKINS_TEST_PLATFORM_ADAPTER_ROOT: /usr/share/jenkins/test-platform-contract
       JENKINS_HTTP_BIND_IP: 192.168.218.2
       DOCKER_SOCKET_GID: "999"
     steps:
