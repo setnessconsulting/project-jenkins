@@ -299,8 +299,12 @@ $oneBuildRetentionStrategyCount = [regex]::Matches(
     $jenkinsConfig,
     '(?m)^[ \t]+retentionStrategy:\r?\n[ \t]+idleMinutes: 0$'
 ).Count
+$oneBuildTemplateCapCount = [regex]::Matches(
+    $jenkinsConfig,
+    '(?m)^[ \t]+instanceCapStr: "1"$'
+).Count
 if (-not $jenkinsConfig.Contains('containerCap: 1') -or
-    -not $jenkinsConfig.Contains('instanceCap: 1') -or
+    $oneBuildTemplateCapCount -ne 3 -or
     $oneBuildRetentionStrategyCount -ne 3 -or
     $jenkinsConfig.Contains('$class: com.nirima.jenkins.plugins.docker.strategy.DockerOnceRetentionStrategy') -or
     $jenkinsConfig.Contains('dockerOnce:') -or
@@ -312,7 +316,7 @@ if (-not $jenkinsConfig.Contains('containerCap: 1') -or
     -not $jenkinsConfig.Contains('cpus: "4.0"') -or
     -not $jenkinsConfig.Contains('privileged: false') -or
     -not $jenkinsConfig.Contains('network: "setness-jenkins-private"')) {
-    throw 'The Docker cloud must configure all three one-build agents through the plugin retention strategy and provision resource-limited, unprivileged containers on its private network.'
+    throw 'The Docker cloud must configure three correctly bounded one-build templates through the plugin CasC schema and provision resource-limited, unprivileged containers on its private network.'
 }
 if ($jenkinsConfig.Contains('permanent:') -or $jenkinsConfig.Contains('setness-linux-agent')) {
     throw 'A persistent Jenkins agent must not be configured.'

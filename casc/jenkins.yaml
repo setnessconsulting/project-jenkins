@@ -25,7 +25,7 @@ jenkins:
           - name: "setness-node22-one-build"
             labelString: "setness-ephemeral"
             mode: EXCLUSIVE
-            instanceCap: 1
+            instanceCapStr: "1"
             retentionStrategy:
               idleMinutes: 0
             remoteFs: "/home/jenkins/agent"
@@ -48,7 +48,7 @@ jenkins:
           - name: "setness-node24-one-build"
             labelString: "setness-node24-ephemeral"
             mode: EXCLUSIVE
-            instanceCap: 1
+            instanceCapStr: "1"
             retentionStrategy:
               idleMinutes: 0
             remoteFs: "/home/jenkins/agent"
@@ -71,7 +71,7 @@ jenkins:
           - name: "setness-e2e-one-build"
             labelString: "setness-e2e-ephemeral"
             mode: EXCLUSIVE
-            instanceCap: 1
+            instanceCapStr: "1"
             retentionStrategy:
               idleMinutes: 0
             remoteFs: "/home/jenkins/agent"
