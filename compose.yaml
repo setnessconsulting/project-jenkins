@@ -116,6 +116,10 @@ services:
       JENKINS_CANDIDATE_PATHS: ${JENKINS_CANDIDATE_PATHS:?Set candidate paths in the ignored local .env file}
       JENKINS_TUTOR_WEB_DIRECTORY: ${JENKINS_TUTOR_WEB_DIRECTORY:?Set the Tutor Web path in the ignored local .env file}
       JENKINS_E2E_JOB_NAME: ${JENKINS_E2E_JOB_NAME:?Set the E2E job name in the ignored local .env file}
+      JENKINS_TEST_PLATFORM_JOB_NAME: ${JENKINS_TEST_PLATFORM_JOB_NAME:?Set the Test Platform job name in the ignored local .env file}
+      JENKINS_TEST_PLATFORM_NODE: ${JENKINS_TEST_PLATFORM_NODE:?Set the controller node binary in the ignored local .env file}
+      JENKINS_TEST_PLATFORM_ADAPTER_ROOT: ${JENKINS_TEST_PLATFORM_ADAPTER_ROOT:?Set the trusted adapter root in the ignored local .env file}
+      JENKINS_TEST_PLATFORM_EVIDENCE_ROOT: ${JENKINS_TEST_PLATFORM_EVIDENCE_ROOT:-}
     volumes:
       - jenkins_home:/var/jenkins_home
       - ./casc:/usr/share/jenkins/casc:ro
