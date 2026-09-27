@@ -322,7 +322,8 @@ pipeline {
                         'Not applicable: no configured Cloudflare Candidate path changed.'
                     assert candidateCheckSummary('DENIED', 'BLOCKED', 'NOT_RUN', '0').startsWith('Not run: owner-only policy')
                     assert candidateCheckSummary('AUTHORIZED', 'RELEVANT', 'CANCELED', '2').startsWith('Cancelled:')
-                    assert candidateCheckSummary('AUTHORIZED', 'RELEVANT', 'NOT_RUN', '2').startsWith('Not run: Standard CI')
+                    assert candidateCheckSummary('AUTHORIZED', 'RELEVANT', 'NOT_RUN', '2') ==
+                        'Not run: standard CI did not complete before candidate checks could run; see the required CI result.'
                     assert candidateCheckSummary('AUTHORIZED', 'RELEVANT', 'FAILURE', '2').contains('failure for 2 relevant changed path(s)')
                     assert candidateCheckSummary('AUTHORIZED', 'RELEVANT', 'SUCCESS', 'manual request') ==
                         'Cloudflare Candidate success for an owner-triggered manual run.'

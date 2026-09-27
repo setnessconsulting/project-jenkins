@@ -144,6 +144,8 @@ $requiredContracts = @(
     "assert candidateCheckConclusion('UNCLASSIFIED', 'NOT_RUN') == 'FAILURE'",
     "assert candidateCheckConclusion('RELEVANT', 'CANCELED') == 'CANCELED'",
     "assert candidateCheckSummary('DENIED', 'BLOCKED', 'NOT_RUN', '0').startsWith('Not run: owner-only policy')",
+    "assert candidateCheckSummary('AUTHORIZED', 'RELEVANT', 'NOT_RUN', '2') ==",
+    'Not run: standard CI did not complete before candidate checks could run; see the required CI result.',
     "stage('Node 22 runtime')",
     "stage('Install dependencies (npm ci)')",
     "stage('Typecheck')",
