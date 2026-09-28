@@ -52,6 +52,14 @@ jobs:
       - name: Validate Compose model
         run: docker compose --profile build-images --file compose.yaml config --quiet
 
+      - name: Set up Ruby for YAML validation
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2.3'
+
+      - name: Parse Jenkins Configuration as Code YAML
+        run: ruby -e 'require "yaml"; YAML.parse_file("casc/jenkins.yaml")'
+
       - name: Validate trusted pipeline contract
         shell: pwsh
         run: ./scripts/verify-pipeline-contract.ps1

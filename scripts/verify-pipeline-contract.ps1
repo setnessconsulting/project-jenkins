@@ -3,6 +3,7 @@ param()
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$workflowPath = Join-Path $repositoryRoot '.github/workflows/ci.yml'
 $pipelinePath = Join-Path $repositoryRoot 'casc/pipelines/repository-pilot.groovy'
 $controllerDockerfilePath = Join-Path $repositoryRoot 'Dockerfile'
 $composePath = Join-Path $repositoryRoot 'compose.yaml'
@@ -43,6 +44,7 @@ function Read-NormalizedText {
 }
 
 $pipeline = Get-Content -LiteralPath $pipelinePath -Raw
+$workflow = Read-NormalizedText -LiteralPath $workflowPath
 $controllerDockerfile = Get-Content -LiteralPath $controllerDockerfilePath -Raw
 $compose = Get-Content -LiteralPath $composePath -Raw
 $jenkinsConfig = Read-NormalizedText -LiteralPath $jenkinsConfigPath
@@ -72,6 +74,14 @@ $testPlatformWire = Read-NormalizedText -LiteralPath $testPlatformWirePath
 $testPlatformCli = Read-NormalizedText -LiteralPath $testPlatformCliPath
 $testPlatformPackage = Read-NormalizedText -LiteralPath $testPlatformPackagePath
 $testPlatformRequestFixture = Read-NormalizedText -LiteralPath $testPlatformRequestFixturePath
+
+if (-not $workflow.Contains('Set up Ruby for YAML validation') -or
+    -not $workflow.Contains('ruby/setup-ruby@v1') -or
+    -not $workflow.Contains("ruby-version: '3.2.3'") -or
+    -not $workflow.Contains('Parse Jenkins Configuration as Code YAML') -or
+    -not $workflow.Contains('YAML.parse_file("casc/jenkins.yaml")')) {
+    throw 'Repository CI must parse the Jenkins Configuration as Code YAML, not only inspect it as text.'
+}
 
 $environmentBlockFound = $false
 $insideEnvironmentBlock = $false
@@ -530,15 +540,22 @@ if (-not $environmentExample.Contains('JENKINS_SECONDARY_REPO_ENABLED=false') -o
     -not $jobs.Contains("branchFilter.appendNode('includes', 'main PR-*')") -or
     -not $jobs.Contains("pullRequestDiscovery.appendNode('strategyId', '1')") -or
     -not $jobs.Contains('secondarySmokeCheckName == secondaryPrimaryCheckName') -or
+    -not $jobs.Contains('secondaryOwner.equalsIgnoreCase(targetOwner)') -or
+    -not $jobs.Contains('secondaryRepository.equalsIgnoreCase(targetRepository)') -or
     -not $pilotConfigParser.Contains("'JENKINS_SECONDARY_REPO_ENABLED'") -or
     -not $pilotConfigParser.Contains('Enabled secondary-repository configuration') -or
     -not $pilotConfigParser.Contains('$secondarySmokeCheckName -eq $secondaryPrimaryCheckName') -or
+    -not $pilotConfigParser.Contains('$sameSecondaryRepository') -or
+    -not $pilotConfigParser.Contains('$secondaryOwner.Equals($owner, [StringComparison]::OrdinalIgnoreCase)') -or
+    -not $pilotConfigParser.Contains('$secondaryRepository.Equals($repository, [StringComparison]::OrdinalIgnoreCase)') -or
     -not $pilotConfigParser.Contains('$secondaryJobName -in @($jobName, $e2eJobName, [string] $values[''JENKINS_TEST_PLATFORM_JOB_NAME''])')) {
     throw 'The secondary repository profile must default off and require an explicit separate checkout key, owner allowlist, and centrally injected pipeline.'
 }
 $secondaryAuthorizationIndex = $secondaryPipeline.IndexOf("stage('Authorize pull request')")
 $secondaryRevisionIndex = $secondaryPipeline.IndexOf('verifiedSecondaryPullRequestRevision(')
 $secondaryAgentIndex = $secondaryPipeline.IndexOf("label 'secondary-node24-playwright-ephemeral'")
+$secondarySmokeAgentIndex = $secondaryPipeline.IndexOf("label 'secondary-node24-playwright-ephemeral'", $secondaryAgentIndex + 1)
+$secondarySmokeStageIndex = $secondaryPipeline.IndexOf("stage('Read-only production smoke')")
 $secondaryCheckoutIndex = $secondaryPipeline.IndexOf('checkout scm')
 if (-not $secondaryPipeline.Contains('agent none') -or
     -not $secondaryPipeline.Contains('PullRequestSCMRevision') -or
@@ -563,14 +580,21 @@ if (-not $secondaryPipeline.Contains('agent none') -or
     -not $secondaryPipeline.Contains('tests/wave7/e2e/qualification.spec.ts') -or
     -not $secondaryPipeline.Contains('same-repository PR head SHA') -or
     -not $secondaryPipeline.Contains('Not configured: owner-reviewed smoke URL is absent; no live request was made.') -or
+    -not $secondaryPipeline.Contains('JENKINS_SECONDARY_CI_FAILURE_STAGE') -or
+    -not $secondaryPipeline.Contains('Failure stage: ${failureStage}') -or
+    -not $secondaryPipeline.Contains("? failureStage : 'not applicable'") -or
+    -not $secondaryPipeline.Contains("def failureStage = isPullRequest && authorization != 'AUTHORIZED'") -or
+    $secondaryPipeline.Contains('${err}') -or
+    -not $secondaryPipeline.Contains("label 'secondary-node24-playwright-ephemeral'") -or
     -not $secondaryPipeline.Contains("secondarySmokeConclusion('NOT_CONFIGURED') == 'NEUTRAL'") -or
     -not $secondaryPipeline.Contains("name: smokeCheckName") -or
     -not $secondaryPipeline.Contains('deleteDir()') -or
     [regex]::Matches($secondaryPipeline, "(?m)^\s*sh 'npm ci --no-audit --no-fund'\s*$").Count -ne 1 -or
     $secondaryAuthorizationIndex -lt 0 -or $secondaryRevisionIndex -lt 0 -or
-    $secondaryAgentIndex -lt 0 -or $secondaryCheckoutIndex -lt 0 -or
+    $secondaryAgentIndex -lt 0 -or $secondarySmokeAgentIndex -lt 0 -or $secondaryCheckoutIndex -lt 0 -or
     $secondaryAuthorizationIndex -ge $secondaryAgentIndex -or
-    $secondaryAuthorizationIndex -ge $secondaryCheckoutIndex) {
+    $secondaryAuthorizationIndex -ge $secondaryCheckoutIndex -or
+    $secondarySmokeStageIndex -lt 0 -or $secondarySmokeAgentIndex -lt $secondarySmokeStageIndex) {
     throw 'The secondary trusted pipeline must authorize same-repository owner PRs and verify SHA before checkout, run the Node 24/Playwright contract once per clean ephemeral workspace, and report smoke as separate/not-configured rather than a passing result.'
 }
 if ([regex]::Matches($pipeline, "(?m)^\s*sh 'npm ci'\s*$").Count -ne 1) {

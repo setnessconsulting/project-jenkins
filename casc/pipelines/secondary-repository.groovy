@@ -75,6 +75,7 @@ pipeline {
         JENKINS_SECONDARY_PR_BASE_SHA = ''
         JENKINS_SECONDARY_CHECKED_OUT_SHA = ''
         JENKINS_SECONDARY_CI_RESULT = 'NOT_RUN'
+        JENKINS_SECONDARY_CI_FAILURE_STAGE = ''
         JENKINS_SECONDARY_PLAYWRIGHT_RESULTS = ''
         JENKINS_SECONDARY_SMOKE_RESULT = 'NOT_RUN'
         JENKINS_SECONDARY_SMOKE_DETAIL = 'No smoke result was recorded.'
@@ -162,9 +163,12 @@ pipeline {
             }
             steps {
                 script {
-                    deleteDir()
                     try {
+                        env.JENKINS_SECONDARY_CI_FAILURE_STAGE = 'Workspace preparation'
+                        deleteDir()
+                        env.JENKINS_SECONDARY_CI_FAILURE_STAGE = 'Repository checkout'
                         checkout scm
+                        env.JENKINS_SECONDARY_CI_FAILURE_STAGE = 'Checkout SHA verification'
                         def checkedOutSha = sh(returnStdout: true, script: 'git rev-parse HEAD').trim().toLowerCase()
                         if (!(checkedOutSha ==~ /(?i)(?:[0-9a-f]{40}|[0-9a-f]{64})/)) {
                             error('Checkout did not produce a full commit SHA.')
@@ -181,19 +185,28 @@ pipeline {
                             }
                         }
                         env.JENKINS_SECONDARY_CHECKED_OUT_SHA = checkedOutSha
+                        env.JENKINS_SECONDARY_CI_FAILURE_STAGE = 'Node version validation'
                         sh '''#!/usr/bin/env bash
 set -euo pipefail
 test "$(node --version)" = "v24.21.0"
 node --version
 npm --version
 '''
+                        env.JENKINS_SECONDARY_CI_FAILURE_STAGE = 'Dependency installation'
                         sh 'npm ci --no-audit --no-fund'
+                        env.JENKINS_SECONDARY_CI_FAILURE_STAGE = 'Type checking'
                         sh 'npm run typecheck'
+                        env.JENKINS_SECONDARY_CI_FAILURE_STAGE = 'Linting'
                         sh 'npm run lint'
+                        env.JENKINS_SECONDARY_CI_FAILURE_STAGE = 'Math escape-preservation tests'
                         sh 'npm run test:math-escape-preservation'
+                        env.JENKINS_SECONDARY_CI_FAILURE_STAGE = 'Unit and integration tests'
                         sh 'npm run test'
+                        env.JENKINS_SECONDARY_CI_FAILURE_STAGE = 'Production build'
                         sh 'npm run build'
+                        env.JENKINS_SECONDARY_CI_FAILURE_STAGE = 'E2E build'
                         sh 'npm run build:e2e'
+                        env.JENKINS_SECONDARY_CI_FAILURE_STAGE = 'Playwright runtime validation'
                         sh '''#!/usr/bin/env bash
 set -euo pipefail
 test "$(npx --no-install playwright --version)" = "Version 1.62.1"
@@ -218,20 +231,30 @@ test -d "$PLAYWRIGHT_BROWSERS_PATH"
                             ]]
                         ]
                         def groupResults = []
+                        def firstFailedPlaywrightGroup = null
                         groups.each { group ->
                             def command = "npm run test:e2e:run -- --forbid-only --output=${group.output} ${group.specs.join(' ')}"
+                            env.JENKINS_SECONDARY_CI_FAILURE_STAGE = "Playwright: ${group.name}"
                             def exitCode = sh(returnStatus: true, script: command)
                             def result = exitCode == 0 ? 'SUCCESS' : 'FAILURE'
+                            if (exitCode != 0 && firstFailedPlaywrightGroup == null) {
+                                firstFailedPlaywrightGroup = group.name
+                            }
                             groupResults << "${group.name}: ${result}"
                             echo "${group.name}: ${result}"
                         }
                         env.JENKINS_SECONDARY_PLAYWRIGHT_RESULTS = groupResults.join('; ')
                         if (groupResults.any { !it.endsWith('SUCCESS') }) {
+                            env.JENKINS_SECONDARY_CI_FAILURE_STAGE = "Playwright: ${firstFailedPlaywrightGroup}"
                             error('One or more required Playwright groups failed.')
                         }
                         env.JENKINS_SECONDARY_CI_RESULT = 'SUCCESS'
+                        env.JENKINS_SECONDARY_CI_FAILURE_STAGE = ''
                     } catch (err) {
                         env.JENKINS_SECONDARY_CI_RESULT = currentBuild.currentResult == 'ABORTED' ? 'CANCELED' : 'FAILURE'
+                        if (!env.JENKINS_SECONDARY_CI_FAILURE_STAGE) {
+                            env.JENKINS_SECONDARY_CI_FAILURE_STAGE = 'Node 24 CI pipeline'
+                        }
                         currentBuild.result = env.JENKINS_SECONDARY_CI_RESULT == 'CANCELED' ? 'ABORTED' : 'FAILURE'
                         echo 'Secondary Node 24 CI or Playwright verification failed; see stage output for the failing command.'
                         throw err
@@ -247,7 +270,7 @@ test -d "$PLAYWRIGHT_BROWSERS_PATH"
                 expression { return smokeUrl }
             }
             agent {
-                label 'setness-node24-ephemeral'
+                label 'secondary-node24-playwright-ephemeral'
             }
             steps {
                 script {
@@ -314,6 +337,12 @@ test -d "$PLAYWRIGHT_BROWSERS_PATH"
                         def finalCiResult = isPullRequest && authorization != 'AUTHORIZED' ? 'FAILURE' :
                             (currentBuild.currentResult == 'ABORTED' || ciResult == 'CANCELED' ? 'CANCELED' :
                                 ciResult == 'SUCCESS' ? 'SUCCESS' : 'FAILURE')
+                        def failureStage = isPullRequest && authorization != 'AUTHORIZED'
+                            ? 'Authorization policy'
+                            : (env.JENKINS_SECONDARY_CI_FAILURE_STAGE ?: 'Node 24 CI pipeline')
+                        def failureSummary = finalCiResult in ['FAILURE', 'CANCELED']
+                            ? "Failure stage: ${failureStage}. "
+                            : ''
                         def smokeConclusion = secondarySmokeConclusion(smokeResult)
                         def smokeSummary = env.JENKINS_SECONDARY_SMOKE_DETAIL ?: 'No smoke result was recorded; inspect Jenkins before relying on it.'
                         if (smokeResult == 'NOT_RUN' && smokeUrl) {
@@ -342,7 +371,7 @@ test -d "$PLAYWRIGHT_BROWSERS_PATH"
                         if (isPullRequest || isMainBranch) {
                             def gateSummary = isPullRequest && authorization != 'AUTHORIZED'
                                 ? 'Failed closed: owner-only policy rejected the PR before checkout.'
-                                : "Node 24 verification ${finalCiResult.toLowerCase()}; Playwright groups: ${env.JENKINS_SECONDARY_PLAYWRIGHT_RESULTS ?: 'not completed'}; production smoke is reported separately."
+                                : "Node 24 verification ${finalCiResult.toLowerCase()}; ${failureSummary}Playwright groups: ${env.JENKINS_SECONDARY_PLAYWRIGHT_RESULTS ?: 'not completed'}; production smoke is reported separately."
                             def commitDescription = isPullRequest ? "pull request #${changeId}" : 'main branch push'
                             def revisionLine = isPullRequest
                                 ? "Verified PR head SHA: ${sha}\nVerified PR base SHA: ${env.JENKINS_SECONDARY_PR_BASE_SHA}\nTested checkout SHA: ${env.JENKINS_SECONDARY_CHECKED_OUT_SHA ?: 'not completed'}"
@@ -351,6 +380,7 @@ test -d "$PLAYWRIGHT_BROWSERS_PATH"
 ${revisionLine}
 Authorization: ${authorization}
 Node 24 CI: ${finalCiResult}
+Failure stage: ${finalCiResult in ['FAILURE', 'CANCELED'] ? failureStage : 'not applicable'}
 Playwright groups: ${env.JENKINS_SECONDARY_PLAYWRIGHT_RESULTS ?: 'not completed'}
 Production smoke: ${smokeResult} (separate, non-required result)
 No target Jenkinsfile was loaded; build workspace was deleted after each agent use.

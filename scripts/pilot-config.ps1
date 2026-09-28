@@ -173,9 +173,12 @@ function Get-JenkinsPilotConfig {
         else {
             ''
         }
+        $sameSecondaryRepository = $secondaryOwner.Equals($owner, [StringComparison]::OrdinalIgnoreCase) -and
+            $secondaryRepository.Equals($repository, [StringComparison]::OrdinalIgnoreCase)
 
         if ($secondaryOwner -notmatch '^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$' -or
             $secondaryRepository -notmatch '^[A-Za-z0-9._-]{1,100}$' -or
+            $sameSecondaryRepository -or
             $secondaryJobName -notmatch '^[A-Za-z0-9._-]{1,100}$' -or
             $secondaryJobName -in @($jobName, $e2eJobName, [string] $values['JENKINS_TEST_PLATFORM_JOB_NAME']) -or
             $secondaryCheckoutCredentialId -notmatch '^[A-Za-z0-9._-]{1,100}$' -or

@@ -140,6 +140,7 @@ def secondaryPipelineTemplate = null
 if (secondaryEnabled) {
     if (!(secondaryOwner ==~ /[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/) ||
         !(secondaryRepository ==~ /[A-Za-z0-9._-]{1,100}/) ||
+        (secondaryOwner.equalsIgnoreCase(targetOwner) && secondaryRepository.equalsIgnoreCase(targetRepository)) ||
         !(secondaryJobName ==~ /[A-Za-z0-9._-]{1,100}/) ||
         secondaryJobName in [jobName, e2eJobName, testPlatformJobName] ||
         !(secondaryCheckoutCredentialId ==~ /[A-Za-z0-9._-]{1,100}/) ||
