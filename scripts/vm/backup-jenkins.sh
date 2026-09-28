@@ -21,6 +21,7 @@ agent_images=(
   'jenkins-pilot-agent:node-22.23.3'
   'jenkins-pilot-agent:node-24.21.0'
   'jenkins-pilot-agent:node-22.23.3-playwright-1.62.1'
+  'jenkins-pilot-agent:node-24.21.0-playwright-1.62.1'
 )
 
 [[ -f "$repo_root/compose.yaml" && -f "$repo_root/.env" ]] || fail 'the checked-out Compose repository and ignored .env are required.'

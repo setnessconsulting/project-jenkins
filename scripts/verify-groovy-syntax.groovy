@@ -20,6 +20,14 @@ def replacementsByFile = [
         '/* JENKINS_PILOT_E2E_REPOSITORY_OWNER */': 'syntax-check-owner',
         '/* JENKINS_PILOT_E2E_REPOSITORY_NAME */': 'syntax-check-repository',
         '/* JENKINS_PILOT_E2E_APP_DIRECTORY */': 'web'
+    ],
+    'secondary-repository.groovy': [
+        '/* JENKINS_SECONDARY_OWNER */': 'syntax-check-owner',
+        '/* JENKINS_SECONDARY_REPOSITORY */': 'syntax-check-repository',
+        '/* JENKINS_SECONDARY_TRUSTED_AUTHORS */': ['syntax-check-owner'],
+        '/* JENKINS_SECONDARY_PRIMARY_CHECK_NAME */': 'jenkins-pr-gate',
+        '/* JENKINS_SECONDARY_SMOKE_CHECK_NAME */': 'jenkins-production-smoke',
+        '/* JENKINS_SECONDARY_SMOKE_URL */': ''
     ]
 ]
 

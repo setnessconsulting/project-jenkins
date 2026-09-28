@@ -125,6 +125,92 @@ function Get-JenkinsPilotConfig {
         throw 'Candidate path rules must not contain duplicates.'
     }
 
+    $secondaryEnabled = if ($values.ContainsKey('JENKINS_SECONDARY_REPO_ENABLED')) {
+        ([string] $values['JENKINS_SECONDARY_REPO_ENABLED']).Trim()
+    }
+    else {
+        'false'
+    }
+    if ($secondaryEnabled -notmatch '(?i)^(true|false)$') {
+        throw 'The optional secondary-repository profile setting must be true or false.'
+    }
+
+    $secondaryProfile = [pscustomobject]@{
+        Enabled = [bool]::Parse($secondaryEnabled)
+        Owner = ''
+        Repository = ''
+        JobName = ''
+        CheckoutCredentialId = ''
+        TrustedPullRequestAuthors = @()
+        PrimaryCheckName = ''
+        SmokeCheckName = ''
+        SmokeUrl = ''
+    }
+    if ($secondaryProfile.Enabled) {
+        foreach ($requiredName in @(
+            'JENKINS_SECONDARY_REPO_OWNER',
+            'JENKINS_SECONDARY_REPO_NAME',
+            'JENKINS_SECONDARY_JOB_NAME',
+            'JENKINS_SECONDARY_CHECKOUT_CREDENTIAL_ID',
+            'JENKINS_SECONDARY_TRUSTED_PR_AUTHORS',
+            'JENKINS_SECONDARY_PRIMARY_CHECK_NAME',
+            'JENKINS_SECONDARY_SMOKE_CHECK_NAME'
+        )) {
+            if (-not $values.ContainsKey($requiredName) -or [string]::IsNullOrWhiteSpace($values[$requiredName])) {
+                throw "Enabled secondary-repository configuration is missing: $requiredName."
+            }
+        }
+        $secondaryOwner = [string] $values['JENKINS_SECONDARY_REPO_OWNER']
+        $secondaryRepository = [string] $values['JENKINS_SECONDARY_REPO_NAME']
+        $secondaryJobName = [string] $values['JENKINS_SECONDARY_JOB_NAME']
+        $secondaryCheckoutCredentialId = [string] $values['JENKINS_SECONDARY_CHECKOUT_CREDENTIAL_ID']
+        $secondaryAuthors = @($values['JENKINS_SECONDARY_TRUSTED_PR_AUTHORS'] -split ',' | ForEach-Object { $_.Trim() })
+        $secondaryPrimaryCheckName = [string] $values['JENKINS_SECONDARY_PRIMARY_CHECK_NAME']
+        $secondarySmokeCheckName = [string] $values['JENKINS_SECONDARY_SMOKE_CHECK_NAME']
+        $secondarySmokeUrl = if ($values.ContainsKey('JENKINS_SECONDARY_SMOKE_URL')) {
+            [string] $values['JENKINS_SECONDARY_SMOKE_URL']
+        }
+        else {
+            ''
+        }
+        $sameSecondaryRepository = $secondaryOwner.Equals($owner, [StringComparison]::OrdinalIgnoreCase) -and
+            $secondaryRepository.Equals($repository, [StringComparison]::OrdinalIgnoreCase)
+
+        if ($secondaryOwner -notmatch '^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$' -or
+            $secondaryRepository -notmatch '^[A-Za-z0-9._-]{1,100}$' -or
+            $sameSecondaryRepository -or
+            $secondaryJobName -notmatch '^[A-Za-z0-9._-]{1,100}$' -or
+            $secondaryJobName -in @($jobName, $e2eJobName, [string] $values['JENKINS_TEST_PLATFORM_JOB_NAME']) -or
+            $secondaryCheckoutCredentialId -notmatch '^[A-Za-z0-9._-]{1,100}$' -or
+            $secondaryCheckoutCredentialId -eq $checkoutCredentialId -or $secondaryCheckoutCredentialId -eq $appCredentialId -or
+            $secondaryAuthors.Count -eq 0 -or @($secondaryAuthors | Select-Object -Unique).Count -ne $secondaryAuthors.Count -or
+            @($secondaryAuthors | Where-Object { $_ -notmatch '^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$' }).Count -gt 0 -or
+            $secondaryPrimaryCheckName -notmatch '^[A-Za-z0-9][A-Za-z0-9 ._-]{0,99}$' -or
+            $secondarySmokeCheckName -notmatch '^[A-Za-z0-9][A-Za-z0-9 ._-]{0,99}$' -or
+            $secondarySmokeCheckName -eq $secondaryPrimaryCheckName) {
+            throw 'Enabled secondary-repository configuration contains an invalid repo, job, distinct checkout credential, check name, or PR-author allowlist.'
+        }
+        if (-not [string]::IsNullOrWhiteSpace($secondarySmokeUrl)) {
+            $parsedSmokeUrl = $null
+            if (-not [Uri]::TryCreate($secondarySmokeUrl, [UriKind]::Absolute, [ref] $parsedSmokeUrl) -or
+                $parsedSmokeUrl.Scheme -ne 'https' -or [string]::IsNullOrWhiteSpace($parsedSmokeUrl.Host) -or
+                -not [string]::IsNullOrEmpty($parsedSmokeUrl.UserInfo) -or $secondarySmokeUrl -match '\s') {
+                throw 'The secondary smoke URL must be an owner-reviewed HTTPS URL without embedded credentials.'
+            }
+        }
+        $secondaryProfile = [pscustomobject]@{
+            Enabled = $true
+            Owner = $secondaryOwner
+            Repository = $secondaryRepository
+            JobName = $secondaryJobName
+            CheckoutCredentialId = $secondaryCheckoutCredentialId
+            TrustedPullRequestAuthors = $secondaryAuthors
+            PrimaryCheckName = $secondaryPrimaryCheckName
+            SmokeCheckName = $secondarySmokeCheckName
+            SmokeUrl = $secondarySmokeUrl
+        }
+    }
+
     [pscustomobject]@{
         Owner = $owner
         Repository = $repository
@@ -138,5 +224,6 @@ function Get-JenkinsPilotConfig {
         TutorWebDirectory = $tutorWebDirectory
         E2eJobName = $e2eJobName
         E2eScheduleEnabled = [bool]::Parse($e2eScheduleEnabled)
+        SecondaryRepository = $secondaryProfile
     }
 }

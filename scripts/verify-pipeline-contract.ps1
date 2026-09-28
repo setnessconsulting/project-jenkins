@@ -3,6 +3,7 @@ param()
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$workflowPath = Join-Path $repositoryRoot '.github/workflows/ci.yml'
 $pipelinePath = Join-Path $repositoryRoot 'casc/pipelines/repository-pilot.groovy'
 $controllerDockerfilePath = Join-Path $repositoryRoot 'Dockerfile'
 $composePath = Join-Path $repositoryRoot 'compose.yaml'
@@ -14,6 +15,8 @@ $pluginsPath = Join-Path $repositoryRoot 'plugins.txt'
 $agentDockerfilePath = Join-Path $repositoryRoot 'agent/Dockerfile'
 $node24DockerfilePath = Join-Path $repositoryRoot 'agent/Node24.Dockerfile'
 $playwrightDockerfilePath = Join-Path $repositoryRoot 'agent/Playwright.Dockerfile'
+$secondaryPlaywrightDockerfilePath = Join-Path $repositoryRoot 'agent/Node24Playwright.Dockerfile'
+$secondaryPipelinePath = Join-Path $repositoryRoot 'casc/pipelines/secondary-repository.groovy'
 $e2ePipelinePath = Join-Path $repositoryRoot 'casc/pipelines/e2e.groovy'
 $knownHostsPath = Join-Path $repositoryRoot 'agent/known_hosts'
 $credentialScriptPath = Join-Path $repositoryRoot 'scripts/provision-vm-github-app.ps1'
@@ -41,6 +44,7 @@ function Read-NormalizedText {
 }
 
 $pipeline = Get-Content -LiteralPath $pipelinePath -Raw
+$workflow = Read-NormalizedText -LiteralPath $workflowPath
 $controllerDockerfile = Get-Content -LiteralPath $controllerDockerfilePath -Raw
 $compose = Get-Content -LiteralPath $composePath -Raw
 $jenkinsConfig = Read-NormalizedText -LiteralPath $jenkinsConfigPath
@@ -51,6 +55,8 @@ $plugins = Get-Content -LiteralPath $pluginsPath -Raw
 $agentDockerfile = Get-Content -LiteralPath $agentDockerfilePath -Raw
 $node24Dockerfile = Get-Content -LiteralPath $node24DockerfilePath -Raw
 $playwrightDockerfile = Get-Content -LiteralPath $playwrightDockerfilePath -Raw
+$secondaryPlaywrightDockerfile = Get-Content -LiteralPath $secondaryPlaywrightDockerfilePath -Raw
+$secondaryPipeline = Get-Content -LiteralPath $secondaryPipelinePath -Raw
 $e2ePipeline = Get-Content -LiteralPath $e2ePipelinePath -Raw
 $knownHosts = Get-Content -LiteralPath $knownHostsPath -Raw
 $credentialScript = Get-Content -LiteralPath $credentialScriptPath -Raw
@@ -68,6 +74,16 @@ $testPlatformWire = Read-NormalizedText -LiteralPath $testPlatformWirePath
 $testPlatformCli = Read-NormalizedText -LiteralPath $testPlatformCliPath
 $testPlatformPackage = Read-NormalizedText -LiteralPath $testPlatformPackagePath
 $testPlatformRequestFixture = Read-NormalizedText -LiteralPath $testPlatformRequestFixturePath
+
+if (-not $workflow.Contains('Set up Ruby for YAML validation') -or
+    -not $workflow.Contains('ruby/setup-ruby@v1') -or
+    -not $workflow.Contains("ruby-version: '3.2.3'") -or
+    -not $workflow.Contains('Parse Jenkins Configuration as Code YAML') -or
+    -not $workflow.Contains('YAML.parse_file("casc/jenkins.yaml")') -or
+    -not $workflow.Contains('actions/checkout@v7') -or
+    -not $workflow.Contains('actions/setup-java@v6')) {
+    throw 'Repository CI must parse the Jenkins Configuration as Code YAML, not only inspect it as text.'
+}
 
 $environmentBlockFound = $false
 $insideEnvironmentBlock = $false
@@ -337,8 +353,8 @@ $oneBuildTemplateCapCount = [regex]::Matches(
     '(?m)^[ \t]+instanceCapStr: "1"$'
 ).Count
 if (-not $jenkinsConfig.Contains('containerCap: 1') -or
-    $oneBuildTemplateCapCount -ne 3 -or
-    $oneBuildRetentionStrategyCount -ne 3 -or
+    $oneBuildTemplateCapCount -ne 4 -or
+    $oneBuildRetentionStrategyCount -ne 4 -or
     $jenkinsConfig.Contains('$class: com.nirima.jenkins.plugins.docker.strategy.DockerOnceRetentionStrategy') -or
     $jenkinsConfig.Contains('dockerOnce:') -or
     -not $jenkinsConfig.Contains('idleMinutes: 0') -or
@@ -349,7 +365,7 @@ if (-not $jenkinsConfig.Contains('containerCap: 1') -or
     -not $jenkinsConfig.Contains('cpus: "4.0"') -or
     -not $jenkinsConfig.Contains('privileged: false') -or
     -not $jenkinsConfig.Contains('network: "setness-jenkins-private"')) {
-    throw 'The Docker cloud must configure three correctly bounded one-build templates through the plugin CasC schema and provision resource-limited, unprivileged containers on its private network.'
+    throw 'The Docker cloud must configure four correctly bounded one-build templates through the plugin CasC schema and provision resource-limited, unprivileged containers on its private network.'
 }
 if ($jenkinsConfig.Contains('permanent:') -or $jenkinsConfig.Contains('setness-linux-agent')) {
     throw 'A persistent Jenkins agent must not be configured.'
@@ -358,11 +374,19 @@ foreach ($agentContract in @(
     'labelString: "setness-node24-ephemeral"',
     'image: "jenkins-pilot-agent:node-24.21.0"',
     'labelString: "setness-e2e-ephemeral"',
-    'image: "jenkins-pilot-agent:node-22.23.3-playwright-1.62.1"'
+    'image: "jenkins-pilot-agent:node-22.23.3-playwright-1.62.1"',
+    'labelString: "secondary-node24-playwright-ephemeral"',
+    'image: "jenkins-pilot-agent:node-24.21.0-playwright-1.62.1"'
 )) {
     if (-not $jenkinsConfig.Contains($agentContract)) {
         throw "A required one-use verification agent is missing: $agentContract."
     }
+}
+if (-not [regex]::IsMatch(
+    $jenkinsConfig,
+    '(?m)^          - name: "secondary-node24-playwright-one-build"\r?\n            labelString: "secondary-node24-playwright-ephemeral"$'
+)) {
+    throw 'The secondary one-use agent label must remain nested under its Docker template in Jenkins CasC.'
 }
 if (-not $plugins.Contains('docker-plugin:1327.v9524f1ee134e')) {
     throw 'The Docker cloud plugin must be explicitly version-pinned.'
@@ -381,11 +405,24 @@ if (-not $agentDockerfile.Contains('v22.23.3') -or
     -not $playwrightDockerfile.Contains('USER jenkins')) {
     throw 'The pinned Node 22, Node 24, and pre-baked unprivileged Playwright agent images are incomplete.'
 }
+if (-not $secondaryPlaywrightDockerfile.Contains('v24.21.0') -or
+    -not $secondaryPlaywrightDockerfile.Contains('sha256sum --check --strict') -or
+    -not $secondaryPlaywrightDockerfile.Contains('PLAYWRIGHT_VERSION=1.62.1') -or
+    -not $secondaryPlaywrightDockerfile.Contains('playwright install-deps chromium firefox webkit') -or
+    -not $secondaryPlaywrightDockerfile.Contains('playwright install chromium firefox webkit') -or
+    -not $secondaryPlaywrightDockerfile.Contains('USER jenkins') -or
+    $secondaryPlaywrightDockerfile.Contains('docker.sock') -or
+    $secondaryPlaywrightDockerfile.Contains('JENKINS_SECRET') -or
+    $secondaryPlaywrightDockerfile.Contains('GITHUB_APP')) {
+    throw 'The secondary Node 24/Playwright image must pin Node and Playwright, preinstall all three browsers, and contain no controller or credential access.'
+}
 if (-not $compose.Contains('dockerfile: agent/Node24.Dockerfile') -or
     -not $compose.Contains('dockerfile: agent/Playwright.Dockerfile') -or
+    -not $compose.Contains('dockerfile: agent/Node24Playwright.Dockerfile') -or
     -not $compose.Contains('jenkins-pilot-agent:node-24.21.0') -or
-    -not $compose.Contains('jenkins-pilot-agent:node-22.23.3-playwright-1.62.1')) {
-    throw 'Compose must define buildable, pinned Node 24 and Playwright image profiles.'
+    -not $compose.Contains('jenkins-pilot-agent:node-22.23.3-playwright-1.62.1') -or
+    -not $compose.Contains('jenkins-pilot-agent:node-24.21.0-playwright-1.62.1')) {
+    throw 'Compose must define buildable, pinned Node 24 and both repository-specific Playwright profiles.'
 }
 if (-not $e2ePipeline.Contains('TARGET_SHA') -or
     -not $e2ePipeline.Contains("name: 'jenkins-e2e'") -or
@@ -472,13 +509,14 @@ if (-not $vmStartScript.Contains('[[ "$action" == start || "$action" == install 
     -not $vmStartScript.Contains('export JENKINS_ADMIN_PASSWORD="$(<"$admin_password_file")"')) {
     throw 'Every controller-starting action, including first install, must load the protected bootstrap password rather than a placeholder.'
 }
-if (-not $vmStartScript.Contains('build controller agent-image node24-agent-image e2e-agent-image')) {
+if (-not $vmStartScript.Contains('build controller agent-image node24-agent-image e2e-agent-image secondary-agent-image')) {
     throw 'VM installation and restart must prebuild every disposable agent profile.'
 }
 foreach ($agentImage in @(
     'jenkins-pilot-agent:node-22.23.3',
     'jenkins-pilot-agent:node-24.21.0',
-    'jenkins-pilot-agent:node-22.23.3-playwright-1.62.1'
+    'jenkins-pilot-agent:node-22.23.3-playwright-1.62.1',
+    'jenkins-pilot-agent:node-24.21.0-playwright-1.62.1'
 )) {
     if (-not $backupScript.Contains($agentImage) -or -not $restoreScript.Contains($agentImage)) {
         throw "Backup and restore safety checks must account for every disposable agent image: $agentImage."
@@ -489,6 +527,77 @@ if (-not $jobs.Contains('InlineDefinitionBranchProjectFactory') -or
     -not $jobs.Contains("inlineFactory.appendNode('sandbox', 'false')") -or
     $jobs.Contains("inlineFactory.appendNode('sandbox', 'true')")) {
     throw 'The job must execute the checked-in trusted Pipeline, not a Jenkinsfile from the target PR.'
+}
+if (-not $environmentExample.Contains('JENKINS_SECONDARY_REPO_ENABLED=false') -or
+    -not $compose.Contains('JENKINS_SECONDARY_REPO_ENABLED: ${JENKINS_SECONDARY_REPO_ENABLED:-false}') -or
+    -not $jobs.Contains("System.getenv('JENKINS_SECONDARY_REPO_ENABLED')") -or
+    -not $jobs.Contains("if (secondaryEnabled)") -or
+    -not $jobs.Contains('secondary-repository.groovy') -or
+    -not $jobs.Contains("inlineFactory.appendNode('script', secondaryPipelineTemplate)") -or
+    -not $jobs.Contains('OriginPullRequestDiscoveryTrait') -or
+    -not $jobs.Contains('secondaryCheckoutCredentialId') -or
+    -not $jobs.Contains('secondaryTrustedAuthors.isEmpty()') -or
+    -not $jobs.Contains('secondaryJobName in [jobName, e2eJobName, testPlatformJobName]') -or
+    -not $jobs.Contains("sshCheckout.appendNode('credentialsId', secondaryCheckoutCredentialId)") -or
+    -not $jobs.Contains("branchFilter.appendNode('includes', 'main PR-*')") -or
+    -not $jobs.Contains("pullRequestDiscovery.appendNode('strategyId', '1')") -or
+    -not $jobs.Contains('secondarySmokeCheckName == secondaryPrimaryCheckName') -or
+    -not $jobs.Contains('secondaryOwner.equalsIgnoreCase(targetOwner)') -or
+    -not $jobs.Contains('secondaryRepository.equalsIgnoreCase(targetRepository)') -or
+    -not $pilotConfigParser.Contains("'JENKINS_SECONDARY_REPO_ENABLED'") -or
+    -not $pilotConfigParser.Contains('Enabled secondary-repository configuration') -or
+    -not $pilotConfigParser.Contains('$secondarySmokeCheckName -eq $secondaryPrimaryCheckName') -or
+    -not $pilotConfigParser.Contains('$sameSecondaryRepository') -or
+    -not $pilotConfigParser.Contains('$secondaryOwner.Equals($owner, [StringComparison]::OrdinalIgnoreCase)') -or
+    -not $pilotConfigParser.Contains('$secondaryRepository.Equals($repository, [StringComparison]::OrdinalIgnoreCase)') -or
+    -not $pilotConfigParser.Contains('$secondaryJobName -in @($jobName, $e2eJobName, [string] $values[''JENKINS_TEST_PLATFORM_JOB_NAME''])')) {
+    throw 'The secondary repository profile must default off and require an explicit separate checkout key, owner allowlist, and centrally injected pipeline.'
+}
+$secondaryAuthorizationIndex = $secondaryPipeline.IndexOf("stage('Authorize pull request')")
+$secondaryRevisionIndex = $secondaryPipeline.IndexOf('verifiedSecondaryPullRequestRevision(')
+$secondaryAgentIndex = $secondaryPipeline.IndexOf("label 'secondary-node24-playwright-ephemeral'")
+$secondarySmokeAgentIndex = $secondaryPipeline.IndexOf("label 'secondary-node24-playwright-ephemeral'", $secondaryAgentIndex + 1)
+$secondarySmokeStageIndex = $secondaryPipeline.IndexOf("stage('Read-only production smoke')")
+$secondaryCheckoutIndex = $secondaryPipeline.IndexOf('checkout scm')
+if (-not $secondaryPipeline.Contains('agent none') -or
+    -not $secondaryPipeline.Contains('PullRequestSCMRevision') -or
+    -not $secondaryPipeline.Contains('revision.getBaseHash()') -or
+    -not $secondaryPipeline.Contains('secondaryCheckoutMatchesPrRevision') -or
+    -not $secondaryPipeline.Contains('git rev-list --parents -n 1 HEAD') -or
+    -not $secondaryPipeline.Contains('Secondary profile refuses non-main branch builds before checkout or repository commands.') -or
+    -not $secondaryPipeline.Contains('getSourceOwner()') -or
+    -not $secondaryPipeline.Contains('getSourceRepo()') -or
+    -not $secondaryPipeline.Contains("isSecondaryAuthorAllowed(env.CHANGE_AUTHOR, trustedAuthors)") -or
+    -not $secondaryPipeline.Contains('Verified PR head SHA') -or
+    -not $secondaryPipeline.Contains('npm run test:math-escape-preservation') -or
+    -not $secondaryPipeline.Contains('npm run typecheck') -or
+    -not $secondaryPipeline.Contains('npm run lint') -or
+    -not $secondaryPipeline.Contains("sh 'npm run test'") -or
+    -not $secondaryPipeline.Contains("sh 'npm run build'") -or
+    -not $secondaryPipeline.Contains("sh 'npm run build:e2e'") -or
+    -not $secondaryPipeline.Contains('test "$(node --version)" = "v24.21.0"') -or
+    -not $secondaryPipeline.Contains('Version 1.62.1') -or
+    -not $secondaryPipeline.Contains('tests/wave1/e2e/foundation.spec.ts') -or
+    -not $secondaryPipeline.Contains('tests/wave6/e2e/noGames.spec.ts') -or
+    -not $secondaryPipeline.Contains('tests/wave7/e2e/qualification.spec.ts') -or
+    -not $secondaryPipeline.Contains('same-repository PR head SHA') -or
+    -not $secondaryPipeline.Contains('Not configured: owner-reviewed smoke URL is absent; no live request was made.') -or
+    -not $secondaryPipeline.Contains('JENKINS_SECONDARY_CI_FAILURE_STAGE') -or
+    -not $secondaryPipeline.Contains('Failure stage: ${failureStage}') -or
+    -not $secondaryPipeline.Contains("? failureStage : 'not applicable'") -or
+    -not $secondaryPipeline.Contains("def failureStage = isPullRequest && authorization != 'AUTHORIZED'") -or
+    $secondaryPipeline.Contains('${err}') -or
+    -not $secondaryPipeline.Contains("label 'secondary-node24-playwright-ephemeral'") -or
+    -not $secondaryPipeline.Contains("secondarySmokeConclusion('NOT_CONFIGURED') == 'NEUTRAL'") -or
+    -not $secondaryPipeline.Contains("name: smokeCheckName") -or
+    -not $secondaryPipeline.Contains('deleteDir()') -or
+    [regex]::Matches($secondaryPipeline, "(?m)^\s*sh 'npm ci --no-audit --no-fund'\s*$").Count -ne 1 -or
+    $secondaryAuthorizationIndex -lt 0 -or $secondaryRevisionIndex -lt 0 -or
+    $secondaryAgentIndex -lt 0 -or $secondarySmokeAgentIndex -lt 0 -or $secondaryCheckoutIndex -lt 0 -or
+    $secondaryAuthorizationIndex -ge $secondaryAgentIndex -or
+    $secondaryAuthorizationIndex -ge $secondaryCheckoutIndex -or
+    $secondarySmokeStageIndex -lt 0 -or $secondarySmokeAgentIndex -lt $secondarySmokeStageIndex) {
+    throw 'The secondary trusted pipeline must authorize same-repository owner PRs and verify SHA before checkout, run the Node 24/Playwright contract once per clean ephemeral workspace, and report smoke as separate/not-configured rather than a passing result.'
 }
 if ([regex]::Matches($pipeline, "(?m)^\s*sh 'npm ci'\s*$").Count -ne 1) {
     throw 'The trusted pipeline must install Node dependencies only once per build.'
@@ -609,4 +718,4 @@ if ($testPlatformFixture.contract_id -ne $testPlatformCatalog.contract.contract_
     throw 'The synthetic Test Platform request fixture must match the approved catalog contract identity.'
 }
 
-Write-Output 'Compose isolation, disposable Node 22/Node 24/Playwright agents, controller-before-checkout authorization, separate verification lanes, credential boundaries, check reporting, recovery gates, trusted-pipeline contracts, and the Test Platform consumer contract passed.'
+Write-Output 'Compose isolation, disposable Node 22/Node 24/Playwright agents, controller-before-checkout authorization, opt-in secondary-repository profile, separate verification lanes, credential boundaries, check reporting, recovery gates, trusted-pipeline contracts, and the Test Platform consumer contract passed.'
