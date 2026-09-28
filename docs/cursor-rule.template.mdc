@@ -1,0 +1,23 @@
+---
+description: CI authority and Jenkins verification policy for this repository
+alwaysApply: true
+---
+
+# CI and pull-request verification
+
+Repository: `[owner/repository]`
+Adoption state: `[not onboarded | shadow | qualified but not cut over | Jenkins authoritative]`
+Authoritative PR check(s): `[verified check names and source]`
+Jenkins check(s), if enabled: `[exact check names and GitHub App attribution, or none]`
+Owner-controlled Actions fallback: `[documented exact-SHA workflow/path or not yet qualified]`
+Fork policy: `[not qualified | maintainer-applied jenkins-verify label after sandbox qualification]`
+Deployment boundary: `[manual workflow/provider; Jenkins deploy capability is disabled]`
+
+- Before authoring or reviewing a pull request, refresh the current PR head SHA, live check statuses and sources, and branch-protection requirements. State which system is authoritative for this repository.
+- While Jenkins is in shadow or qualification, preserve and satisfy the current authoritative checks. A Jenkins shadow success is supplemental evidence, not merge approval.
+- Once Jenkins is authoritative, require its configured check to be complete on the exact current PR head SHA and attributed to the expected GitHub App. Ignore stale results and results from a different source.
+- After cutover, do not start normal GitHub Actions verification. Use only the documented owner-controlled same-SHA fallback when needed and say why it was invoked.
+- Never run a pull-request-supplied Jenkinsfile. Never expose the GitHub App private key, Checks-write credential, production secret, controller data, Docker socket, or persistent agent state to repository code.
+- Fork verification stays disabled until the per-run untrusted sandbox is qualified. A maintainer-applied `jenkins-verify` label is opt-in only; it never substitutes for isolation. Do not mark an unlabeled or unsafe PR as passed.
+- Keep CI separate from release/deployment. Do not deploy or change deployment configuration as part of verification.
+- In review summaries, include the exact head SHA, required check result/source, Jenkins status if applicable, fallback/residual Actions work, and any unresolved verification limit.
