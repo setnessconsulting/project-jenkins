@@ -42,7 +42,7 @@ jobs:
       DOCKER_SOCKET_GID: "999"
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 2
 
@@ -65,7 +65,7 @@ jobs:
         run: ./scripts/verify-pipeline-contract.ps1
 
       - name: Set up Jenkins-compatible Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'

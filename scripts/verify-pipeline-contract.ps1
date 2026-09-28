@@ -79,7 +79,9 @@ if (-not $workflow.Contains('Set up Ruby for YAML validation') -or
     -not $workflow.Contains('ruby/setup-ruby@v1') -or
     -not $workflow.Contains("ruby-version: '3.2.3'") -or
     -not $workflow.Contains('Parse Jenkins Configuration as Code YAML') -or
-    -not $workflow.Contains('YAML.parse_file("casc/jenkins.yaml")')) {
+    -not $workflow.Contains('YAML.parse_file("casc/jenkins.yaml")') -or
+    -not $workflow.Contains('actions/checkout@v7') -or
+    -not $workflow.Contains('actions/setup-java@v6')) {
     throw 'Repository CI must parse the Jenkins Configuration as Code YAML, not only inspect it as text.'
 }
 
