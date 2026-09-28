@@ -92,7 +92,7 @@ jenkins:
               environment:
                 - "JENKINS_WEB_SOCKET=true"
           - name: "secondary-node24-playwright-one-build"
-        labelString: "secondary-node24-playwright-ephemeral"
+            labelString: "secondary-node24-playwright-ephemeral"
             mode: EXCLUSIVE
             instanceCapStr: "1"
             retentionStrategy:

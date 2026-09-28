@@ -353,7 +353,7 @@ if (-not $jenkinsConfig.Contains('containerCap: 1') -or
     -not $jenkinsConfig.Contains('cpus: "4.0"') -or
     -not $jenkinsConfig.Contains('privileged: false') -or
     -not $jenkinsConfig.Contains('network: "setness-jenkins-private"')) {
-    throw 'The Docker cloud must configure three correctly bounded one-build templates through the plugin CasC schema and provision resource-limited, unprivileged containers on its private network.'
+    throw 'The Docker cloud must configure four correctly bounded one-build templates through the plugin CasC schema and provision resource-limited, unprivileged containers on its private network.'
 }
 if ($jenkinsConfig.Contains('permanent:') -or $jenkinsConfig.Contains('setness-linux-agent')) {
     throw 'A persistent Jenkins agent must not be configured.'
@@ -369,6 +369,12 @@ foreach ($agentContract in @(
     if (-not $jenkinsConfig.Contains($agentContract)) {
         throw "A required one-use verification agent is missing: $agentContract."
     }
+}
+if (-not [regex]::IsMatch(
+    $jenkinsConfig,
+    '(?m)^          - name: "secondary-node24-playwright-one-build"\r?\n            labelString: "secondary-node24-playwright-ephemeral"$'
+)) {
+    throw 'The secondary one-use agent label must remain nested under its Docker template in Jenkins CasC.'
 }
 if (-not $plugins.Contains('docker-plugin:1327.v9524f1ee134e')) {
     throw 'The Docker cloud plugin must be explicitly version-pinned.'
