@@ -1,5 +1,5 @@
 jenkins:
-  systemMessage: "Private single-repository CI pilot. Do not use for production deployment."
+  systemMessage: "Private repository CI pilot with opt-in centrally trusted profiles. Do not use for production deployment."
   mode: NORMAL
   numExecutors: 0
   slaveAgentPort: -1
@@ -84,6 +84,29 @@ jenkins:
                 user: "1000"
             dockerTemplateBase:
               image: "jenkins-pilot-agent:node-22.23.3-playwright-1.62.1"
+              network: "setness-jenkins-private"
+              cpus: "4.0"
+              memoryLimit: 8192
+              memorySwap: 8192
+              privileged: false
+              environment:
+                - "JENKINS_WEB_SOCKET=true"
+          - name: "secondary-node24-playwright-one-build"
+        labelString: "secondary-node24-playwright-ephemeral"
+            mode: EXCLUSIVE
+            instanceCapStr: "1"
+            retentionStrategy:
+              idleMinutes: 0
+            remoteFs: "/home/jenkins/agent"
+            pullStrategy: PULL_NEVER
+            removeVolumes: true
+            stopTimeout: 10
+            connector:
+              jnlp:
+                jenkinsUrl: "http://controller:8080/"
+                user: "1000"
+            dockerTemplateBase:
+              image: "jenkins-pilot-agent:node-24.21.0-playwright-1.62.1"
               network: "setness-jenkins-private"
               cpus: "4.0"
               memoryLimit: 8192

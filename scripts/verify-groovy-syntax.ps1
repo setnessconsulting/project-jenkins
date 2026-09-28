@@ -33,6 +33,7 @@ try {
     $pipelinePaths = @(
         'casc/jobs.groovy',
         'casc/pipelines/repository-pilot.groovy',
+        'casc/pipelines/secondary-repository.groovy',
         'casc/pipelines/e2e.groovy',
         'casc/pipelines/test-platform.groovy'
     ) | ForEach-Object { Join-Path $repositoryRoot $_ }

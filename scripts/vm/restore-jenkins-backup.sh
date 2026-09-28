@@ -31,6 +31,7 @@ agent_images=(
   'jenkins-pilot-agent:node-22.23.3'
   'jenkins-pilot-agent:node-24.21.0'
   'jenkins-pilot-agent:node-22.23.3-playwright-1.62.1'
+  'jenkins-pilot-agent:node-24.21.0-playwright-1.62.1'
 )
 [[ -n "$backup_directory" ]] || fail 'pass one backup directory created by backup-jenkins.sh.'
 backup_directory="$(realpath -e -- "$backup_directory")"

@@ -116,6 +116,71 @@ def testPlatformPipelineTemplate = new File(
     '/usr/share/jenkins/casc/pipelines/test-platform.groovy'
 ).getText('UTF-8')
 
+// The second repository is a separately enabled profile. Its repo-scoped
+// checkout key and trusted author allowlist must be configured explicitly;
+// no discovery or checkout occurs while this profile remains disabled.
+def secondaryEnabledValue = (System.getenv('JENKINS_SECONDARY_REPO_ENABLED') ?: 'false').trim().toLowerCase()
+if (!(secondaryEnabledValue in ['true', 'false'])) {
+    throw new IllegalStateException('JENKINS_SECONDARY_REPO_ENABLED must be true or false.')
+}
+def secondaryEnabled = secondaryEnabledValue == 'true'
+def secondaryOwner = System.getenv('JENKINS_SECONDARY_REPO_OWNER')?.trim()
+def secondaryRepository = System.getenv('JENKINS_SECONDARY_REPO_NAME')?.trim()
+def secondaryJobName = System.getenv('JENKINS_SECONDARY_JOB_NAME')?.trim()
+def secondaryCheckoutCredentialId = System.getenv('JENKINS_SECONDARY_CHECKOUT_CREDENTIAL_ID')?.trim()
+def secondaryTrustedAuthors = (System.getenv('JENKINS_SECONDARY_TRUSTED_PR_AUTHORS') ?: '')
+    .split(',')
+    .collect { it.trim() }
+    .findAll { !it.isEmpty() }
+def secondaryPrimaryCheckName = System.getenv('JENKINS_SECONDARY_PRIMARY_CHECK_NAME')?.trim()
+def secondarySmokeCheckName = System.getenv('JENKINS_SECONDARY_SMOKE_CHECK_NAME')?.trim()
+def secondarySmokeUrl = (System.getenv('JENKINS_SECONDARY_SMOKE_URL') ?: '').trim()
+def secondaryPipelineTemplate = null
+
+if (secondaryEnabled) {
+    if (!(secondaryOwner ==~ /[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/) ||
+        !(secondaryRepository ==~ /[A-Za-z0-9._-]{1,100}/) ||
+        !(secondaryJobName ==~ /[A-Za-z0-9._-]{1,100}/) ||
+        secondaryJobName in [jobName, e2eJobName, testPlatformJobName] ||
+        !(secondaryCheckoutCredentialId ==~ /[A-Za-z0-9._-]{1,100}/) ||
+        secondaryCheckoutCredentialId == checkoutCredentialId || secondaryCheckoutCredentialId == appCredentialId ||
+        !(secondaryPrimaryCheckName ==~ /[A-Za-z0-9][A-Za-z0-9 ._-]{0,99}/) ||
+        !(secondarySmokeCheckName ==~ /[A-Za-z0-9][A-Za-z0-9 ._-]{0,99}/) ||
+        secondarySmokeCheckName == secondaryPrimaryCheckName ||
+        secondaryTrustedAuthors.isEmpty() || secondaryTrustedAuthors.any { author ->
+            !(author ==~ /[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/)
+        } || secondaryTrustedAuthors.unique().size() != secondaryTrustedAuthors.size()) {
+        throw new IllegalStateException('The enabled secondary repository requires valid repository/job/check values, a distinct read-only checkout credential, and an explicit unique PR-author allowlist.')
+    }
+    if (!secondarySmokeUrl.isEmpty()) {
+        try {
+            def smokeUri = new URI(secondarySmokeUrl)
+            if (smokeUri.getScheme() != 'https' || !smokeUri.getHost() || smokeUri.getUserInfo() != null || secondarySmokeUrl.contains(' ')) {
+                throw new IllegalArgumentException('invalid HTTPS smoke endpoint')
+            }
+        } catch (Exception ignored) {
+            throw new IllegalStateException('The configured secondary smoke URL must be an owner-reviewed HTTPS URL without embedded credentials.')
+        }
+    }
+
+    secondaryPipelineTemplate = new File(
+        '/usr/share/jenkins/casc/pipelines/secondary-repository.groovy'
+    ).getText('UTF-8')
+    [
+        '/* JENKINS_SECONDARY_OWNER */': secondaryOwner,
+        '/* JENKINS_SECONDARY_REPOSITORY */': secondaryRepository,
+        '/* JENKINS_SECONDARY_TRUSTED_AUTHORS */': secondaryTrustedAuthors,
+        '/* JENKINS_SECONDARY_PRIMARY_CHECK_NAME */': secondaryPrimaryCheckName,
+        '/* JENKINS_SECONDARY_SMOKE_CHECK_NAME */': secondarySmokeCheckName,
+        '/* JENKINS_SECONDARY_SMOKE_URL */': secondarySmokeUrl
+    ].each { marker, value ->
+        if (secondaryPipelineTemplate.count(marker) != 1) {
+            throw new IllegalStateException('The centrally trusted secondary-repository pipeline has a missing or duplicate configuration marker.')
+        }
+        secondaryPipelineTemplate = secondaryPipelineTemplate.replace(marker, JsonOutput.toJson(value))
+    }
+}
+
 multibranchPipelineJob(jobName) {
     displayName('Repository CI gate (shadow)')
     description('''
@@ -215,6 +280,75 @@ multibranchPipelineJob(jobName) {
         // before checkout so blocked PRs can receive a SHA-verified failure.
         // The target repository cannot supply or override this script.
         inlineFactory.appendNode('sandbox', 'false')
+    }
+}
+
+if (secondaryEnabled) {
+    multibranchPipelineJob(secondaryJobName) {
+        displayName('Secondary repository CI gate (shadow)')
+        description('''
+            Opt-in secondary repository profile using a centrally trusted pipeline.
+            Actions remains authoritative until that repository independently passes its qualification and cutover gates.
+        '''.stripIndent().trim())
+        branchSources {
+            github {
+                id('secondary-repository-source')
+                scanCredentialsId(appCredentialId)
+                repoOwner(secondaryOwner)
+                repository(secondaryRepository)
+            }
+        }
+        triggers {
+            periodicFolderTrigger {
+                interval('5')
+            }
+        }
+        orphanedItemStrategy {
+            discardOldItems {
+                daysToKeep(30)
+                numToKeep(50)
+            }
+        }
+        configure { Node project ->
+            Node githubSource = project.depthFirst().find { element ->
+                element instanceof Node && element.name() == 'source' &&
+                    element.attributes()['class'] == 'org.jenkinsci.plugins.github_branch_source.GitHubSCMSource'
+            } as Node
+            if (githubSource == null) {
+                throw new IllegalStateException('Job DSL did not create the secondary GitHub SCM source.')
+            }
+            Node oldTraits = githubSource.children().find { element ->
+                element instanceof Node && element.name() == 'traits'
+            } as Node
+            if (oldTraits != null) githubSource.remove(oldTraits)
+
+            Node sourceTraits = githubSource.appendNode('traits')
+            Node branchFilter = sourceTraits.appendNode('jenkins.scm.impl.trait.WildcardSCMHeadFilterTrait')
+            branchFilter.appendNode('includes', 'main PR-*')
+            branchFilter.appendNode('excludes', '')
+            Node branchDiscovery = sourceTraits.appendNode('org.jenkinsci.plugins.github_branch_source.BranchDiscoveryTrait')
+            branchDiscovery.appendNode('strategyId', '1')
+            Node pullRequestDiscovery = sourceTraits.appendNode('org.jenkinsci.plugins.github_branch_source.OriginPullRequestDiscoveryTrait')
+            // Build GitHub's synthetic merge revision, but publish the result on the verified PR head SHA.
+            pullRequestDiscovery.appendNode('strategyId', '1')
+            Node sshCheckout = sourceTraits.appendNode('org.jenkinsci.plugins.github_branch_source.SSHCheckoutTrait')
+            sshCheckout.appendNode('credentialsId', secondaryCheckoutCredentialId)
+            Node gateChecks = sourceTraits.appendNode('io.jenkins.plugins.checks.github.status.GitHubSCMSourceStatusChecksTrait')
+            gateChecks.appendNode('name', secondaryPrimaryCheckName)
+            gateChecks.appendNode('skip', 'true')
+            gateChecks.appendNode('skipNotifications', 'true')
+            Node checksSettings = sourceTraits.appendNode('io.jenkins.plugins.checks.github.config.GitHubSCMSourceChecksTrait')
+            checksSettings.appendNode('verboseConsoleLog', 'false')
+
+            Node oldFactory = project.factory ? project.factory[0] : null
+            if (oldFactory != null) project.remove(oldFactory)
+            Node inlineFactory = project.appendNode('factory', [
+                'class': 'org.jenkinsci.plugins.inlinepipeline.InlineDefinitionBranchProjectFactory'
+            ])
+            inlineFactory.appendNode('markerFile', 'package.json')
+            inlineFactory.appendNode('script', secondaryPipelineTemplate)
+            inlineFactory.appendNode('sandbox', 'false')
+        }
     }
 }
 
