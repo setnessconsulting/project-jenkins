@@ -526,6 +526,7 @@ if (-not $environmentExample.Contains('JENKINS_SECONDARY_REPO_ENABLED=false') -o
     -not $jobs.Contains('secondaryCheckoutCredentialId') -or
     -not $jobs.Contains('secondaryTrustedAuthors.isEmpty()') -or
     -not $jobs.Contains('secondaryJobName in [jobName, e2eJobName, testPlatformJobName]') -or
+    -not $jobs.Contains("sshCheckout.appendNode('credentialsId', secondaryCheckoutCredentialId)") -or
     -not $jobs.Contains("branchFilter.appendNode('includes', 'main PR-*')") -or
     -not $jobs.Contains("pullRequestDiscovery.appendNode('strategyId', '1')") -or
     -not $jobs.Contains('secondarySmokeCheckName == secondaryPrimaryCheckName') -or
