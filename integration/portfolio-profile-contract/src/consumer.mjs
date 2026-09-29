@@ -302,3 +302,22 @@ export function resolveAuthorizedShadowPullRequest(
     author: verified.author,
   });
 }
+
+// Portfolio dispatchers should bind the profile from the repository identity,
+// not accept an independently supplied profile ID that could drift from the
+// SCM source being evaluated.
+export function resolveAuthorizedShadowPullRequestForRepository(catalog, pr, request) {
+  validateProfileCatalog(catalog);
+  const repository = request?.repository;
+  if (!validRepository(repository)) {
+    reject('invalid-pr-request', 'a valid repository identity is required to select a profile');
+  }
+
+  const profile = catalog.profiles.find((candidate) => candidate.repositories.some((candidateRepository) =>
+    candidateRepository.toLowerCase() === repository.toLowerCase()));
+  if (!profile) {
+    reject('unknown-profile', 'repository is not mapped to a private catalog profile');
+  }
+
+  return resolveAuthorizedShadowPullRequest(catalog, profile.id, pr, request);
+}
