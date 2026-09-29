@@ -19,7 +19,9 @@ try {
 }
 $isWindows11Pro = $false
 if ($operatingSystem) {
-    $isWindows11Pro = $operatingSystem.Caption -match '^Microsoft Windows 11 Pro(?:\s|$)'
+    $isWindows11Pro =
+        $operatingSystem.Caption -match '^Microsoft Windows 11 Pro(?:\s|$)' -and
+        $operatingSystem.OperatingSystemSKU -eq 48
     if (-not $isWindows11Pro) {
         $failures.Add('Windows 11 Pro is not installed.')
     }
@@ -27,18 +29,19 @@ if ($operatingSystem) {
 
 $windowsActivationRead = $false
 $licensedWindowsProducts = @()
+. (Join-Path $PSScriptRoot 'windows-license-policy.ps1')
 try {
     $licensedWindowsProducts = @(
         Get-CimInstance -ClassName SoftwareLicensingProduct `
             -Filter "ApplicationID='55c92734-d682-4d71-983e-d6ec3f16059f' AND LicenseStatus=1" `
-            -Property ApplicationID, LicenseStatus `
+            -Property ApplicationID, LicenseStatus, LicenseFamily, Name `
             -ErrorAction Stop
     )
     $windowsActivationRead = $true
 } catch {
     $failures.Add('Windows activation state could not be read.')
 }
-$isWindowsActivated = $windowsActivationRead -and $licensedWindowsProducts.Count -gt 0
+$isWindowsActivated = $windowsActivationRead -and (Test-Windows11ProLicense -Products $licensedWindowsProducts)
 if ($windowsActivationRead -and -not $isWindowsActivated) {
     $failures.Add('Windows is not activated.')
 }
