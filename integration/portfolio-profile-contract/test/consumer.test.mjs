@@ -80,6 +80,8 @@ test('validates the closed catalog and resolves centrally-owned static commands'
   assert.equal(plan.headSha, sha);
   assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
   assert.equal(plan.agentClass, 'setness-ephemeral');
+  assert.equal(plan.nodeVersion, '22.23.3');
+  assert.equal(plan.npmVersion, '10.9.9');
   assert.equal(Object.isFrozen(plan.commands), true);
   assert.equal(Object.isFrozen(plan.commands[0]), true);
   assert.deepEqual(plan.commands, IMPLEMENTATIONS['node22-foundation-v1'].commands);
@@ -100,6 +102,8 @@ test('resolves the centrally pinned Node 24 lint, type, and test implementation'
   const plan = resolve(input);
   assert.equal(plan.agentClass, 'setness-node24-ephemeral');
   assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.equal(plan.nodeVersion, '24.21.0');
+  assert.equal(Object.hasOwn(plan, 'npmVersion'), false);
   assert.deepEqual(plan.commands, [
     ['npm', 'ci'],
     ['npm', 'run', 'lint'],
