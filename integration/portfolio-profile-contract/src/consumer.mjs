@@ -59,6 +59,16 @@ export const IMPLEMENTATIONS = Object.freeze({
       Object.freeze(['npm', 'run', 'verify']),
     ]),
   }),
+  'node22-verify-clean-checkout-v1': Object.freeze({
+    agentClass: 'setness-node22-14-ephemeral',
+    nodeVersion: '22.14.0',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['npm', 'ci']),
+      Object.freeze(['npm', 'run', 'verify']),
+      Object.freeze(['npm', 'run', 'verify:clean-checkout']),
+    ]),
+  }),
   'node24-lint-typescript-test-v1': Object.freeze({
     agentClass: 'setness-node24-ephemeral',
     nodeVersion: '24.21.0',

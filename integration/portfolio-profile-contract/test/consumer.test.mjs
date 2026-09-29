@@ -111,6 +111,25 @@ test('resolves the centrally pinned Node 24 lint, type, and test implementation'
   rejectsCode(() => resolve(input), 'runtime-mismatch');
 });
 
+test('resolves the clean-checkout workflow only on its exactly pinned Node 22.14 agent', () => {
+  const input = catalog();
+  input.approvedImplementations.push('node22-verify-clean-checkout-v1');
+  input.profiles[0].implementationId = 'node22-verify-clean-checkout-v1';
+  input.profiles[0].requiredNodeVersion = '22.14.0';
+
+  const plan = resolve(input);
+  assert.equal(plan.agentClass, 'setness-node22-14-ephemeral');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['npm', 'ci'],
+    ['npm', 'run', 'verify'],
+    ['npm', 'run', 'verify:clean-checkout'],
+  ]);
+
+  input.profiles[0].requiredNodeVersion = '22.23.3';
+  rejectsCode(() => resolve(input), 'runtime-mismatch');
+});
+
 test('rejects profile fields that could inject commands or credentials', () => {
   const input = catalog();
   input.profiles[0].commands = ['curl attacker.invalid'];
