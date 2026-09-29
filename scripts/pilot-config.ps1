@@ -96,6 +96,18 @@ function Get-JenkinsPilotConfig {
         $portfolioCatalogRepository -notmatch '^setnessconsulting/[A-Za-z0-9._-]{1,100}$') {
         throw 'The optional portfolio catalog must be a Setness Consulting repository in owner/name form.'
     }
+    $portfolioPrPollingEnabled = if ($values.ContainsKey('JENKINS_PORTFOLIO_PR_POLL_ENABLED')) {
+        ([string] $values['JENKINS_PORTFOLIO_PR_POLL_ENABLED']).Trim()
+    }
+    else {
+        'false'
+    }
+    if ($portfolioPrPollingEnabled -notmatch '(?i)^(true|false)$') {
+        throw 'The optional portfolio PR polling setting must be true or false.'
+    }
+    if ([bool]::Parse($portfolioPrPollingEnabled) -and [string]::IsNullOrWhiteSpace($portfolioCatalogRepository)) {
+        throw 'Portfolio PR polling requires the private catalog repository setting.'
+    }
     if ($appCredentialId -notmatch '^[A-Za-z0-9._-]{1,100}$') {
         throw 'The configured GitHub App credential ID is invalid.'
     }
@@ -227,6 +239,7 @@ function Get-JenkinsPilotConfig {
         FullName = "$owner/$repository"
         AppId = $appId
         PortfolioCatalogRepository = $portfolioCatalogRepository
+        PortfolioPrPollingEnabled = [bool]::Parse($portfolioPrPollingEnabled)
         AppCredentialId = $appCredentialId
         CheckoutCredentialId = $checkoutCredentialId
         JobName = $jobName

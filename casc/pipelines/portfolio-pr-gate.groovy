@@ -261,11 +261,29 @@ Map portfolioGithubCheckRequest(
 }
 
 @com.cloudbees.groovy.cps.NonCPS
+String portfolioDispatchIdForRun(def run) {
+    String dispatchId = run.getAction(hudson.model.ParametersAction.class)
+        ?.getParameter('PORTFOLIO_DISPATCH_ID')?.value?.toString()?.trim() ?: ''
+    if (!dispatchId) return ''
+    if (!(dispatchId ==~ /(?i)[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/)) {
+        throw new IllegalArgumentException('The controller poll dispatch identity is invalid.')
+    }
+    def upstreamCause = run.getCause(hudson.model.Cause.UpstreamCause.class)
+    if (upstreamCause?.getUpstreamProject() != 'portfolio-dispatch/portfolio-pr-poller') {
+        throw new IllegalArgumentException('Only the trusted portfolio poller may set a dispatch identity.')
+    }
+    return dispatchId.toLowerCase()
+}
+
+@com.cloudbees.groovy.cps.NonCPS
 Map portfolioCreateCheck(def run, String appCredentialId, String repository, String headSha) {
     if (!(repository ==~ /setnessconsulting\/[A-Za-z0-9._-]{1,100}/) ||
         !(headSha ==~ /(?i)(?:[0-9a-f]{40}|[0-9a-f]{64})/)) {
         throw new IllegalArgumentException('The controller check target is invalid.')
     }
+    String dispatchId = portfolioDispatchIdForRun(run)
+    String externalId = "jenkins:${run.getExternalizableId()}" +
+        (dispatchId ? ";portfolio-dispatch:${dispatchId.toLowerCase()}" : '')
     String detailsUrl = "https://github.com/${repository}/commit/${headSha}/checks"
     Map response = portfolioGithubCheckRequest(run, appCredentialId, repository, 'POST', "/repos/${repository}/check-runs", [
         name: 'jenkins-pr-gate',
@@ -273,7 +291,7 @@ Map portfolioCreateCheck(def run, String appCredentialId, String repository, Str
         status: 'in_progress',
         started_at: java.time.Instant.now().toString(),
         details_url: detailsUrl,
-        external_id: "jenkins:${run.getExternalizableId()}",
+        external_id: externalId,
         output: [
             title: 'Portfolio Jenkins verification: RUNNING',
             summary: "Centrally trusted verification started on exact PR head ${headSha.toLowerCase()}.",
@@ -363,6 +381,7 @@ pipeline {
                     String repository = params.TARGET_REPOSITORY?.trim()
                     String pullRequestNumberText = params.PULL_REQUEST_NUMBER?.trim()
                     String expectedSha = params.EXPECTED_HEAD_SHA?.trim()?.toLowerCase()
+                    String dispatchId = portfolioDispatchIdForRun(currentBuild.rawBuild)
                     if (!(repository ==~ /setnessconsulting\/[A-Za-z0-9._-]{1,100}/) ||
                         !(pullRequestNumberText ==~ /[1-9][0-9]{0,8}/) ||
                         !(expectedSha ==~ /(?i)(?:[0-9a-f]{40}|[0-9a-f]{64})/)) {
@@ -395,7 +414,7 @@ pipeline {
                     Map profile = catalog?.profiles?.find { item ->
                         item?.repositories instanceof List && item.repositories.any { it?.toString()?.equalsIgnoreCase(repository) }
                     }
-                    if (profile == null || profile.status != 'shadow' ||
+                    if (profile == null || !(profile.status in ['shadow', 'qualified']) ||
                         !(profile.implementationId in portfolioAdapterImplementationAllowlist)) {
                         error('This repository does not yet have an enabled profile in the manual portfolio shadow allowlist; no checkout or repository command ran.')
                     }

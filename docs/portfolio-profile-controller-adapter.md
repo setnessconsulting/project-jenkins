@@ -8,7 +8,7 @@ input at 1 MiB, rejects command-line arguments and caller-supplied author
 policy, fixes the initial allowlist to `setnessconsulting`, and returns only a
 centrally defined execution plan or a stable rejection code.
 
-The manual-only `portfolio-dispatch/portfolio-pr-gate` job now assembles the catalog and PR object
+The manual `portfolio-dispatch/portfolio-pr-gate` job now assembles the catalog and PR object
 on the controller. It pins the private catalog file to a resolved `main` commit,
 uses one-repository App tokens for catalog read, PR read, checkout, and Checks
 publication, and refreshes the PR again after an agent becomes available.
@@ -21,9 +21,51 @@ The publisher token and App private key remain controller-side. The job never
 accepts a target Jenkinsfile or a profile ID from its caller. The Dockerfile
 packages the adapter only into the controller image; the agent images do not include it.
 
-This is a manual shadow dispatcher, not routine portfolio automation. It has no
-polling schedule, and a centrally coded implementation allowlist must also
-match a private catalog profile with `status: shadow` before any checkout.
+The manual shadow dispatcher remains available for controlled exact-SHA runs.
+A separate `portfolio-dispatch/portfolio-pr-poller` job is scheduled every
+five minutes, but is disabled unless both the private catalog location and
+`JENKINS_PORTFOLIO_PR_POLL_ENABLED=true` are present. The default is `false`.
+The private catalog must additionally set `controlPlane.status: active`; only
+centrally allowlisted implementations and profiles marked `shadow` or
+`qualified` are considered, and the downstream gate enforces the same status
+set. The poller reads open PR metadata using short-lived single-repository
+`contents:read` and `pull_requests:read` App tokens. For a previously queued
+PR it also reads only the `checks:read` permission, then reconciles the exact
+head SHA, check name, and GitHub App ID. For an in-progress check, it resolves
+the check's Jenkins external ID to the centrally trusted gate job and verifies
+the per-dispatch UUID stored in controller state. This avoids selecting a
+"latest" check using timestamps that the Check Runs API does not return. It
+then verifies the referenced build's repository, PR, SHA, and dispatch UUID. A
+live match is left alone, including a legitimately long-running build. A
+matching check whose build is no longer queued or running is treated as
+orphaned; after the 15-minute grace period the controller re-reads it, verifies
+identity again, and uses a controller-only `checks:write` token to finish it as
+a visible failure. That distinct recovery-failure marker remains retryable if
+the poller is interrupted before scheduling the replacement. Build identity
+mismatches or checks from another Jenkins job are untracked and are never
+overwritten or retried; they surface as operator attention after the grace
+period. The poller accepts same-repository
+non-draft PRs by `setnessconsulting` only, and queues one exact-head SHA at a
+time. Only the selected PR advances retry state; eligible PRs waiting behind it
+are not counted as attempted. The poller never checks out repository code.
+Checks whose external ID does not identify this exact trusted gate job are
+treated as untracked: the poller does not overwrite or duplicate another job's
+result, and raises operator attention after the grace period.
+
+The bounded state file is stored under Jenkins home and records the exact SHA,
+attempt count, dispatch time, and pending/completed/stalled state. A missing
+check is given a 15-minute visibility/startup grace period and retried at most
+three times; a matching completed check is terminal. A live in-progress check
+is never duplicated, while an abandoned in-progress check is completed with a
+failure conclusion so it cannot remain pending indefinitely. After the retry
+limit, the poller reports an operator attention item instead of silently
+suppressing that SHA forever or retrying without limit. The poller persists the
+selected dispatch intent before queueing so a poller cancellation after
+downstream scheduling can be reconciled on its next run; unselected candidates
+do not consume attempts. Every automated queue request gets a controller-
+generated UUID, propagated to the trusted gate and embedded in the check's
+external ID. Manual gate runs leave that field blank and cannot be mistaken for
+a poller-owned check.
 The dispatcher is always declared but disabled unless the private catalog
 repository is provided through ignored local runtime configuration. The old
 root-level job name is explicitly replaced by a disabled deprecation stub, so

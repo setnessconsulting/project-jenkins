@@ -32,6 +32,11 @@ def replacementsByFile = [
     'portfolio-pr-gate.groovy': [
         '/* JENKINS_PORTFOLIO_APP_CREDENTIAL_ID */': 'syntax-check-app',
         '/* JENKINS_PORTFOLIO_CATALOG_REPOSITORY */': 'syntax-check-catalog'
+    ],
+    'portfolio-pr-poller.groovy': [
+        '/* JENKINS_PORTFOLIO_APP_CREDENTIAL_ID */': 'syntax-check-app',
+        '/* JENKINS_PORTFOLIO_CATALOG_REPOSITORY */': 'syntax-check-catalog',
+        '/* JENKINS_PORTFOLIO_NODE_BINARY */': '/usr/bin/node'
     ]
 ]
 

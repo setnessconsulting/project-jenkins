@@ -82,6 +82,13 @@ export const IMPLEMENTATIONS = Object.freeze({
   }),
 });
 
+// Only implementations explicitly admitted here may be polled automatically.
+// Adding an implementation requires a reviewed trusted runtime and profile
+// contract; catalog data cannot expand this set.
+export const ROUTINE_DISPATCH_IMPLEMENTATIONS = Object.freeze([
+  'node22-verify-clean-checkout-v1',
+]);
+
 export class ProfileRejection extends Error {
   constructor(code, message) {
     super(message);
@@ -246,7 +253,9 @@ function resolveShadowExecution(catalog, profileId, headSha) {
 
   const profile = catalog.profiles.find((candidate) => candidate.id === profileId);
   if (!profile) reject('unknown-profile', 'profile is not present in the private catalog');
-  if (profile.status !== 'shadow') reject('profile-not-shadow', 'only an explicitly shadow-enabled profile may execute');
+  if (!['shadow', 'qualified'].includes(profile.status)) {
+    reject('profile-not-shadow', 'only an explicitly shadow or qualified profile may execute');
+  }
   if (profile.repositories.length !== 1) reject('ambiguous-profile', 'an executable profile must identify exactly one repository');
   const implementation = IMPLEMENTATIONS[profile.implementationId];
   if (!implementation) reject('implementation-not-installed', 'no centrally trusted adapter is installed for this profile');
@@ -341,4 +350,239 @@ export function resolveAuthorizedShadowPullRequestForRepository(catalog, pr, req
   }
 
   return resolveAuthorizedShadowPullRequest(catalog, profile.id, pr, request);
+}
+
+function pollStateKey(repository, pullRequestNumber) {
+  return `${repository.toLowerCase()}#${pullRequestNumber}`;
+}
+
+const POLL_RETRY_AFTER_MS = 15 * 60 * 1000;
+const POLL_MAX_ATTEMPTS = 3;
+
+function validatePollState(previousState) {
+  if (!Array.isArray(previousState) || previousState.length > 20000) {
+    reject('invalid-poll-state', 'poll state must be a bounded array');
+  }
+  const state = new Map();
+  for (const entry of previousState) {
+    exactKeys(entry, new Set(['repository', 'pullRequestNumber', 'headSha', 'attempt', 'dispatchedAtEpochMs', 'status', 'dispatchId']),
+      ['repository', 'pullRequestNumber', 'headSha', 'attempt', 'dispatchedAtEpochMs', 'status'], 'poll state entry');
+    if (!validRepository(entry.repository)
+        || !Number.isInteger(entry.pullRequestNumber) || entry.pullRequestNumber < 1
+        || typeof entry.headSha !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(entry.headSha)
+        || !Number.isInteger(entry.attempt) || entry.attempt < 1 || entry.attempt > POLL_MAX_ATTEMPTS
+        || !Number.isSafeInteger(entry.dispatchedAtEpochMs) || entry.dispatchedAtEpochMs < 0
+        || !['pending', 'completed', 'stalled'].includes(entry.status)
+        || (Object.hasOwn(entry, 'dispatchId')
+          && (typeof entry.dispatchId !== 'string'
+            || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(entry.dispatchId)))) {
+      reject('invalid-poll-state', 'poll state entry is invalid');
+    }
+    const key = pollStateKey(entry.repository, entry.pullRequestNumber);
+    if (state.has(key)) reject('invalid-poll-state', 'poll state contains a duplicate PR');
+    state.set(key, Object.freeze({
+      repository: entry.repository,
+      pullRequestNumber: entry.pullRequestNumber,
+      headSha: entry.headSha.toLowerCase(),
+      attempt: entry.attempt,
+      dispatchedAtEpochMs: entry.dispatchedAtEpochMs,
+      status: entry.status,
+      ...(Object.hasOwn(entry, 'dispatchId') ? { dispatchId: entry.dispatchId.toLowerCase() } : {}),
+    }));
+  }
+  return state;
+}
+
+function validatePollObservations(checkObservations) {
+  if (!Array.isArray(checkObservations) || checkObservations.length > 20000) {
+    reject('invalid-poll-input', 'check observations must be a bounded array');
+  }
+  const observations = new Map();
+  for (const observation of checkObservations) {
+    exactKeys(observation, new Set(['repository', 'pullRequestNumber', 'headSha', 'status']),
+      ['repository', 'pullRequestNumber', 'headSha', 'status'], 'poll check observation');
+    if (!validRepository(observation.repository)
+        || !Number.isInteger(observation.pullRequestNumber) || observation.pullRequestNumber < 1
+        || typeof observation.headSha !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(observation.headSha)
+        || !['missing', 'in_progress', 'orphaned', 'untracked', 'completed'].includes(observation.status)) {
+      reject('invalid-poll-input', 'poll check observation is invalid');
+    }
+    const key = pollStateKey(observation.repository, observation.pullRequestNumber);
+    if (observations.has(key)) reject('invalid-poll-input', 'poll input contains duplicate check observations');
+    observations.set(key, Object.freeze({ ...observation, headSha: observation.headSha.toLowerCase() }));
+  }
+  return observations;
+}
+
+export function listRoutinePullRequestPollRepositories(catalog) {
+  validateProfileCatalog(catalog);
+  if (catalog.controlPlane.status !== 'active') return Object.freeze([]);
+  return Object.freeze(catalog.profiles
+    .filter((profile) => ['shadow', 'qualified'].includes(profile.status)
+      && ROUTINE_DISPATCH_IMPLEMENTATIONS.includes(profile.implementationId))
+    .flatMap((profile) => {
+      if (profile.repositories.length !== 1) {
+        reject('ambiguous-profile', 'a polled profile must identify exactly one repository');
+      }
+      return [profile.repositories[0]];
+    })
+    .sort((left, right) => left.localeCompare(right)));
+}
+
+// Pure controller-side planning for the scheduled PR poller. It never runs
+// repository code; only exact-SHA requests accepted by the existing trusted
+// PR resolver are returned for the downstream centrally defined gate.
+export function planRoutinePullRequestPoll(catalog, pullRequestsByRepository, previousState, checkObservations, nowEpochMs) {
+  validateProfileCatalog(catalog);
+  const prior = validatePollState(previousState);
+  const observations = validatePollObservations(checkObservations);
+  if (!Number.isSafeInteger(nowEpochMs) || nowEpochMs < 0) {
+    reject('invalid-poll-input', 'poll time must be a non-negative safe integer');
+  }
+  if (catalog.controlPlane.status !== 'active') {
+    return Object.freeze({ status: 'inactive', dispatches: Object.freeze([]), state: Object.freeze([...prior.values()]) });
+  }
+
+  const repositories = listRoutinePullRequestPollRepositories(catalog);
+  if (!Array.isArray(pullRequestsByRepository)
+      || pullRequestsByRepository.length !== repositories.length) {
+    reject('invalid-poll-input', 'poll input must contain every and only approved repository');
+  }
+  const pullRequests = new Map();
+  for (const record of pullRequestsByRepository) {
+    exactKeys(record, new Set(['repository', 'pullRequests']), ['repository', 'pullRequests'], 'poll repository');
+    if (!validRepository(record.repository) || !Array.isArray(record.pullRequests)
+        || record.pullRequests.length > 1000) {
+      reject('invalid-poll-input', 'poll repository identity or PR list is invalid');
+    }
+    const key = record.repository.toLowerCase();
+    if (pullRequests.has(key)) reject('invalid-poll-input', 'poll input contains a duplicate repository');
+    pullRequests.set(key, record);
+  }
+  if (repositories.some((repository) => !pullRequests.has(repository.toLowerCase()))) {
+    reject('invalid-poll-input', 'poll input must contain every and only approved repository');
+  }
+  if ([...pullRequests.keys()].some((repository) => !repositories.some((item) => item.toLowerCase() === repository))) {
+    reject('invalid-poll-input', 'poll input must contain every and only approved repository');
+  }
+
+  const profileByRepository = new Map();
+  for (const profile of catalog.profiles) {
+    if (!['shadow', 'qualified'].includes(profile.status)
+        || !ROUTINE_DISPATCH_IMPLEMENTATIONS.includes(profile.implementationId)) continue;
+    const repository = profile.repositories[0];
+    profileByRepository.set(repository.toLowerCase(), profile);
+  }
+
+  const dispatchCandidates = [];
+  // Rebuild only from current eligible open PRs so closed, draft, fork, denied,
+  // and no-longer-enabled entries cannot remain permanently queued in state.
+  const nextState = new Map();
+
+  for (const repository of repositories) {
+    const record = pullRequests.get(repository.toLowerCase());
+    const profile = profileByRepository.get(repository.toLowerCase());
+    const currentPullRequests = new Set();
+    for (const pr of record.pullRequests) {
+      if (!Number.isInteger(pr?.number) || pr.number < 1) {
+        reject('invalid-poll-input', 'a polled PR is missing a valid number');
+      }
+      let execution;
+      try {
+        execution = resolveAuthorizedShadowPullRequestForRepository(catalog, pr, {
+          repository,
+          pullRequestNumber: pr.number,
+          headSha: pr?.head?.sha,
+          allowedAuthors: ['setnessconsulting'],
+        });
+      } catch (error) {
+        if (error instanceof ProfileRejection
+            && ['author-not-allowed', 'stale-or-untrusted-pr'].includes(error.code)) continue;
+        throw error;
+      }
+      const key = pollStateKey(repository, execution.pullRequestNumber);
+      if (currentPullRequests.has(key)) reject('invalid-poll-input', 'poll input contains a duplicate PR');
+      currentPullRequests.add(key);
+      const previous = prior.get(key);
+      if (!previous || previous.headSha !== execution.headSha) {
+        dispatchCandidates.push(Object.freeze({
+          repository,
+          pullRequestNumber: execution.pullRequestNumber,
+          headSha: execution.headSha,
+          profileId: profile.id,
+          attempt: 1,
+        }));
+        continue;
+      }
+
+      if (previous.status === 'completed') {
+        nextState.set(key, previous);
+        continue;
+      }
+
+      const observation = observations.get(key);
+      if (!observation || observation.headSha !== execution.headSha) {
+        reject('invalid-poll-input', 'every pending PR must have a matching exact-SHA check observation');
+      }
+      if (observation.status === 'completed') {
+        nextState.set(key, Object.freeze({ ...previous, status: 'completed' }));
+      } else if (observation.status === 'in_progress') {
+        nextState.set(key, previous.status === 'stalled'
+          ? Object.freeze({ ...previous, status: 'pending' })
+          : previous);
+      } else if (observation.status === 'untracked') {
+        // A check not linked to this trusted poller's gate build may belong to
+        // another Jenkins job. Never overwrite or duplicate it; surface the
+        // state for operator attention after the normal grace period.
+        nextState.set(key, previous.status === 'stalled' || nowEpochMs - previous.dispatchedAtEpochMs < POLL_RETRY_AFTER_MS
+          ? previous
+          : Object.freeze({ ...previous, status: 'stalled' }));
+      } else if (previous.status === 'stalled') {
+        nextState.set(key, previous);
+      } else if (nowEpochMs - previous.dispatchedAtEpochMs < POLL_RETRY_AFTER_MS) {
+        nextState.set(key, previous);
+      } else if (previous.attempt < POLL_MAX_ATTEMPTS) {
+        dispatchCandidates.push(Object.freeze({
+          repository,
+          pullRequestNumber: execution.pullRequestNumber,
+          headSha: execution.headSha,
+          profileId: profile.id,
+          attempt: previous.attempt + 1,
+        }));
+        // A retry candidate is not an attempt until the single downstream job
+        // selected by this plan is actually queued. Preserve its last recorded
+        // state while it waits behind other candidates.
+        nextState.set(key, previous);
+      } else {
+        nextState.set(key, Object.freeze({ ...previous, status: 'stalled' }));
+      }
+    }
+  }
+
+  dispatchCandidates.sort((left, right) => left.repository.localeCompare(right.repository)
+    || left.pullRequestNumber - right.pullRequestNumber);
+  // The trusted Jenkins adapter queues exactly one downstream build per poll.
+  // Persist an attempt only for that selected PR; other eligible PRs remain
+  // candidates and are not penalized for not having been queued.
+  const dispatches = dispatchCandidates.slice(0, 1);
+  const selected = dispatches[0];
+  if (selected) {
+    const key = pollStateKey(selected.repository, selected.pullRequestNumber);
+    nextState.set(key, Object.freeze({
+      repository: selected.repository,
+      pullRequestNumber: selected.pullRequestNumber,
+      headSha: selected.headSha,
+      attempt: selected.attempt,
+      dispatchedAtEpochMs: nowEpochMs,
+      status: 'pending',
+    }));
+  }
+  return Object.freeze({
+    status: 'ready',
+    dispatches: Object.freeze(dispatches),
+    state: Object.freeze([...nextState.values()].sort((left, right) =>
+      pollStateKey(left.repository, left.pullRequestNumber).localeCompare(
+        pollStateKey(right.repository, right.pullRequestNumber),
+      ))),
+  });
 }
