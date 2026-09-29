@@ -214,7 +214,7 @@ export function validateProfileCatalog(catalog) {
   });
 }
 
-export function resolveShadowExecution(catalog, profileId, headSha) {
+function resolveShadowExecution(catalog, profileId, headSha) {
   validateProfileCatalog(catalog);
   if (!validId(profileId)) reject('invalid-profile-id', 'profile ID is invalid');
   if (typeof headSha !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(headSha)) {
@@ -272,4 +272,31 @@ export function verifyPullRequestHead(pr, { repository, pullRequestNumber, headS
     reject('author-not-allowed', 'PR author is outside the trusted shadow allowlist');
   }
   return Object.freeze({ repository, pullRequestNumber, headSha: canonicalSha, author });
+}
+
+// This is the only supported PR execution entry point. It binds the trusted
+// Branch Source metadata and exact SHA to the profile before exposing the
+// centrally-owned command vectors to a caller.
+export function resolveAuthorizedShadowPullRequest(
+  catalog,
+  profileId,
+  pr,
+  { repository, pullRequestNumber, headSha, allowedAuthors },
+) {
+  const verified = verifyPullRequestHead(pr, {
+    repository,
+    pullRequestNumber,
+    headSha,
+    allowedAuthors,
+  });
+  const execution = resolveShadowExecution(catalog, profileId, verified.headSha);
+  if (execution.repository.toLowerCase() !== verified.repository.toLowerCase()) {
+    reject('profile-repository-mismatch', 'verified PR repository does not match the shadow profile');
+  }
+
+  return Object.freeze({
+    ...execution,
+    pullRequestNumber: verified.pullRequestNumber,
+    author: verified.author,
+  });
 }

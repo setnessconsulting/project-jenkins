@@ -734,7 +734,9 @@ foreach ($portfolioGuard in @(
     "Object.freeze(['npm', 'run', 'check'])",
     "Object.freeze(['npm', 'test'])",
     'export function validateProfileCatalog(catalog)',
-    'export function resolveShadowExecution(catalog, profileId, headSha)',
+    'function resolveShadowExecution(catalog, profileId, headSha)',
+    'export function resolveAuthorizedShadowPullRequest(',
+    "execution.repository.toLowerCase() !== verified.repository.toLowerCase()",
     "profile.status !== 'shadow'",
     'profile.requiredNodeVersion !== implementation.nodeVersion',
     "reject('runtime-mismatch'",
@@ -754,9 +756,11 @@ foreach ($portfolioGuard in @(
     }
 }
 if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
+    $portfolioConsumer.Contains('export function resolveShadowExecution(catalog, profileId, headSha)') -or
     -not $portfolioConsumer.Contains("if (!allowed.has(key)) reject('unexpected-field'") -or
     -not $portfolioConsumerTests.Contains('rejects profile fields that could inject commands or credentials') -or
     -not $portfolioConsumerTests.Contains('accepts only exact, open, same-repository PR heads from allowlisted authors') -or
+    -not $portfolioConsumerTests.Contains('returns executable commands only after PR identity and profile repository bind') -or
     -not $portfolioConsumerTests.Contains('rejects a profile whose required Node.js runtime differs from the pinned agent') -or
     -not $portfolioConsumerTests.Contains('rejects qualified and fork claims without full evidence') -or
     -not $portfolioConsumerPackage.Contains('"node": ">=22.23.3"') -or

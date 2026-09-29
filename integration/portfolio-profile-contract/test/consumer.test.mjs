@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
+import * as profileConsumer from '../src/consumer.mjs';
+
+const {
   IMPLEMENTATIONS,
   ProfileRejection,
-  resolveShadowExecution,
+  resolveAuthorizedShadowPullRequest,
   validateProfileCatalog,
   verifyPullRequestHead,
-} from '../src/consumer.mjs';
+} = profileConsumer;
 
 const sha = 'a'.repeat(40);
 
@@ -55,9 +57,24 @@ function rejectsCode(run, expectedCode) {
   assert.throws(run, (error) => error instanceof ProfileRejection && error.code === expectedCode);
 }
 
+function resolve(input = catalog(), {
+  profileId = 'example-foundation',
+  prOverrides = {},
+  ...requestOverrides
+} = {}) {
+  return resolveAuthorizedShadowPullRequest(input, profileId, pr(prOverrides), {
+    repository: 'setnessconsulting/example-repository',
+    pullRequestNumber: 17,
+    headSha: sha,
+    allowedAuthors: ['setnessconsulting'],
+    ...requestOverrides,
+  });
+}
+
 test('validates the closed catalog and resolves centrally-owned static commands', () => {
+  assert.equal(Object.hasOwn(profileConsumer, 'resolveShadowExecution'), false);
   assert.deepEqual(validateProfileCatalog(catalog()), { profileCount: 1, implementationCount: 1 });
-  const plan = resolveShadowExecution(catalog(), 'example-foundation', sha.toUpperCase());
+  const plan = resolve(catalog(), { headSha: sha.toUpperCase() });
   assert.equal(plan.repository, 'setnessconsulting/example-repository');
   assert.equal(plan.headSha, sha);
   assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
@@ -76,14 +93,14 @@ test('validates the closed catalog and resolves centrally-owned static commands'
 test('rejects profile fields that could inject commands or credentials', () => {
   const input = catalog();
   input.profiles[0].commands = ['curl attacker.invalid'];
-  rejectsCode(() => validateProfileCatalog(input), 'unexpected-field');
+  rejectsCode(() => resolve(input), 'unexpected-field');
 });
 
 test('rejects unapproved implementation IDs even if profile data includes a command list', () => {
   const input = catalog();
   input.profiles[0].implementationId = 'shell-from-catalog';
   input.approvedImplementations.push('shell-from-catalog');
-  rejectsCode(() => resolveShadowExecution(input, 'example-foundation', sha), 'implementation-not-installed');
+  rejectsCode(() => resolve(input), 'implementation-not-installed');
 });
 
 test('unmapped and planned profiles cannot execute', () => {
@@ -95,29 +112,29 @@ test('unmapped and planned profiles cannot execute', () => {
     checkNames: [],
     qualification: { requiredExactShaCases: 0, qualifiedExactShaCases: 0, state: 'not-started' },
   };
-  rejectsCode(() => resolveShadowExecution(unmapped, 'example-foundation', sha), 'profile-not-shadow');
+  rejectsCode(() => resolve(unmapped), 'profile-not-shadow');
   const planned = catalog();
   planned.profiles[0].status = 'planned';
-  rejectsCode(() => resolveShadowExecution(planned, 'example-foundation', sha), 'profile-not-shadow');
+  rejectsCode(() => resolve(planned), 'profile-not-shadow');
 });
 
 test('rejects ambiguous profiles, missing required gate, and malformed SHA', () => {
   const ambiguous = catalog();
   ambiguous.profiles[0].repositories.push('setnessconsulting/another-repository');
-  rejectsCode(() => resolveShadowExecution(ambiguous, 'example-foundation', sha), 'ambiguous-profile');
+  rejectsCode(() => resolve(ambiguous), 'ambiguous-profile');
   const missingCheck = catalog();
   missingCheck.profiles[0].checkNames = ['some-other-check'];
-  rejectsCode(() => resolveShadowExecution(missingCheck, 'example-foundation', sha), 'required-check-missing');
-  rejectsCode(() => resolveShadowExecution(catalog(), 'example-foundation', 'main'), 'invalid-head-sha');
+  rejectsCode(() => resolve(missingCheck), 'required-check-missing');
+  rejectsCode(() => resolve(catalog(), { headSha: 'main' }), 'invalid-pr-request');
 });
 
 test('rejects a profile whose required Node.js runtime differs from the pinned agent', () => {
   const mismatched = catalog();
   mismatched.profiles[0].requiredNodeVersion = '22.14.0';
-  rejectsCode(() => resolveShadowExecution(mismatched, 'example-foundation', sha), 'runtime-mismatch');
+  rejectsCode(() => resolve(mismatched), 'runtime-mismatch');
   const missing = catalog();
   delete missing.profiles[0].requiredNodeVersion;
-  rejectsCode(() => resolveShadowExecution(missing, 'example-foundation', sha), 'runtime-mismatch');
+  rejectsCode(() => resolve(missing), 'runtime-mismatch');
 });
 
 test('accepts only exact, open, same-repository PR heads from allowlisted authors', () => {
@@ -170,6 +187,59 @@ test('accepts only exact, open, same-repository PR heads from allowlisted author
   rejectsCode(() => verifyPullRequestHead(draft, {
     repository: 'setnessconsulting/example-repository', pullRequestNumber: 17,
     headSha: sha, allowedAuthors: ['setnessconsulting'],
+  }), 'stale-or-untrusted-pr');
+});
+
+test('returns executable commands only after PR identity and profile repository bind', () => {
+  const execution = resolveAuthorizedShadowPullRequest(catalog(), 'example-foundation', pr(), {
+    repository: 'setnessconsulting/example-repository',
+    pullRequestNumber: 17,
+    headSha: sha,
+    allowedAuthors: ['setnessconsulting'],
+  });
+  assert.equal(execution.repository, 'setnessconsulting/example-repository');
+  assert.equal(execution.headSha, sha);
+  assert.equal(execution.pullRequestNumber, 17);
+  assert.equal(execution.author, 'setnessconsulting');
+  assert.deepEqual(execution.commands, IMPLEMENTATIONS['node22-foundation-v1'].commands);
+
+  const mismatchedProfile = catalog();
+  mismatchedProfile.profiles[0].repositories = ['setnessconsulting/another-repository'];
+  rejectsCode(() => resolveAuthorizedShadowPullRequest(
+    mismatchedProfile,
+    'example-foundation',
+    pr(),
+    {
+      repository: 'setnessconsulting/example-repository',
+      pullRequestNumber: 17,
+      headSha: sha,
+      allowedAuthors: ['setnessconsulting'],
+    },
+  ), 'profile-repository-mismatch');
+
+  rejectsCode(() => resolveAuthorizedShadowPullRequest(catalog(), 'example-foundation', pr(), {
+    repository: 'setnessconsulting/example-repository',
+    pullRequestNumber: 17,
+    headSha: sha,
+    allowedAuthors: ['different-owner'],
+  }), 'author-not-allowed');
+
+  rejectsCode(() => resolve(catalog(), {
+    prOverrides: {
+      head: {
+        sha,
+        repo: { full_name: 'contributor/example-repository' },
+      },
+    },
+  }), 'stale-or-untrusted-pr');
+
+  rejectsCode(() => resolve(catalog(), {
+    prOverrides: {
+      head: {
+        sha: 'b'.repeat(40),
+        repo: { full_name: 'setnessconsulting/example-repository' },
+      },
+    },
   }), 'stale-or-untrusted-pr');
 });
 
