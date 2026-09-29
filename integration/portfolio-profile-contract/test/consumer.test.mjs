@@ -7,6 +7,7 @@ const {
   IMPLEMENTATIONS,
   ProfileRejection,
   resolveAuthorizedShadowPullRequest,
+  resolveAuthorizedShadowPullRequestForRepository,
   validateProfileCatalog,
   verifyPullRequestHead,
 } = profileConsumer;
@@ -256,6 +257,33 @@ test('returns executable commands only after PR identity and profile repository 
       },
     },
   }), 'stale-or-untrusted-pr');
+});
+
+test('selects the profile from repository identity before authorizing the PR', () => {
+  const execution = resolveAuthorizedShadowPullRequestForRepository(catalog(), pr(), {
+    repository: 'setnessconsulting/EXAMPLE-REPOSITORY',
+    pullRequestNumber: 17,
+    headSha: sha,
+    allowedAuthors: ['setnessconsulting'],
+  });
+  assert.equal(execution.repository, 'setnessconsulting/example-repository');
+  assert.equal(execution.headSha, sha);
+
+  rejectsCode(() => resolveAuthorizedShadowPullRequestForRepository(catalog(), pr(), {
+    repository: 'setnessconsulting/another-repository',
+    pullRequestNumber: 17,
+    headSha: sha,
+    allowedAuthors: ['setnessconsulting'],
+  }), 'unknown-profile');
+
+  const planned = catalog();
+  planned.profiles[0].status = 'planned';
+  rejectsCode(() => resolveAuthorizedShadowPullRequestForRepository(planned, pr(), {
+    repository: 'setnessconsulting/example-repository',
+    pullRequestNumber: 17,
+    headSha: sha,
+    allowedAuthors: ['setnessconsulting'],
+  }), 'profile-not-shadow');
 });
 
 test('rejects qualified and fork claims without full evidence', () => {
