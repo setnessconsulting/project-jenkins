@@ -8,9 +8,12 @@ variables, network policy, or check conclusions.
 `integration/portfolio-profile-contract` defines the strict catalog envelope,
 the central implementation registry, exact-SHA request resolution, and the
 initial same-repository/owner-only PR policy. Its Node 22 adapter is a
-contract-tested component. The manual-only
+contract-tested component. The manual
 `portfolio-dispatch/portfolio-pr-gate` invokes it from the controller after
-reading the private catalog and refreshing the live PR.
+reading the private catalog and refreshing the live PR. A separate,
+disabled-by-default controller poller can discover exact-SHA PR work only
+after the private control plane is explicitly active and a profile selects an
+implementation admitted by the central routine-dispatch allowlist.
 This does not make a repository Jenkins-authoritative or qualify its profile.
 
 For portfolio pull-request dispatch, use
@@ -57,8 +60,16 @@ one-hour expiry plus scheduled retry bound the recovery window. The folder
 store is selected by exact folder context; the controller-wide System
 credentials store is never used for checkout tokens.
 
-There is no portfolio polling or automatic PR verification trigger in this
-increment; the reaper schedule is maintenance only.
+The poller is opt-in through the ignored local
+`JENKINS_PORTFOLIO_PR_POLL_ENABLED` setting, which defaults to `false`, and
+also requires the private catalog location and `controlPlane.status: active`.
+It checks only open, same-repository, non-draft PRs authored by
+`setnessconsulting`, queues one exact-head SHA at a time, and persists dispatch
+state in Jenkins home. It does not schedule main-branch, fork, or outside-author
+verification. The reaper schedule remains maintenance-only. Enabling this
+poller does not make a repository Jenkins-authoritative; Actions, protection,
+and deployment settings remain unchanged until separately qualified and
+approved.
 
 Fork PRs are rejected. An owner allowlist is a bounded shadow policy, not a
 sandbox. Do not broaden access or make this check required until the runtime

@@ -15,6 +15,14 @@ def githubAppId = System.getenv('JENKINS_GITHUB_APP_ID')?.trim()
 def appCredentialId = System.getenv('JENKINS_GITHUB_APP_CREDENTIAL_ID')?.trim()
 def portfolioCatalogRepository = System.getenv('JENKINS_PORTFOLIO_CATALOG_REPOSITORY')?.trim() ?: ''
 def portfolioCatalogEnabled = !portfolioCatalogRepository.isEmpty()
+def portfolioPrPollingValue = (System.getenv('JENKINS_PORTFOLIO_PR_POLL_ENABLED') ?: 'false').trim().toLowerCase()
+if (!(portfolioPrPollingValue in ['true', 'false'])) {
+    throw new IllegalStateException('JENKINS_PORTFOLIO_PR_POLL_ENABLED must be true or false.')
+}
+def portfolioPrPollingEnabled = portfolioPrPollingValue == 'true'
+if (portfolioPrPollingEnabled && !portfolioCatalogEnabled) {
+    throw new IllegalStateException('Portfolio PR polling requires the private catalog repository setting.')
+}
 def checkoutCredentialId = System.getenv('JENKINS_CHECKOUT_SSH_CREDENTIAL_ID')?.trim() ?: 'jenkins-readonly-checkout'
 def candidatePathRules = (System.getenv('JENKINS_CANDIDATE_PATHS') ?: '')
     .split(',')
@@ -131,6 +139,9 @@ def portfolioPipelineTemplate = new File(
 def portfolioReaperPipelineTemplate = new File(
     '/usr/share/jenkins/casc/pipelines/portfolio-checkout-credential-reaper.groovy'
 ).getText('UTF-8')
+def portfolioPollerPipelineTemplate = new File(
+    '/usr/share/jenkins/casc/pipelines/portfolio-pr-poller.groovy'
+).getText('UTF-8')
 if (portfolioCredentialStoreHelpers.isEmpty() ||
     portfolioPipelineTemplate.count(portfolioCredentialStoreMarker) != 1 ||
     portfolioReaperPipelineTemplate.count(portfolioCredentialStoreMarker) != 1) {
@@ -140,6 +151,17 @@ portfolioPipelineTemplate = portfolioPipelineTemplate.replace(
     portfolioCredentialStoreMarker,
     portfolioCredentialStoreHelpers
 )
+def portfolioPollerMarkers = [
+    '/* JENKINS_PORTFOLIO_APP_CREDENTIAL_ID */': JsonOutput.toJson(appCredentialId),
+    '/* JENKINS_PORTFOLIO_CATALOG_REPOSITORY */': JsonOutput.toJson(portfolioCatalogRepository),
+    '/* JENKINS_PORTFOLIO_NODE_BINARY */': JsonOutput.toJson('/opt/setness-jenkins/tools/node-v22.23.3-linux-x64/bin/node')
+]
+portfolioPollerMarkers.each { marker, value ->
+    if (portfolioPollerPipelineTemplate.count(marker) != 1) {
+        throw new IllegalStateException('The trusted portfolio poller has a missing or duplicate controller configuration marker.')
+    }
+    portfolioPollerPipelineTemplate = portfolioPollerPipelineTemplate.replace(marker, value)
+}
 portfolioReaperPipelineTemplate = portfolioReaperPipelineTemplate.replace(
     portfolioCredentialStoreMarker,
     portfolioCredentialStoreHelpers
@@ -458,11 +480,11 @@ pipelineJob(testPlatformJobName) {
     }
 }
 
-// This folder must contain only these two centrally trusted jobs. The folder
+// This folder contains only centrally trusted portfolio jobs. The folder
 // credential provider scopes short-lived checkout tokens to its children.
 folder('portfolio-dispatch') {
     displayName('Portfolio Dispatch (trusted only)')
-    description('Dedicated folder for the centrally trusted portfolio PR dispatcher and its temporary-credential reaper; do not add repository-controlled jobs.')
+    description('Dedicated folder for centrally trusted portfolio PR gate, scheduler, and temporary-credential reaper; do not add repository-controlled jobs.')
 }
 
 // Manual-only bridge from the private data catalog to one centrally trusted
@@ -489,6 +511,32 @@ pipelineJob('portfolio-dispatch/portfolio-pr-gate') {
     definition {
         cps {
             script(portfolioPipelineTemplate)
+            sandbox(false)
+        }
+    }
+}
+
+// Polling is deliberately opt-in and also requires the private catalog to
+// mark the control plane active. It queues at most one exact-head PR gate at a
+// time; the downstream trusted job revalidates metadata before checkout.
+pipelineJob('portfolio-dispatch/portfolio-pr-poller') {
+    displayName('Portfolio PR Poller (opt-in shadow)')
+    disabled(!portfolioCatalogEnabled || !portfolioPrPollingEnabled)
+    description('''
+        Polls only centrally approved shadow/qualified profiles and queues at most one exact-SHA PR gate at a time.
+        The private control plane must be active. Same-repository owner PRs only; no target Jenkinsfile, fork code,
+        routine Actions trigger, branch protection, or deployment setting is changed by this job.
+        '''.stripIndent().trim())
+    logRotator {
+        daysToKeep(14)
+        numToKeep(100)
+    }
+    triggers {
+        cron('H/5 * * * *')
+    }
+    definition {
+        cps {
+            script(portfolioPollerPipelineTemplate)
             sandbox(false)
         }
     }

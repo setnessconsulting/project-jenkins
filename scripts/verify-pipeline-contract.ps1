@@ -32,6 +32,7 @@ $rollbackScriptPath = Join-Path $repositoryRoot 'scripts/rollback-jenkins-vm-for
 $windowsControllerShimPath = Join-Path $repositoryRoot 'scripts/start-controller.ps1'
 $testPlatformPipelinePath = Join-Path $repositoryRoot 'casc/pipelines/test-platform.groovy'
 $portfolioPipelinePath = Join-Path $repositoryRoot 'casc/pipelines/portfolio-pr-gate.groovy'
+$portfolioPollerPipelinePath = Join-Path $repositoryRoot 'casc/pipelines/portfolio-pr-poller.groovy'
 $portfolioCredentialHelpersPath = Join-Path $repositoryRoot 'casc/pipelines/portfolio-credential-store.groovy'
 $portfolioReaperPipelinePath = Join-Path $repositoryRoot 'casc/pipelines/portfolio-checkout-credential-reaper.groovy'
 $groovySyntaxVerifierPath = Join-Path $repositoryRoot 'scripts/verify-groovy-syntax.ps1'
@@ -46,6 +47,9 @@ $portfolioCliPath = Join-Path $repositoryRoot 'integration/portfolio-profile-con
 $portfolioConsumerTestsPath = Join-Path $repositoryRoot 'integration/portfolio-profile-contract/test/consumer.test.mjs'
 $portfolioCliTestsPath = Join-Path $repositoryRoot 'integration/portfolio-profile-contract/test/resolve-pr.test.mjs'
 $portfolioConsumerPackagePath = Join-Path $repositoryRoot 'integration/portfolio-profile-contract/package.json'
+$portfolioPollerCliPath = Join-Path $repositoryRoot 'integration/portfolio-profile-contract/src/plan-poll.mjs'
+$portfolioPollerTestsPath = Join-Path $repositoryRoot 'integration/portfolio-profile-contract/test/plan-poll.test.mjs'
+$portfolioPollerCliTestsPath = Join-Path $repositoryRoot 'integration/portfolio-profile-contract/test/plan-poll-cli.test.mjs'
 $portfolioConsumerDocsPath = Join-Path $repositoryRoot 'docs/portfolio-profile-contract.md'
 $portfolioAdapterDocsPath = Join-Path $repositoryRoot 'docs/portfolio-profile-controller-adapter.md'
 
@@ -84,6 +88,7 @@ $restoreScript = Get-Content -LiteralPath $restoreScriptPath -Raw
 $windowsControllerShim = Get-Content -LiteralPath $windowsControllerShimPath -Raw
 $testPlatformPipeline = Read-NormalizedText -LiteralPath $testPlatformPipelinePath
 $portfolioPipeline = Read-NormalizedText -LiteralPath $portfolioPipelinePath
+$portfolioPollerPipeline = Read-NormalizedText -LiteralPath $portfolioPollerPipelinePath
 $portfolioCredentialHelpers = Read-NormalizedText -LiteralPath $portfolioCredentialHelpersPath
 $portfolioReaperPipeline = Read-NormalizedText -LiteralPath $portfolioReaperPipelinePath
 $groovySyntaxVerifier = Read-NormalizedText -LiteralPath $groovySyntaxVerifierPath
@@ -98,6 +103,9 @@ $portfolioCli = Read-NormalizedText -LiteralPath $portfolioCliPath
 $portfolioConsumerTests = Read-NormalizedText -LiteralPath $portfolioConsumerTestsPath
 $portfolioCliTests = Read-NormalizedText -LiteralPath $portfolioCliTestsPath
 $portfolioConsumerPackage = Read-NormalizedText -LiteralPath $portfolioConsumerPackagePath
+$portfolioPollerCli = Read-NormalizedText -LiteralPath $portfolioPollerCliPath
+$portfolioPollerTests = Read-NormalizedText -LiteralPath $portfolioPollerTestsPath
+$portfolioPollerCliTests = Read-NormalizedText -LiteralPath $portfolioPollerCliTestsPath
 $portfolioConsumerDocs = Read-NormalizedText -LiteralPath $portfolioConsumerDocsPath
 $portfolioAdapterDocs = Read-NormalizedText -LiteralPath $portfolioAdapterDocsPath
 
@@ -853,7 +861,7 @@ foreach ($portfolioGuard in @(
     'function resolveShadowExecution(catalog, profileId, headSha)',
     'export function resolveAuthorizedShadowPullRequest(',
     "execution.repository.toLowerCase() !== verified.repository.toLowerCase()",
-    "profile.status !== 'shadow'",
+    "if (!['shadow', 'qualified'].includes(profile.status))",
     'profile.requiredNodeVersion !== implementation.nodeVersion',
     "reject('runtime-mismatch'",
     'profile.repositories.length !== 1',
@@ -943,6 +951,40 @@ if (-not $jobs.Contains("def portfolioCatalogRepository = System.getenv('JENKINS
     -not $compose.Contains('JENKINS_PORTFOLIO_CATALOG_REPOSITORY: ${JENKINS_PORTFOLIO_CATALOG_REPOSITORY:-}')) {
     throw 'The private catalog location must be optional, injected through ignored local configuration, and JSON-encoded into the trusted Pipeline.'
 }
+if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.groovy'") -or
+    -not $portfolioPollerPipeline.Contains('agent none') -or
+    -not $portfolioPollerPipeline.Contains('skipDefaultCheckout(true)') -or
+    -not $portfolioPollerPipeline.Contains('portfolioPollDrain(') -or
+    -not $portfolioPollerPipeline.Contains('readers.submit(') -or
+    -not $portfolioPollerPipeline.Contains('waitFor(30, java.util.concurrent.TimeUnit.SECONDS)') -or
+    -not $portfolioPollerPipeline.Contains('String token = portfolioPollScopedAppToken(') -or
+    $portfolioPollerPipeline.Contains('portfolioPollRepoApiRequest(') -or
+    -not $portfolioPollerPipeline.Contains('[pull_requests: org.kohsuke.github.GHPermissionType.READ]') -or
+    -not $portfolioPollerPipeline.Contains('[contents: org.kohsuke.github.GHPermissionType.READ]') -or
+    -not $portfolioPollerPipeline.Contains('targetPlan.repositories.size() > 40') -or
+    -not $portfolioPollerPipeline.Contains('portfolioPollGateBusy()') -or
+    -not $portfolioPollerPipeline.Contains("job: 'portfolio-dispatch/portfolio-pr-gate'") -or
+    -not $portfolioPollerPipeline.Contains('wait: false') -or
+    -not $portfolioPollerPipeline.Contains('portfolioPollWriteState(state)') -or
+    $portfolioPollerPipeline.Contains('checkout scm') -or
+    $portfolioPollerPipeline.Contains('withCredentials(') -or
+    -not $jobs.Contains('disabled(!portfolioCatalogEnabled || !portfolioPrPollingEnabled)') -or
+    -not $jobs.Contains("cron('H/5 * * * *')") -or
+    -not $jobs.Contains('portfolioPollerMarkers.each') -or
+    -not $compose.Contains('JENKINS_PORTFOLIO_PR_POLL_ENABLED: ${JENKINS_PORTFOLIO_PR_POLL_ENABLED:-false}') -or
+    -not $environmentExample.Contains('JENKINS_PORTFOLIO_PR_POLL_ENABLED=false') -or
+    -not $pilotConfigParser.Contains("'JENKINS_PORTFOLIO_PR_POLL_ENABLED'") -or
+    -not $pilotConfigParser.Contains('PortfolioPrPollingEnabled = [bool]::Parse($portfolioPrPollingEnabled)') -or
+    -not $portfolioPollerCli.Contains("input?.mode === 'targets'") -or
+    -not $portfolioPollerCli.Contains('planRoutinePullRequestPoll(') -or
+    -not $portfolioPollerTests.Contains('polling is inert until the private control plane is explicitly active') -or
+    -not $portfolioPollerTests.Contains('only centrally approved implementations are polled') -or
+    -not $portfolioPollerCliTests.Contains('planner fails closed on malformed input, oversized data, and caller arguments') -or
+    -not $portfolioAdapterDocs.Contains('JENKINS_PORTFOLIO_PR_POLL_ENABLED=true') -or
+    -not $portfolioAdapterDocs.Contains('queues one') -or
+    -not $portfolioConsumerDocs.Contains('controlPlane.status: active')) {
+    throw 'The opt-in portfolio poller must remain controller-only, bounded, least-permission, centrally allowlisted, and disabled by default.'
+}
 if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
     $portfolioConsumer.Contains('export function resolveShadowExecution(catalog, profileId, headSha)') -or
     -not $portfolioConsumer.Contains("if (!allowed.has(key)) reject('unexpected-field'") -or
@@ -981,4 +1023,4 @@ if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
     throw 'The portfolio resolver must remain data-only and the manual controller dispatcher must preserve per-repository token, exact-SHA, no-target-Pipeline, and cleanup boundaries.'
 }
 
-Write-Output 'Compose isolation, disposable Node 22/Node 22.14/Node 24/Playwright agents, controller-before-checkout authorization, opt-in secondary-repository profile, separate verification lanes, credential boundaries, check reporting, recovery gates, trusted-pipeline contracts, Test Platform consumer contract, and manual repository-scoped portfolio dispatcher contract passed.'
+Write-Output 'Compose isolation, disposable Node 22/Node 22.14/Node 24/Playwright agents, controller-before-checkout authorization, opt-in secondary-repository profile, separate verification lanes, credential boundaries, check reporting, recovery gates, trusted-pipeline contracts, Test Platform consumer contract, and disabled-by-default repository-scoped portfolio poller/dispatcher contracts passed.'

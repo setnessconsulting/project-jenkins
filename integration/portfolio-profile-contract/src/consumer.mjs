@@ -82,6 +82,13 @@ export const IMPLEMENTATIONS = Object.freeze({
   }),
 });
 
+// Only implementations explicitly admitted here may be polled automatically.
+// Adding an implementation requires a reviewed trusted runtime and profile
+// contract; catalog data cannot expand this set.
+export const ROUTINE_DISPATCH_IMPLEMENTATIONS = Object.freeze([
+  'node22-verify-clean-checkout-v1',
+]);
+
 export class ProfileRejection extends Error {
   constructor(code, message) {
     super(message);
@@ -246,7 +253,9 @@ function resolveShadowExecution(catalog, profileId, headSha) {
 
   const profile = catalog.profiles.find((candidate) => candidate.id === profileId);
   if (!profile) reject('unknown-profile', 'profile is not present in the private catalog');
-  if (profile.status !== 'shadow') reject('profile-not-shadow', 'only an explicitly shadow-enabled profile may execute');
+  if (!['shadow', 'qualified'].includes(profile.status)) {
+    reject('profile-not-shadow', 'only an explicitly shadow or qualified profile may execute');
+  }
   if (profile.repositories.length !== 1) reject('ambiguous-profile', 'an executable profile must identify exactly one repository');
   const implementation = IMPLEMENTATIONS[profile.implementationId];
   if (!implementation) reject('implementation-not-installed', 'no centrally trusted adapter is installed for this profile');
@@ -341,4 +350,145 @@ export function resolveAuthorizedShadowPullRequestForRepository(catalog, pr, req
   }
 
   return resolveAuthorizedShadowPullRequest(catalog, profile.id, pr, request);
+}
+
+function pollStateKey(repository, pullRequestNumber) {
+  return `${repository.toLowerCase()}#${pullRequestNumber}`;
+}
+
+function validatePollState(previousState) {
+  if (!Array.isArray(previousState) || previousState.length > 20000) {
+    reject('invalid-poll-state', 'poll state must be a bounded array');
+  }
+  const state = new Map();
+  for (const entry of previousState) {
+    exactKeys(entry, new Set(['repository', 'pullRequestNumber', 'headSha']),
+      ['repository', 'pullRequestNumber', 'headSha'], 'poll state entry');
+    if (!validRepository(entry.repository)
+        || !Number.isInteger(entry.pullRequestNumber) || entry.pullRequestNumber < 1
+        || typeof entry.headSha !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(entry.headSha)) {
+      reject('invalid-poll-state', 'poll state entry is invalid');
+    }
+    const key = pollStateKey(entry.repository, entry.pullRequestNumber);
+    if (state.has(key)) reject('invalid-poll-state', 'poll state contains a duplicate PR');
+    state.set(key, Object.freeze({
+      repository: entry.repository,
+      pullRequestNumber: entry.pullRequestNumber,
+      headSha: entry.headSha.toLowerCase(),
+    }));
+  }
+  return state;
+}
+
+export function listRoutinePullRequestPollRepositories(catalog) {
+  validateProfileCatalog(catalog);
+  if (catalog.controlPlane.status !== 'active') return Object.freeze([]);
+  return Object.freeze(catalog.profiles
+    .filter((profile) => ['shadow', 'qualified'].includes(profile.status)
+      && ROUTINE_DISPATCH_IMPLEMENTATIONS.includes(profile.implementationId))
+    .flatMap((profile) => {
+      if (profile.repositories.length !== 1) {
+        reject('ambiguous-profile', 'a polled profile must identify exactly one repository');
+      }
+      return [profile.repositories[0]];
+    })
+    .sort((left, right) => left.localeCompare(right)));
+}
+
+// Pure controller-side planning for the scheduled PR poller. It never runs
+// repository code; only exact-SHA requests accepted by the existing trusted
+// PR resolver are returned for the downstream centrally defined gate.
+export function planRoutinePullRequestPoll(catalog, pullRequestsByRepository, previousState) {
+  validateProfileCatalog(catalog);
+  const prior = validatePollState(previousState);
+  if (catalog.controlPlane.status !== 'active') {
+    return Object.freeze({ status: 'inactive', dispatches: Object.freeze([]), state: Object.freeze([...prior.values()]) });
+  }
+
+  const repositories = listRoutinePullRequestPollRepositories(catalog);
+  if (!Array.isArray(pullRequestsByRepository)
+      || pullRequestsByRepository.length !== repositories.length) {
+    reject('invalid-poll-input', 'poll input must contain every and only approved repository');
+  }
+  const pullRequests = new Map();
+  for (const record of pullRequestsByRepository) {
+    exactKeys(record, new Set(['repository', 'pullRequests']), ['repository', 'pullRequests'], 'poll repository');
+    if (!validRepository(record.repository) || !Array.isArray(record.pullRequests)
+        || record.pullRequests.length > 1000) {
+      reject('invalid-poll-input', 'poll repository identity or PR list is invalid');
+    }
+    const key = record.repository.toLowerCase();
+    if (pullRequests.has(key)) reject('invalid-poll-input', 'poll input contains a duplicate repository');
+    pullRequests.set(key, record);
+  }
+  if (repositories.some((repository) => !pullRequests.has(repository.toLowerCase()))) {
+    reject('invalid-poll-input', 'poll input must contain every and only approved repository');
+  }
+  if ([...pullRequests.keys()].some((repository) => !repositories.some((item) => item.toLowerCase() === repository))) {
+    reject('invalid-poll-input', 'poll input must contain every and only approved repository');
+  }
+
+  const profileByRepository = new Map();
+  for (const profile of catalog.profiles) {
+    if (!['shadow', 'qualified'].includes(profile.status)
+        || !ROUTINE_DISPATCH_IMPLEMENTATIONS.includes(profile.implementationId)) continue;
+    const repository = profile.repositories[0];
+    profileByRepository.set(repository.toLowerCase(), profile);
+  }
+
+  const dispatches = [];
+  const nextState = new Map();
+  for (const [key, entry] of prior) {
+    if (!repositories.some((repository) => repository.toLowerCase() === entry.repository.toLowerCase())) {
+      nextState.set(key, entry);
+    }
+  }
+
+  for (const repository of repositories) {
+    const record = pullRequests.get(repository.toLowerCase());
+    const profile = profileByRepository.get(repository.toLowerCase());
+    const currentPullRequests = new Set();
+    for (const pr of record.pullRequests) {
+      if (!Number.isInteger(pr?.number) || pr.number < 1) {
+        reject('invalid-poll-input', 'a polled PR is missing a valid number');
+      }
+      let execution;
+      try {
+        execution = resolveAuthorizedShadowPullRequestForRepository(catalog, pr, {
+          repository,
+          pullRequestNumber: pr.number,
+          headSha: pr?.head?.sha,
+          allowedAuthors: ['setnessconsulting'],
+        });
+      } catch (error) {
+        if (error instanceof ProfileRejection
+            && ['author-not-allowed', 'stale-or-untrusted-pr'].includes(error.code)) continue;
+        throw error;
+      }
+      const key = pollStateKey(repository, execution.pullRequestNumber);
+      if (currentPullRequests.has(key)) reject('invalid-poll-input', 'poll input contains a duplicate PR');
+      currentPullRequests.add(key);
+      const previous = prior.get(key);
+      if (!previous || previous.headSha !== execution.headSha) {
+        dispatches.push(Object.freeze({
+          repository,
+          pullRequestNumber: execution.pullRequestNumber,
+          headSha: execution.headSha,
+          profileId: profile.id,
+        }));
+      }
+      if (previous) nextState.set(key, previous);
+    }
+  }
+
+  dispatches.sort((left, right) => left.repository.localeCompare(right.repository)
+    || left.pullRequestNumber - right.pullRequestNumber);
+  return Object.freeze({
+    status: 'ready',
+    dispatches: Object.freeze(dispatches),
+    state: Object.freeze([...nextState.values()].sort((left, right) =>
+      pollStateKey(left.repository, left.pullRequestNumber).localeCompare(
+        pollStateKey(right.repository, right.pullRequestNumber),
+      ))),
+  });
 }

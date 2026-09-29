@@ -37,6 +37,7 @@ try {
         'casc/pipelines/e2e.groovy',
         'casc/pipelines/test-platform.groovy',
         'casc/pipelines/portfolio-pr-gate.groovy',
+        'casc/pipelines/portfolio-pr-poller.groovy',
         'casc/pipelines/portfolio-credential-store.groovy',
         'casc/pipelines/portfolio-checkout-credential-reaper.groovy'
     ) | ForEach-Object { Join-Path $repositoryRoot $_ }
