@@ -8,6 +8,8 @@ import {
 const repository = 'setnessconsulting/project-jira-api';
 const shaA = 'a'.repeat(40);
 const shaB = 'b'.repeat(40);
+const now = 2_000_000;
+const retryAfterMs = 15 * 60 * 1000;
 
 function makeCatalog({ controlPlaneStatus = 'active', profileStatus = 'shadow', implementationId = 'node22-verify-clean-checkout-v1' } = {}) {
   const qualification = profileStatus === 'qualified'
@@ -49,15 +51,25 @@ function makePullRequest({ number = 7, sha = shaA, author = 'setnessconsulting',
   };
 }
 
-function plan(catalog, pullRequests, previousState = []) {
-  return planRoutinePullRequestPoll(catalog, [{ repository, pullRequests }], previousState);
+function state({ sha = shaA, attempt = 1, dispatchedAtEpochMs = now, status = 'pending' } = {}) {
+  return { repository, pullRequestNumber: 7, headSha: sha, attempt, dispatchedAtEpochMs, status };
+}
+
+function observation({ sha = shaA, status = 'in_progress' } = {}) {
+  return { repository, pullRequestNumber: 7, headSha: sha, status };
+}
+
+function plan(catalog, pullRequests, previousState = [], checkObservations = [], nowEpochMs = now) {
+  return planRoutinePullRequestPoll(
+    catalog, [{ repository, pullRequests }], previousState, checkObservations, nowEpochMs,
+  );
 }
 
 test('polling is inert until the private control plane is explicitly active', () => {
   const catalog = makeCatalog({ controlPlaneStatus: 'planned' });
   assert.deepEqual(listRoutinePullRequestPollRepositories(catalog), []);
-  const previousState = [{ repository, pullRequestNumber: 7, headSha: shaA }];
-  assert.deepEqual(planRoutinePullRequestPoll(catalog, [], previousState), {
+  const previousState = [state()];
+  assert.deepEqual(planRoutinePullRequestPoll(catalog, [], previousState, [], now), {
     status: 'inactive', dispatches: [], state: previousState,
   });
 });
@@ -69,21 +81,61 @@ test('a new same-repository owner PR dispatches only its exact head SHA', () => 
     pullRequestNumber: 7,
     headSha: shaA,
     profileId: 'project-jira-api-profile',
+    attempt: 1,
   }]);
-  assert.deepEqual(result.state, []);
+  assert.deepEqual(result.state, [state()]);
 });
 
-test('the last dispatched SHA is not queued again, but a changed SHA is', () => {
-  const previous = [{ repository, pullRequestNumber: 7, headSha: shaA }];
-  const unchanged = plan(makeCatalog(), [makePullRequest()], previous);
+test('an in-progress exact-SHA check is not queued again, but a changed SHA starts a fresh attempt', () => {
+  const previous = [state()];
+  const unchanged = plan(makeCatalog(), [makePullRequest()], previous, [observation()]);
   assert.deepEqual(unchanged.dispatches, []);
   assert.deepEqual(unchanged.state, previous);
 
   const changed = plan(makeCatalog(), [makePullRequest({ sha: shaB })], previous);
   assert.equal(changed.dispatches.length, 1);
   assert.equal(changed.dispatches[0].headSha, shaB);
-  // The controller records the new SHA only after downstream scheduling succeeds.
-  assert.deepEqual(changed.state, previous);
+  assert.equal(changed.dispatches[0].attempt, 1);
+  assert.deepEqual(changed.state, [{ ...state(), headSha: shaB }]);
+});
+
+test('a completed App-attributed check is terminal regardless of conclusion', () => {
+  const result = plan(makeCatalog(), [makePullRequest()], [state()], [observation({ status: 'completed' })]);
+  assert.deepEqual(result.dispatches, []);
+  assert.deepEqual(result.state, [{ ...state(), status: 'completed' }]);
+});
+
+test('a missing check waits through the grace period before a bounded retry', () => {
+  const previous = [state()];
+  const beforeGrace = plan(makeCatalog(), [makePullRequest()], previous, [observation({ status: 'missing' })], now + retryAfterMs - 1);
+  assert.deepEqual(beforeGrace.dispatches, []);
+  assert.deepEqual(beforeGrace.state, previous);
+
+  const retry = plan(makeCatalog(), [makePullRequest()], previous, [observation({ status: 'missing' })], now + retryAfterMs);
+  assert.equal(retry.dispatches.length, 1);
+  assert.equal(retry.dispatches[0].attempt, 2);
+  assert.deepEqual(retry.state, [{ ...state(), attempt: 2, dispatchedAtEpochMs: now + retryAfterMs }]);
+});
+
+test('a missing exact-SHA check is stalled after the bounded retry budget', () => {
+  const previous = [state({ attempt: 3, dispatchedAtEpochMs: now - retryAfterMs })];
+  const result = plan(makeCatalog(), [makePullRequest()], previous, [observation({ status: 'missing' })]);
+  assert.deepEqual(result.dispatches, []);
+  assert.deepEqual(result.state, [{ ...previous[0], status: 'stalled' }]);
+});
+
+test('a late exact-SHA check can reconcile a previously stalled entry', () => {
+  const previous = [state({ attempt: 3, status: 'stalled', dispatchedAtEpochMs: now - retryAfterMs })];
+  const result = plan(makeCatalog(), [makePullRequest()], previous, [observation({ status: 'completed' })]);
+  assert.deepEqual(result.dispatches, []);
+  assert.deepEqual(result.state, [{ ...previous[0], status: 'completed' }]);
+});
+
+test('pending state fails closed without a matching exact-SHA observation', () => {
+  assert.throws(() => plan(makeCatalog(), [makePullRequest()], [state()], []),
+    (error) => error.code === 'invalid-poll-input');
+  assert.throws(() => plan(makeCatalog(), [makePullRequest()], [state()], [observation({ sha: shaB })]),
+    (error) => error.code === 'invalid-poll-input');
 });
 
 test('closed, draft, fork, and non-owner PRs do not run repository code', () => {
@@ -100,7 +152,7 @@ test('closed, draft, fork, and non-owner PRs do not run repository code', () => 
 test('only centrally approved implementations are polled', () => {
   const catalog = makeCatalog({ implementationId: 'future-unreviewed-implementation' });
   assert.deepEqual(listRoutinePullRequestPollRepositories(catalog), []);
-  assert.deepEqual(planRoutinePullRequestPoll(catalog, [], []), {
+  assert.deepEqual(planRoutinePullRequestPoll(catalog, [], [], [], now), {
     status: 'ready', dispatches: [], state: [],
   });
 });
@@ -112,16 +164,16 @@ test('qualified profiles remain runnable after their evidence gate passes', () =
 });
 
 test('poll data must cover exactly the approved repository set', () => {
-  assert.throws(() => planRoutinePullRequestPoll(makeCatalog(), [], []), /every and only approved repository/);
+  assert.throws(() => planRoutinePullRequestPoll(makeCatalog(), [], [], [], now), /every and only approved repository/);
   assert.throws(() => planRoutinePullRequestPoll(makeCatalog(), [
     { repository: 'setnessconsulting/unapproved', pullRequests: [] },
-  ], []), /every and only approved repository/);
+  ], [], [], now), /every and only approved repository/);
 });
 
 test('duplicate prior-state entries fail closed', () => {
   assert.throws(() => plan(makeCatalog(), [], [
-    { repository, pullRequestNumber: 7, headSha: shaA },
-    { repository, pullRequestNumber: 7, headSha: shaB },
+    state(),
+    { ...state(), headSha: shaB },
   ]), /duplicate PR/);
 });
 

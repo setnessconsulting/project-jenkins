@@ -11,7 +11,8 @@ String portfolioPollScopedAppToken(def run, String credentialId, String reposito
     def read = org.kohsuke.github.GHPermissionType.READ
     def permittedScopes = [
         [contents: read],
-        [pull_requests: read]
+        [pull_requests: read],
+        [checks: read]
     ]
     if (!(repository ==~ /setnessconsulting\/[A-Za-z0-9._-]{1,100}/) || !(permissions in permittedScopes)) {
         throw new IllegalArgumentException('The portfolio poller requested an unsupported repository or App permission scope.')
@@ -139,6 +140,54 @@ List portfolioPollOpenPullRequests(def run, String credentialId, String reposito
 }
 
 @com.cloudbees.groovy.cps.NonCPS
+String portfolioPollAppId(def run, String credentialId) {
+    def appCredential = com.cloudbees.plugins.credentials.CredentialsProvider.findCredentialById(
+        credentialId,
+        org.jenkinsci.plugins.github_branch_source.GitHubAppCredentials.class,
+        run,
+        java.util.Collections.emptyList()
+    )
+    String appId = appCredential?.getAppID()?.toString()
+    if (!(appId ==~ /[0-9]{1,20}/)) throw new IllegalStateException('The configured GitHub App identity is unavailable.')
+    return appId
+}
+
+@com.cloudbees.groovy.cps.NonCPS
+String portfolioPollCheckObservation(def run, String credentialId, String repository, String headSha, String expectedAppId) {
+    if (!(repository ==~ /setnessconsulting\/[A-Za-z0-9._-]{1,100}/) ||
+        !(headSha ==~ /(?i)(?:[0-9a-f]{40}|[0-9a-f]{64})/) || !(expectedAppId ==~ /[0-9]{1,20}/)) {
+        throw new IllegalArgumentException('The poller check lookup received invalid trusted metadata.')
+    }
+    String token = portfolioPollScopedAppToken(
+        run, credentialId, repository, [checks: org.kohsuke.github.GHPermissionType.READ]
+    )
+    try {
+        Map response = (Map) portfolioPollApiJson(
+            token, "/repos/${repository}/commits/${headSha}/check-runs?check_name=jenkins-pr-gate&app_id=${expectedAppId}&filter=all&per_page=100"
+        )
+        if (!(response.total_count instanceof Number) || !(response.check_runs instanceof List) ||
+            response.check_runs.size() > 100) {
+            throw new IllegalStateException('GitHub returned an invalid exact-SHA check-run response.')
+        }
+        List matching = response.check_runs.findAll { runResult ->
+            runResult?.name == 'jenkins-pr-gate' && runResult?.head_sha?.toString()?.equalsIgnoreCase(headSha) &&
+                runResult?.app?.id?.toString() == expectedAppId
+        }
+        if (matching.isEmpty()) return 'missing'
+        Map latest = (Map) matching.max { item ->
+            (item?.updated_at ?: item?.created_at ?: '').toString()
+        }
+        if (latest.status == 'in_progress' || latest.status == 'queued' || latest.status == 'requested') {
+            return 'in_progress'
+        }
+        if (latest.status == 'completed') return 'completed'
+        throw new IllegalStateException('The Jenkins App check-run has an unsupported terminal status.')
+    } finally {
+        token = null
+    }
+}
+
+@com.cloudbees.groovy.cps.NonCPS
 File portfolioPollStateFile() {
     String homeValue = System.getenv('JENKINS_HOME') ?: ''
     if (!homeValue.startsWith('/')) throw new IllegalStateException('The portfolio poller requires an absolute controller home.')
@@ -206,7 +255,7 @@ Map portfolioPollDrain(java.io.InputStream stream, int maximumBytes) {
 }
 
 @com.cloudbees.groovy.cps.NonCPS
-Map portfolioPollPlan(def run, Map envelope) {
+Map portfolioPollPlan(def run, String nodeBinary, String adapterPath, Map envelope) {
     byte[] input = groovy.json.JsonOutput.toJson(envelope).getBytes(java.nio.charset.StandardCharsets.UTF_8)
     if (input.length == 0 || input.length > 2 * 1024 * 1024) {
         throw new IllegalArgumentException('The trusted poll plan input is empty or too large.')
@@ -214,7 +263,7 @@ Map portfolioPollPlan(def run, Map envelope) {
     Process process = null
     java.util.concurrent.ExecutorService readers = java.util.concurrent.Executors.newFixedThreadPool(2)
     try {
-        process = new ProcessBuilder(portfolioPollNodeBinary, portfolioPollAdapter).start()
+        process = new ProcessBuilder(nodeBinary, adapterPath).start()
         def stdoutFuture = readers.submit({ ->
             portfolioPollDrain(process.getInputStream(), 2 * 1024 * 1024)
         } as java.util.concurrent.Callable)
@@ -292,7 +341,7 @@ pipeline {
                         portfolioPollAppCredentialId,
                         portfolioPollCatalogRepository
                     )
-                    Map targetPlan = portfolioPollPlan(currentBuild.rawBuild, [
+                    Map targetPlan = portfolioPollPlan(currentBuild.rawBuild, portfolioPollNodeBinary, portfolioPollAdapter, [
                         mode: 'targets',
                         catalog: catalogSnapshot.catalog
                     ])
@@ -319,11 +368,43 @@ pipeline {
                             )
                         ]
                     }
-                    Map plan = portfolioPollPlan(currentBuild.rawBuild, [
+                    List previousState = portfolioPollReadState()
+                    Map openPullRequestByKey = [:]
+                    pullRequestsByRepository.each { record ->
+                        record.pullRequests.each { pullRequest ->
+                            openPullRequestByKey["${record.repository.toString().toLowerCase()}#${pullRequest.number}"] = pullRequest
+                        }
+                    }
+                    List observations = []
+                    String expectedAppId = portfolioPollAppId(currentBuild.rawBuild, portfolioPollAppCredentialId)
+                    previousState.each { entry ->
+                        if (!(entry instanceof Map) || !(entry.status in ['pending', 'stalled'])) return
+                        String priorRepository = entry.repository?.toString() ?: ''
+                        String priorSha = entry.headSha?.toString() ?: ''
+                        if (!(priorRepository ==~ /setnessconsulting\/[A-Za-z0-9._-]{1,100}/) ||
+                            !(entry.pullRequestNumber instanceof Number) || !(priorSha ==~ /(?i)(?:[0-9a-f]{40}|[0-9a-f]{64})/)) {
+                            error('The controller poll state contains invalid pending metadata; no downstream job was queued.')
+                        }
+                        Map openPullRequest = (Map) openPullRequestByKey["${priorRepository.toLowerCase()}#${entry.pullRequestNumber}"]
+                        String currentSha = openPullRequest?.head?.sha?.toString()
+                        if (currentSha?.equalsIgnoreCase(priorSha)) {
+                            observations.add([
+                                repository: priorRepository,
+                                pullRequestNumber: entry.pullRequestNumber as Integer,
+                                headSha: priorSha.toLowerCase(),
+                                status: portfolioPollCheckObservation(
+                                    currentBuild.rawBuild, portfolioPollAppCredentialId, priorRepository, priorSha, expectedAppId
+                                )
+                            ])
+                        }
+                    }
+                    Map plan = portfolioPollPlan(currentBuild.rawBuild, portfolioPollNodeBinary, portfolioPollAdapter, [
                         mode: 'plan',
                         catalog: catalogSnapshot.catalog,
                         pullRequestsByRepository: pullRequestsByRepository,
-                        previousState: portfolioPollReadState()
+                        previousState: previousState,
+                        checkObservations: observations,
+                        nowEpochMs: System.currentTimeMillis()
                     ])
                     if (plan.status == 'inactive') {
                         echo 'The private portfolio control plane became inactive; nothing was queued.'
@@ -333,7 +414,8 @@ pipeline {
                     List dispatches = plan.dispatches
                     if (dispatches.isEmpty()) {
                         portfolioPollWriteState(state)
-                        echo 'No new exact PR head SHA requires a Jenkins shadow run.'
+                        int stalledCount = state.count { entry -> entry.status == 'stalled' }
+                        echo "No exact PR head SHA requires a new Jenkins shadow run; ${stalledCount} missing-check case(s) reached the bounded retry limit and need operator attention."
                         return
                     }
 
@@ -343,6 +425,9 @@ pipeline {
                         !(dispatch.headSha ==~ /(?i)(?:[0-9a-f]{40}|[0-9a-f]{64})/)) {
                         error('The trusted poll planner returned invalid dispatch metadata; no downstream build was queued.')
                     }
+                    // Persist the attempt intent before queueing: if this poller is
+                    // canceled after scheduling, the next run can reconcile it.
+                    portfolioPollWriteState(state)
                     build job: 'portfolio-dispatch/portfolio-pr-gate',
                         parameters: [
                             string(name: 'TARGET_REPOSITORY', value: dispatch.repository.toString()),
@@ -351,18 +436,7 @@ pipeline {
                         ],
                         wait: false,
                         propagate: false
-
-                    state = state.findAll { entry ->
-                        !(entry.repository?.toString()?.equalsIgnoreCase(dispatch.repository.toString()) &&
-                            entry.pullRequestNumber?.toString() == dispatch.pullRequestNumber.toString())
-                    }
-                    state.add([
-                        repository: dispatch.repository.toString(),
-                        pullRequestNumber: dispatch.pullRequestNumber as Integer,
-                        headSha: dispatch.headSha.toString().toLowerCase()
-                    ])
-                    portfolioPollWriteState(state)
-                    echo "Queued centrally trusted Jenkins shadow verification for ${dispatch.repository} PR #${dispatch.pullRequestNumber} at ${dispatch.headSha}. No target Pipeline was loaded."
+                    echo "Queued centrally trusted Jenkins shadow verification for ${dispatch.repository} PR #${dispatch.pullRequestNumber} at ${dispatch.headSha} (attempt ${dispatch.attempt}). No target Pipeline was loaded."
                 }
             }
         }

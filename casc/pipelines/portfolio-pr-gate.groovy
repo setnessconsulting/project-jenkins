@@ -395,7 +395,7 @@ pipeline {
                     Map profile = catalog?.profiles?.find { item ->
                         item?.repositories instanceof List && item.repositories.any { it?.toString()?.equalsIgnoreCase(repository) }
                     }
-                    if (profile == null || profile.status != 'shadow' ||
+                    if (profile == null || !(profile.status in ['shadow', 'qualified']) ||
                         !(profile.implementationId in portfolioAdapterImplementationAllowlist)) {
                         error('This repository does not yet have an enabled profile in the manual portfolio shadow allowlist; no checkout or repository command ran.')
                     }

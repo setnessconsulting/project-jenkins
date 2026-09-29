@@ -70,6 +70,8 @@ test('plan mode emits an exact-SHA owner PR dispatch without caller-supplied com
     catalog: catalog(),
     pullRequestsByRepository: [{ repository, pullRequests: [pullRequest()] }],
     previousState: [],
+    checkObservations: [],
+    nowEpochMs: 1_000_000,
   });
   assert.equal(result.status, 0, result.stderr);
   const parsed = JSON.parse(result.stdout);
@@ -79,7 +81,16 @@ test('plan mode emits an exact-SHA owner PR dispatch without caller-supplied com
     pullRequestNumber: 4,
     headSha: sha,
     profileId: 'example-clean-checkout',
+    attempt: 1,
   });
+  assert.deepEqual(parsed.state, [{
+    repository,
+    pullRequestNumber: 4,
+    headSha: sha,
+    attempt: 1,
+    dispatchedAtEpochMs: 1_000_000,
+    status: 'pending',
+  }]);
   assert.equal(JSON.stringify(parsed).includes('commands'), false);
 });
 

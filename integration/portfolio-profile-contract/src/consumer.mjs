@@ -356,17 +356,23 @@ function pollStateKey(repository, pullRequestNumber) {
   return `${repository.toLowerCase()}#${pullRequestNumber}`;
 }
 
+const POLL_RETRY_AFTER_MS = 15 * 60 * 1000;
+const POLL_MAX_ATTEMPTS = 3;
+
 function validatePollState(previousState) {
   if (!Array.isArray(previousState) || previousState.length > 20000) {
     reject('invalid-poll-state', 'poll state must be a bounded array');
   }
   const state = new Map();
   for (const entry of previousState) {
-    exactKeys(entry, new Set(['repository', 'pullRequestNumber', 'headSha']),
-      ['repository', 'pullRequestNumber', 'headSha'], 'poll state entry');
+    exactKeys(entry, new Set(['repository', 'pullRequestNumber', 'headSha', 'attempt', 'dispatchedAtEpochMs', 'status']),
+      ['repository', 'pullRequestNumber', 'headSha', 'attempt', 'dispatchedAtEpochMs', 'status'], 'poll state entry');
     if (!validRepository(entry.repository)
         || !Number.isInteger(entry.pullRequestNumber) || entry.pullRequestNumber < 1
-        || typeof entry.headSha !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(entry.headSha)) {
+        || typeof entry.headSha !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(entry.headSha)
+        || !Number.isInteger(entry.attempt) || entry.attempt < 1 || entry.attempt > POLL_MAX_ATTEMPTS
+        || !Number.isSafeInteger(entry.dispatchedAtEpochMs) || entry.dispatchedAtEpochMs < 0
+        || !['pending', 'completed', 'stalled'].includes(entry.status)) {
       reject('invalid-poll-state', 'poll state entry is invalid');
     }
     const key = pollStateKey(entry.repository, entry.pullRequestNumber);
@@ -375,9 +381,33 @@ function validatePollState(previousState) {
       repository: entry.repository,
       pullRequestNumber: entry.pullRequestNumber,
       headSha: entry.headSha.toLowerCase(),
+      attempt: entry.attempt,
+      dispatchedAtEpochMs: entry.dispatchedAtEpochMs,
+      status: entry.status,
     }));
   }
   return state;
+}
+
+function validatePollObservations(checkObservations) {
+  if (!Array.isArray(checkObservations) || checkObservations.length > 20000) {
+    reject('invalid-poll-input', 'check observations must be a bounded array');
+  }
+  const observations = new Map();
+  for (const observation of checkObservations) {
+    exactKeys(observation, new Set(['repository', 'pullRequestNumber', 'headSha', 'status']),
+      ['repository', 'pullRequestNumber', 'headSha', 'status'], 'poll check observation');
+    if (!validRepository(observation.repository)
+        || !Number.isInteger(observation.pullRequestNumber) || observation.pullRequestNumber < 1
+        || typeof observation.headSha !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(observation.headSha)
+        || !['missing', 'in_progress', 'completed'].includes(observation.status)) {
+      reject('invalid-poll-input', 'poll check observation is invalid');
+    }
+    const key = pollStateKey(observation.repository, observation.pullRequestNumber);
+    if (observations.has(key)) reject('invalid-poll-input', 'poll input contains duplicate check observations');
+    observations.set(key, Object.freeze({ ...observation, headSha: observation.headSha.toLowerCase() }));
+  }
+  return observations;
 }
 
 export function listRoutinePullRequestPollRepositories(catalog) {
@@ -398,9 +428,13 @@ export function listRoutinePullRequestPollRepositories(catalog) {
 // Pure controller-side planning for the scheduled PR poller. It never runs
 // repository code; only exact-SHA requests accepted by the existing trusted
 // PR resolver are returned for the downstream centrally defined gate.
-export function planRoutinePullRequestPoll(catalog, pullRequestsByRepository, previousState) {
+export function planRoutinePullRequestPoll(catalog, pullRequestsByRepository, previousState, checkObservations, nowEpochMs) {
   validateProfileCatalog(catalog);
   const prior = validatePollState(previousState);
+  const observations = validatePollObservations(checkObservations);
+  if (!Number.isSafeInteger(nowEpochMs) || nowEpochMs < 0) {
+    reject('invalid-poll-input', 'poll time must be a non-negative safe integer');
+  }
   if (catalog.controlPlane.status !== 'active') {
     return Object.freeze({ status: 'inactive', dispatches: Object.freeze([]), state: Object.freeze([...prior.values()]) });
   }
@@ -437,12 +471,9 @@ export function planRoutinePullRequestPoll(catalog, pullRequestsByRepository, pr
   }
 
   const dispatches = [];
+  // Rebuild only from current eligible open PRs so closed, draft, fork, denied,
+  // and no-longer-enabled entries cannot remain permanently queued in state.
   const nextState = new Map();
-  for (const [key, entry] of prior) {
-    if (!repositories.some((repository) => repository.toLowerCase() === entry.repository.toLowerCase())) {
-      nextState.set(key, entry);
-    }
-  }
 
   for (const repository of repositories) {
     const record = pullRequests.get(repository.toLowerCase());
@@ -475,9 +506,54 @@ export function planRoutinePullRequestPoll(catalog, pullRequestsByRepository, pr
           pullRequestNumber: execution.pullRequestNumber,
           headSha: execution.headSha,
           profileId: profile.id,
+          attempt: 1,
         }));
+        nextState.set(key, Object.freeze({
+          repository,
+          pullRequestNumber: execution.pullRequestNumber,
+          headSha: execution.headSha,
+          attempt: 1,
+          dispatchedAtEpochMs: nowEpochMs,
+          status: 'pending',
+        }));
+        continue;
       }
-      if (previous) nextState.set(key, previous);
+
+      if (previous.status === 'completed') {
+        nextState.set(key, previous);
+        continue;
+      }
+
+      const observation = observations.get(key);
+      if (!observation || observation.headSha !== execution.headSha) {
+        reject('invalid-poll-input', 'every pending PR must have a matching exact-SHA check observation');
+      }
+      if (observation.status === 'completed') {
+        nextState.set(key, Object.freeze({ ...previous, status: 'completed' }));
+      } else if (observation.status === 'in_progress') {
+        nextState.set(key, previous.status === 'stalled'
+          ? Object.freeze({ ...previous, status: 'pending' })
+          : previous);
+      } else if (previous.status === 'stalled') {
+        nextState.set(key, previous);
+      } else if (nowEpochMs - previous.dispatchedAtEpochMs < POLL_RETRY_AFTER_MS) {
+        nextState.set(key, previous);
+      } else if (previous.attempt < POLL_MAX_ATTEMPTS) {
+        dispatches.push(Object.freeze({
+          repository,
+          pullRequestNumber: execution.pullRequestNumber,
+          headSha: execution.headSha,
+          profileId: profile.id,
+          attempt: previous.attempt + 1,
+        }));
+        nextState.set(key, Object.freeze({
+          ...previous,
+          attempt: previous.attempt + 1,
+          dispatchedAtEpochMs: nowEpochMs,
+        }));
+      } else {
+        nextState.set(key, Object.freeze({ ...previous, status: 'stalled' }));
+      }
     }
   }
 

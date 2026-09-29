@@ -27,12 +27,24 @@ five minutes, but is disabled unless both the private catalog location and
 `JENKINS_PORTFOLIO_PR_POLL_ENABLED=true` are present. The default is `false`.
 The private catalog must additionally set `controlPlane.status: active`; only
 centrally allowlisted implementations and profiles marked `shadow` or
-`qualified` are considered. The poller reads open PR metadata using short-lived
-single-repository `contents:read` and `pull_requests:read` App tokens, accepts
-same-repository non-draft PRs by `setnessconsulting` only, and queues one
-exact-head SHA at a time. It never checks out repository code. Its bounded
-state file is stored under Jenkins home to avoid repeatedly scheduling the
-same PR head.
+`qualified` are considered, and the downstream gate enforces the same status
+set. The poller reads open PR metadata using short-lived single-repository
+`contents:read` and `pull_requests:read` App tokens. For a previously queued
+PR it also reads only the `checks:read` permission, then reconciles the exact
+head SHA, check name, and GitHub App ID before deciding whether a run is still
+in progress or terminal. It accepts same-repository non-draft PRs by
+`setnessconsulting` only, and queues one exact-head SHA at a time. It never
+checks out repository code.
+
+The bounded state file is stored under Jenkins home and records the exact SHA,
+attempt count, dispatch time, and pending/completed/stalled state. A missing
+check is given a 15-minute visibility/startup grace period and retried at most
+three times; a matching completed check is terminal, while an in-progress check
+is never duplicated. After the retry limit, the poller reports an operator
+attention item instead of silently suppressing that SHA forever or retrying
+without limit. The poller persists dispatch intent before queueing so a
+poller cancellation after downstream scheduling can be reconciled on its next
+run.
 The dispatcher is always declared but disabled unless the private catalog
 repository is provided through ignored local runtime configuration. The old
 root-level job name is explicitly replaced by a disabled deprecation stub, so

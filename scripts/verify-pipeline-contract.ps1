@@ -815,6 +815,9 @@ if (-not $jobs.Contains("pipelineJob('portfolio-dispatch/portfolio-pr-gate')") -
     -not $jobs.Contains('Deprecated root-level dispatcher')) {
     throw 'The portfolio dispatcher must be folder-scoped, disabled when catalog configuration is absent, and paired with a scheduled credential reaper; the legacy root job must be disabled.'
 }
+if (-not $portfolioPipeline.Contains("profile.status in ['shadow', 'qualified']")) {
+    throw 'The portfolio PR gate must accept both shadow and already-qualified profiles selected by the controller poller.'
+}
 if (-not $controllerDockerfile.Contains('integration/test-platform-contract') -or -not $controllerDockerfile.Contains('nodejs.org')) {
     throw 'The controller image must provision the pinned Node runtime and the trusted Test Platform adapter.'
 }
@@ -959,6 +962,14 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioPollerPipeline.Contains('agent none') -or
     -not $portfolioPollerPipeline.Contains('skipDefaultCheckout(true)') -or
     -not $portfolioPollerPipeline.Contains('portfolioPollDrain(') -or
+    -not $portfolioPollerPipeline.Contains('Map portfolioPollPlan(def run, String nodeBinary, String adapterPath, Map envelope)') -or
+    -not $portfolioPollerPipeline.Contains('portfolioPollCheckObservation(') -or
+    -not $portfolioPollerPipeline.Contains('[checks: org.kohsuke.github.GHPermissionType.READ]') -or
+    -not $portfolioPollerPipeline.Contains('check_name=jenkins-pr-gate&app_id=${expectedAppId}&filter=all') -or
+    -not $portfolioPollerPipeline.Contains('runResult?.app?.id?.toString() == expectedAppId') -or
+    -not $portfolioPollerPipeline.Contains('status: portfolioPollCheckObservation(') -or
+    -not $portfolioPollerPipeline.Contains('portfolioPollWriteState(state)') -or
+    -not $portfolioPollerPipeline.Contains('Persist the attempt intent before queueing') -or
     -not $portfolioPollerPipeline.Contains('readers.submit(') -or
     -not $portfolioPollerPipeline.Contains('waitFor(30, java.util.concurrent.TimeUnit.SECONDS)') -or
     -not $portfolioPollerPipeline.Contains('String token = portfolioPollScopedAppToken(') -or
@@ -981,6 +992,13 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $pilotConfigParser.Contains('PortfolioPrPollingEnabled = [bool]::Parse($portfolioPrPollingEnabled)') -or
     -not $portfolioPollerCli.Contains("input?.mode === 'targets'") -or
     -not $portfolioPollerCli.Contains('planRoutinePullRequestPoll(') -or
+    -not $portfolioPollerCli.Contains('checkObservations') -or
+    -not $portfolioConsumer.Contains('const POLL_RETRY_AFTER_MS = 15 * 60 * 1000') -or
+    -not $portfolioConsumer.Contains('const POLL_MAX_ATTEMPTS = 3') -or
+    -not $portfolioConsumer.Contains("['pending', 'completed', 'stalled']") -or
+    -not $portfolioConsumer.Contains("['missing', 'in_progress', 'completed']") -or
+    -not $portfolioPollerTests.Contains('a missing check waits through the grace period before a bounded retry') -or
+    -not $portfolioPollerTests.Contains('a missing exact-SHA check is stalled after the bounded retry budget') -or
     -not $portfolioPollerTests.Contains('polling is inert until the private control plane is explicitly active') -or
     -not $portfolioPollerTests.Contains('only centrally approved implementations are polled') -or
     -not $portfolioPollerCliTests.Contains('planner fails closed on malformed input, oversized data, and caller arguments') -or

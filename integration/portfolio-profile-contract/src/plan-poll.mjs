@@ -53,13 +53,17 @@ async function main() {
     return;
   }
   if (input?.mode !== 'plan'
-      || !hasExactKeys(input, new Set(['mode', 'catalog', 'pullRequestsByRepository', 'previousState']))) {
+      || !hasExactKeys(input, new Set([
+        'mode', 'catalog', 'pullRequestsByRepository', 'previousState', 'checkObservations', 'nowEpochMs',
+      ]))) {
     throw new AdapterError('invalid-request-envelope');
   }
   const plan = planRoutinePullRequestPoll(
     input.catalog,
     input.pullRequestsByRepository,
     input.previousState,
+    input.checkObservations,
+    input.nowEpochMs,
   );
   process.stdout.write(`${JSON.stringify(plan)}\n`);
 }
