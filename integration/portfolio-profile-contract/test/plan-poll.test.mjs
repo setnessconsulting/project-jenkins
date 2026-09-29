@@ -51,12 +51,12 @@ function makePullRequest({ number = 7, sha = shaA, author = 'setnessconsulting',
   };
 }
 
-function state({ sha = shaA, attempt = 1, dispatchedAtEpochMs = now, status = 'pending' } = {}) {
-  return { repository, pullRequestNumber: 7, headSha: sha, attempt, dispatchedAtEpochMs, status };
+function state({ number = 7, sha = shaA, attempt = 1, dispatchedAtEpochMs = now, status = 'pending' } = {}) {
+  return { repository, pullRequestNumber: number, headSha: sha, attempt, dispatchedAtEpochMs, status };
 }
 
-function observation({ sha = shaA, status = 'in_progress' } = {}) {
-  return { repository, pullRequestNumber: 7, headSha: sha, status };
+function observation({ number = 7, sha = shaA, status = 'in_progress' } = {}) {
+  return { repository, pullRequestNumber: number, headSha: sha, status };
 }
 
 function plan(catalog, pullRequests, previousState = [], checkObservations = [], nowEpochMs = now) {
@@ -84,6 +84,28 @@ test('a new same-repository owner PR dispatches only its exact head SHA', () => 
     attempt: 1,
   }]);
   assert.deepEqual(result.state, [state()]);
+});
+
+test('multiple eligible PRs queue one at a time and only the selected PR advances state', () => {
+  const catalog = makeCatalog();
+  const pullRequests = [7, 8, 9, 10].map((number) => makePullRequest({ number }));
+  const first = plan(catalog, pullRequests);
+  assert.equal(first.dispatches.length, 1);
+  assert.equal(first.dispatches[0].pullRequestNumber, 7);
+  assert.deepEqual(first.state, [state({ number: 7 })]);
+
+  const afterFirstCompletes = plan(
+    catalog,
+    pullRequests,
+    [state({ number: 7 })],
+    [observation({ number: 7, status: 'completed' })],
+  );
+  assert.equal(afterFirstCompletes.dispatches.length, 1);
+  assert.equal(afterFirstCompletes.dispatches[0].pullRequestNumber, 8);
+  assert.deepEqual(afterFirstCompletes.state, [
+    state({ number: 7, status: 'completed' }),
+    state({ number: 8 }),
+  ]);
 });
 
 test('an in-progress exact-SHA check is not queued again, but a changed SHA starts a fresh attempt', () => {
@@ -115,6 +137,37 @@ test('a missing check waits through the grace period before a bounded retry', ()
   assert.equal(retry.dispatches.length, 1);
   assert.equal(retry.dispatches[0].attempt, 2);
   assert.deepEqual(retry.state, [{ ...state(), attempt: 2, dispatchedAtEpochMs: now + retryAfterMs }]);
+});
+
+test('an orphaned in-progress check waits through the grace period before recovery', () => {
+  const previous = [state()];
+  const beforeGrace = plan(
+    makeCatalog(), [makePullRequest()], previous, [observation({ status: 'orphaned' })], now + retryAfterMs - 1,
+  );
+  assert.deepEqual(beforeGrace.dispatches, []);
+  assert.deepEqual(beforeGrace.state, previous);
+
+  const recovered = plan(
+    makeCatalog(), [makePullRequest()], previous, [observation({ status: 'orphaned' })], now + retryAfterMs,
+  );
+  assert.equal(recovered.dispatches.length, 1);
+  assert.equal(recovered.dispatches[0].attempt, 2);
+  assert.deepEqual(recovered.state, [{ ...state(), attempt: 2, dispatchedAtEpochMs: now + retryAfterMs }]);
+});
+
+test('an in-progress check not linked to this poller is never overwritten or retried', () => {
+  const previous = [state()];
+  const beforeGrace = plan(
+    makeCatalog(), [makePullRequest()], previous, [observation({ status: 'untracked' })], now + retryAfterMs - 1,
+  );
+  assert.deepEqual(beforeGrace.dispatches, []);
+  assert.deepEqual(beforeGrace.state, previous);
+
+  const afterGrace = plan(
+    makeCatalog(), [makePullRequest()], previous, [observation({ status: 'untracked' })], now + retryAfterMs,
+  );
+  assert.deepEqual(afterGrace.dispatches, []);
+  assert.deepEqual(afterGrace.state, [{ ...state(), status: 'stalled' }]);
 });
 
 test('a missing exact-SHA check is stalled after the bounded retry budget', () => {

@@ -400,7 +400,7 @@ function validatePollObservations(checkObservations) {
     if (!validRepository(observation.repository)
         || !Number.isInteger(observation.pullRequestNumber) || observation.pullRequestNumber < 1
         || typeof observation.headSha !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(observation.headSha)
-        || !['missing', 'in_progress', 'completed'].includes(observation.status)) {
+        || !['missing', 'in_progress', 'orphaned', 'untracked', 'completed'].includes(observation.status)) {
       reject('invalid-poll-input', 'poll check observation is invalid');
     }
     const key = pollStateKey(observation.repository, observation.pullRequestNumber);
@@ -470,7 +470,7 @@ export function planRoutinePullRequestPoll(catalog, pullRequestsByRepository, pr
     profileByRepository.set(repository.toLowerCase(), profile);
   }
 
-  const dispatches = [];
+  const dispatchCandidates = [];
   // Rebuild only from current eligible open PRs so closed, draft, fork, denied,
   // and no-longer-enabled entries cannot remain permanently queued in state.
   const nextState = new Map();
@@ -501,20 +501,12 @@ export function planRoutinePullRequestPoll(catalog, pullRequestsByRepository, pr
       currentPullRequests.add(key);
       const previous = prior.get(key);
       if (!previous || previous.headSha !== execution.headSha) {
-        dispatches.push(Object.freeze({
+        dispatchCandidates.push(Object.freeze({
           repository,
           pullRequestNumber: execution.pullRequestNumber,
           headSha: execution.headSha,
           profileId: profile.id,
           attempt: 1,
-        }));
-        nextState.set(key, Object.freeze({
-          repository,
-          pullRequestNumber: execution.pullRequestNumber,
-          headSha: execution.headSha,
-          attempt: 1,
-          dispatchedAtEpochMs: nowEpochMs,
-          status: 'pending',
         }));
         continue;
       }
@@ -534,31 +526,53 @@ export function planRoutinePullRequestPoll(catalog, pullRequestsByRepository, pr
         nextState.set(key, previous.status === 'stalled'
           ? Object.freeze({ ...previous, status: 'pending' })
           : previous);
+      } else if (observation.status === 'untracked') {
+        // A check not linked to this trusted poller's gate build may belong to
+        // another Jenkins job. Never overwrite or duplicate it; surface the
+        // state for operator attention after the normal grace period.
+        nextState.set(key, previous.status === 'stalled' || nowEpochMs - previous.dispatchedAtEpochMs < POLL_RETRY_AFTER_MS
+          ? previous
+          : Object.freeze({ ...previous, status: 'stalled' }));
       } else if (previous.status === 'stalled') {
         nextState.set(key, previous);
       } else if (nowEpochMs - previous.dispatchedAtEpochMs < POLL_RETRY_AFTER_MS) {
         nextState.set(key, previous);
       } else if (previous.attempt < POLL_MAX_ATTEMPTS) {
-        dispatches.push(Object.freeze({
+        dispatchCandidates.push(Object.freeze({
           repository,
           pullRequestNumber: execution.pullRequestNumber,
           headSha: execution.headSha,
           profileId: profile.id,
           attempt: previous.attempt + 1,
         }));
-        nextState.set(key, Object.freeze({
-          ...previous,
-          attempt: previous.attempt + 1,
-          dispatchedAtEpochMs: nowEpochMs,
-        }));
+        // A retry candidate is not an attempt until the single downstream job
+        // selected by this plan is actually queued. Preserve its last recorded
+        // state while it waits behind other candidates.
+        nextState.set(key, previous);
       } else {
         nextState.set(key, Object.freeze({ ...previous, status: 'stalled' }));
       }
     }
   }
 
-  dispatches.sort((left, right) => left.repository.localeCompare(right.repository)
+  dispatchCandidates.sort((left, right) => left.repository.localeCompare(right.repository)
     || left.pullRequestNumber - right.pullRequestNumber);
+  // The trusted Jenkins adapter queues exactly one downstream build per poll.
+  // Persist an attempt only for that selected PR; other eligible PRs remain
+  // candidates and are not penalized for not having been queued.
+  const dispatches = dispatchCandidates.slice(0, 1);
+  const selected = dispatches[0];
+  if (selected) {
+    const key = pollStateKey(selected.repository, selected.pullRequestNumber);
+    nextState.set(key, Object.freeze({
+      repository: selected.repository,
+      pullRequestNumber: selected.pullRequestNumber,
+      headSha: selected.headSha,
+      attempt: selected.attempt,
+      dispatchedAtEpochMs: nowEpochMs,
+      status: 'pending',
+    }));
+  }
   return Object.freeze({
     status: 'ready',
     dispatches: Object.freeze(dispatches),

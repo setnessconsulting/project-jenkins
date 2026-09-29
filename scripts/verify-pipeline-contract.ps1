@@ -965,11 +965,18 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioPollerPipeline.Contains('Map portfolioPollPlan(def run, String nodeBinary, String adapterPath, Map envelope)') -or
     -not $portfolioPollerPipeline.Contains('portfolioPollCheckObservation(') -or
     -not $portfolioPollerPipeline.Contains('[checks: org.kohsuke.github.GHPermissionType.READ]') -or
+    -not $portfolioPollerPipeline.Contains('[checks: org.kohsuke.github.GHPermissionType.WRITE]') -or
     -not $portfolioPollerPipeline.Contains('check_name=jenkins-pr-gate&app_id=${expectedAppId}&filter=all') -or
     -not $portfolioPollerPipeline.Contains('runResult?.app?.id?.toString() == expectedAppId') -or
-    -not $portfolioPollerPipeline.Contains('status: portfolioPollCheckObservation(') -or
+    -not $portfolioPollerPipeline.Contains('portfolioPollHasMatchingLiveBuild(') -or
+    -not $portfolioPollerPipeline.Contains('portfolioPollHasExpectedBuildIdentity(') -or
+    -not $portfolioPollerPipeline.Contains('portfolioPollRecoverOrphanedCheck(') -or
+    -not $portfolioPollerPipeline.Contains('observationTime - dispatchedAt >= 15 * 60 * 1000L') -or
+    -not $portfolioPollerPipeline.Contains("status: observedStatus") -or
+    -not $portfolioPollerPipeline.Contains('The Jenkins build linked to this check is no longer queued or running.') -or
     -not $portfolioPollerPipeline.Contains('portfolioPollWriteState(state)') -or
-    -not $portfolioPollerPipeline.Contains('Persist the attempt intent before queueing') -or
+    -not $portfolioPollerPipeline.Contains('Persist its attempt intent before') -or
+    -not $portfolioPollerPipeline.Contains('other eligible PRs are not counted as attempted') -or
     -not $portfolioPollerPipeline.Contains('readers.submit(') -or
     -not $portfolioPollerPipeline.Contains('waitFor(30, java.util.concurrent.TimeUnit.SECONDS)') -or
     -not $portfolioPollerPipeline.Contains('String token = portfolioPollScopedAppToken(') -or
@@ -996,8 +1003,13 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumer.Contains('const POLL_RETRY_AFTER_MS = 15 * 60 * 1000') -or
     -not $portfolioConsumer.Contains('const POLL_MAX_ATTEMPTS = 3') -or
     -not $portfolioConsumer.Contains("['pending', 'completed', 'stalled']") -or
-    -not $portfolioConsumer.Contains("['missing', 'in_progress', 'completed']") -or
+    -not $portfolioConsumer.Contains("['missing', 'in_progress', 'orphaned', 'untracked', 'completed']") -or
+    -not $portfolioConsumer.Contains('const dispatches = dispatchCandidates.slice(0, 1)') -or
+    -not $portfolioConsumer.Contains('nextState.set(key, previous)') -or
     -not $portfolioPollerTests.Contains('a missing check waits through the grace period before a bounded retry') -or
+    -not $portfolioPollerTests.Contains('an orphaned in-progress check waits through the grace period before recovery') -or
+    -not $portfolioPollerTests.Contains('an in-progress check not linked to this poller is never overwritten or retried') -or
+    -not $portfolioPollerTests.Contains('multiple eligible PRs queue one at a time and only the selected PR advances state') -or
     -not $portfolioPollerTests.Contains('a missing exact-SHA check is stalled after the bounded retry budget') -or
     -not $portfolioPollerTests.Contains('polling is inert until the private control plane is explicitly active') -or
     -not $portfolioPollerTests.Contains('only centrally approved implementations are polled') -or

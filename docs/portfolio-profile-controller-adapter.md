@@ -31,20 +31,32 @@ centrally allowlisted implementations and profiles marked `shadow` or
 set. The poller reads open PR metadata using short-lived single-repository
 `contents:read` and `pull_requests:read` App tokens. For a previously queued
 PR it also reads only the `checks:read` permission, then reconciles the exact
-head SHA, check name, and GitHub App ID before deciding whether a run is still
-in progress or terminal. It accepts same-repository non-draft PRs by
-`setnessconsulting` only, and queues one exact-head SHA at a time. It never
-checks out repository code.
+head SHA, check name, and GitHub App ID. For an in-progress check, it resolves
+the check's Jenkins external ID to the centrally trusted gate job and verifies
+that the referenced build is still running with the same repository, PR, and
+head SHA. A live match is left alone, including a legitimately long-running
+build. A check whose build is no longer queued or running is treated as
+orphaned; after the 15-minute grace period the controller re-reads it, verifies
+identity again, and uses a controller-only `checks:write` token to finish it as
+a visible failure before allowing a bounded retry. It accepts same-repository
+non-draft PRs by `setnessconsulting` only, and queues one exact-head SHA at a
+time. Only the selected PR advances retry state; eligible PRs waiting behind it
+are not counted as attempted. The poller never checks out repository code.
+Checks whose external ID does not identify this exact trusted gate job are
+treated as untracked: the poller does not overwrite or duplicate another job's
+result, and raises operator attention after the grace period.
 
 The bounded state file is stored under Jenkins home and records the exact SHA,
 attempt count, dispatch time, and pending/completed/stalled state. A missing
 check is given a 15-minute visibility/startup grace period and retried at most
-three times; a matching completed check is terminal, while an in-progress check
-is never duplicated. After the retry limit, the poller reports an operator
-attention item instead of silently suppressing that SHA forever or retrying
-without limit. The poller persists dispatch intent before queueing so a
-poller cancellation after downstream scheduling can be reconciled on its next
-run.
+three times; a matching completed check is terminal. A live in-progress check
+is never duplicated, while an abandoned in-progress check is completed with a
+failure conclusion so it cannot remain pending indefinitely. After the retry
+limit, the poller reports an operator attention item instead of silently
+suppressing that SHA forever or retrying without limit. The poller persists the
+selected dispatch intent before queueing so a poller cancellation after
+downstream scheduling can be reconciled on its next run; unselected candidates
+do not consume attempts.
 The dispatcher is always declared but disabled unless the private catalog
 repository is provided through ignored local runtime configuration. The old
 root-level job name is explicitly replaced by a disabled deprecation stub, so

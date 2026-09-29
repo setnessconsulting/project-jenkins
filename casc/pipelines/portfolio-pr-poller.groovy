@@ -9,10 +9,12 @@ def portfolioPollAdapter = '/usr/share/jenkins/portfolio-profile-contract/src/pl
 @com.cloudbees.groovy.cps.NonCPS
 String portfolioPollScopedAppToken(def run, String credentialId, String repository, Map permissions) {
     def read = org.kohsuke.github.GHPermissionType.READ
+    def write = org.kohsuke.github.GHPermissionType.WRITE
     def permittedScopes = [
         [contents: read],
         [pull_requests: read],
-        [checks: read]
+        [checks: read],
+        [checks: write]
     ]
     if (!(repository ==~ /setnessconsulting\/[A-Za-z0-9._-]{1,100}/) || !(permissions in permittedScopes)) {
         throw new IllegalArgumentException('The portfolio poller requested an unsupported repository or App permission scope.')
@@ -77,6 +79,40 @@ Object portfolioPollApiJson(String token, String path) {
     } catch (Exception ignored) {
         String statusHint = responseStatus >= 0 ? " (HTTP ${responseStatus})" : ''
         throw new IllegalStateException("The portfolio poll API request failed${statusHint}; no credential or raw response was logged.")
+    }
+}
+
+@com.cloudbees.groovy.cps.NonCPS
+Object portfolioPollApiPatchJson(String token, String path, Map payload) {
+    if (!path?.startsWith('/repos/setnessconsulting/') || path.contains('..') || !token || !(payload instanceof Map)) {
+        throw new IllegalArgumentException('The portfolio poll API update is outside its fixed GitHub boundary.')
+    }
+    int responseStatus = -1
+    try {
+        String body = groovy.json.JsonOutput.toJson(payload)
+        def request = java.net.http.HttpRequest.newBuilder(java.net.URI.create("https://api.github.com${path}"))
+            .timeout(java.time.Duration.ofSeconds(20))
+            .header('Accept', 'application/vnd.github+json')
+            .header('Authorization', "Bearer ${token}")
+            .header('X-GitHub-Api-Version', '2022-11-28')
+            .header('Content-Type', 'application/json')
+            .method('PATCH', java.net.http.HttpRequest.BodyPublishers.ofString(body))
+            .build()
+        def response = java.net.http.HttpClient.newBuilder()
+            .connectTimeout(java.time.Duration.ofSeconds(10))
+            .build()
+            .send(request, java.net.http.HttpResponse.BodyHandlers.ofString())
+        responseStatus = response.statusCode()
+        if (responseStatus != 200 || response.body().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 1024 * 1024) {
+            throw new IllegalStateException('GitHub returned an unexpected status or oversized check update response.')
+        }
+        return new groovy.json.JsonSlurperClassic().parseText(response.body())
+    } catch (InterruptedException interrupted) {
+        Thread.currentThread().interrupt()
+        throw new IllegalStateException('The portfolio poll check update was interrupted.')
+    } catch (Exception ignored) {
+        String statusHint = responseStatus >= 0 ? " (HTTP ${responseStatus})" : ''
+        throw new IllegalStateException("The portfolio poll check update failed${statusHint}; no credential or raw response was logged.")
     }
 }
 
@@ -153,9 +189,39 @@ String portfolioPollAppId(def run, String credentialId) {
 }
 
 @com.cloudbees.groovy.cps.NonCPS
-String portfolioPollCheckObservation(def run, String credentialId, String repository, String headSha, String expectedAppId) {
+boolean portfolioPollHasExpectedBuildIdentity(Map checkRun) {
+    String externalId = checkRun?.external_id?.toString() ?: ''
+    return externalId ==~ /jenkins:portfolio-dispatch\/portfolio-pr-gate#[1-9][0-9]{0,8}/
+}
+
+@com.cloudbees.groovy.cps.NonCPS
+boolean portfolioPollHasMatchingLiveBuild(Map checkRun, String repository, int pullRequestNumber, String headSha) {
+    String externalId = checkRun?.external_id?.toString() ?: ''
+    if (!portfolioPollHasExpectedBuildIdentity(checkRun)) return false
+    String buildId = externalId.substring('jenkins:'.length())
+    int separator = buildId.lastIndexOf('#')
+    if (separator < 1 || separator == buildId.length() - 1 ||
+        buildId.substring(0, separator) != 'portfolio-dispatch/portfolio-pr-gate' ||
+        !(buildId.substring(separator + 1) ==~ /[1-9][0-9]{0,8}/)) return false
+    int buildNumber = Integer.parseInt(buildId.substring(separator + 1))
+    def jenkins = jenkins.model.Jenkins.get()
+    def job = jenkins.getItemByFullName('portfolio-dispatch/portfolio-pr-gate')
+    if (!(job instanceof hudson.model.Job)) return false
+    def build = job.getBuildByNumber(buildNumber)
+    if (build == null || !build.isBuilding() || build.getExternalizableId() != buildId) return false
+    def parameters = build.getAction(hudson.model.ParametersAction.class)
+    String buildRepository = parameters?.getParameter('TARGET_REPOSITORY')?.value?.toString()
+    String buildPullRequest = parameters?.getParameter('PULL_REQUEST_NUMBER')?.value?.toString()
+    String buildSha = parameters?.getParameter('EXPECTED_HEAD_SHA')?.value?.toString()
+    return buildRepository?.equalsIgnoreCase(repository) && buildPullRequest == pullRequestNumber.toString() &&
+        buildSha?.equalsIgnoreCase(headSha)
+}
+
+@com.cloudbees.groovy.cps.NonCPS
+Map portfolioPollCheckObservation(def run, String credentialId, String repository, int pullRequestNumber, String headSha, String expectedAppId) {
     if (!(repository ==~ /setnessconsulting\/[A-Za-z0-9._-]{1,100}/) ||
-        !(headSha ==~ /(?i)(?:[0-9a-f]{40}|[0-9a-f]{64})/) || !(expectedAppId ==~ /[0-9]{1,20}/)) {
+        pullRequestNumber < 1 || !(headSha ==~ /(?i)(?:[0-9a-f]{40}|[0-9a-f]{64})/) ||
+        !(expectedAppId ==~ /[0-9]{1,20}/)) {
         throw new IllegalArgumentException('The poller check lookup received invalid trusted metadata.')
     }
     String token = portfolioPollScopedAppToken(
@@ -173,15 +239,66 @@ String portfolioPollCheckObservation(def run, String credentialId, String reposi
             runResult?.name == 'jenkins-pr-gate' && runResult?.head_sha?.toString()?.equalsIgnoreCase(headSha) &&
                 runResult?.app?.id?.toString() == expectedAppId
         }
-        if (matching.isEmpty()) return 'missing'
+        if (matching.isEmpty()) return [status: 'missing']
         Map latest = (Map) matching.max { item ->
             (item?.updated_at ?: item?.created_at ?: '').toString()
         }
         if (latest.status == 'in_progress' || latest.status == 'queued' || latest.status == 'requested') {
-            return 'in_progress'
+            if (!(latest.id instanceof Number) ||
+                (latest.external_id instanceof String && latest.external_id.length() > 512)) {
+                throw new IllegalStateException('The in-progress Jenkins check lacks a valid bounded identity.')
+            }
+            String status = !portfolioPollHasExpectedBuildIdentity(latest) ? 'untracked' :
+                (portfolioPollHasMatchingLiveBuild(latest, repository, pullRequestNumber, headSha)
+                    ? 'in_progress' : 'orphaned')
+            return [status: status, checkRun: latest]
         }
-        if (latest.status == 'completed') return 'completed'
+        if (latest.status == 'completed') return [status: 'completed', checkRun: latest]
         throw new IllegalStateException('The Jenkins App check-run has an unsupported terminal status.')
+    } finally {
+        token = null
+    }
+}
+
+@com.cloudbees.groovy.cps.NonCPS
+String portfolioPollRecoverOrphanedCheck(def run, String credentialId, String repository, int pullRequestNumber,
+    String headSha, String expectedAppId, Map observedCheck) {
+    if (!(observedCheck?.id instanceof Number) || observedCheck.id.longValue() < 1 ||
+        observedCheck?.name != 'jenkins-pr-gate' || !observedCheck?.head_sha?.toString()?.equalsIgnoreCase(headSha) ||
+        observedCheck?.app?.id?.toString() != expectedAppId || observedCheck?.status != 'in_progress' ||
+        !portfolioPollHasExpectedBuildIdentity(observedCheck)) {
+        throw new IllegalArgumentException('The poller cannot recover an unverified or non-pending check run.')
+    }
+    String token = portfolioPollScopedAppToken(
+        run, credentialId, repository, [checks: org.kohsuke.github.GHPermissionType.WRITE]
+    )
+    try {
+        String path = "/repos/${repository}/check-runs/${observedCheck.id.longValue()}"
+        Map current = (Map) portfolioPollApiJson(token, path)
+        if (current?.id?.toString() != observedCheck.id.toString() || current?.name != 'jenkins-pr-gate' ||
+            !current?.head_sha?.toString()?.equalsIgnoreCase(headSha) || current?.app?.id?.toString() != expectedAppId) {
+            throw new IllegalStateException('The orphaned check changed identity during recovery; no update was applied.')
+        }
+        if (current.status == 'completed') return 'completed'
+        if (current.status != 'in_progress' || current.external_id != observedCheck.external_id) {
+            throw new IllegalStateException('The orphaned check is no longer the expected in-progress Jenkins result.')
+        }
+        if (portfolioPollHasMatchingLiveBuild(current, repository, pullRequestNumber, headSha)) return 'in_progress'
+        Map updated = (Map) portfolioPollApiPatchJson(token, path, [
+            status: 'completed',
+            conclusion: 'failure',
+            completed_at: java.time.Instant.now().toString(),
+            output: [
+                title: 'Jenkins run disappeared; recovery will retry',
+                summary: 'The Jenkins build linked to this check is no longer queued or running. This infrastructure recovery is a failed verification result, not a pass; the trusted poller may retry this exact PR head within its bounded retry policy.'
+            ]
+        ])
+        if (updated?.id?.toString() != observedCheck.id.toString() || updated?.name != 'jenkins-pr-gate' ||
+            !updated?.head_sha?.toString()?.equalsIgnoreCase(headSha) || updated?.app?.id?.toString() != expectedAppId ||
+            updated?.status != 'completed' || updated?.conclusion != 'failure') {
+            throw new IllegalStateException('GitHub did not confirm the failed terminal state for the orphaned check.')
+        }
+        return 'missing'
     } finally {
         token = null
     }
@@ -377,6 +494,7 @@ pipeline {
                     }
                     List observations = []
                     String expectedAppId = portfolioPollAppId(currentBuild.rawBuild, portfolioPollAppCredentialId)
+                    long observationTime = System.currentTimeMillis()
                     previousState.each { entry ->
                         if (!(entry instanceof Map) || !(entry.status in ['pending', 'stalled'])) return
                         String priorRepository = entry.repository?.toString() ?: ''
@@ -388,13 +506,33 @@ pipeline {
                         Map openPullRequest = (Map) openPullRequestByKey["${priorRepository.toLowerCase()}#${entry.pullRequestNumber}"]
                         String currentSha = openPullRequest?.head?.sha?.toString()
                         if (currentSha?.equalsIgnoreCase(priorSha)) {
+                            Map checkObservation = portfolioPollCheckObservation(
+                                currentBuild.rawBuild,
+                                portfolioPollAppCredentialId,
+                                priorRepository,
+                                entry.pullRequestNumber as Integer,
+                                priorSha,
+                                expectedAppId
+                            )
+                            String observedStatus = checkObservation.status?.toString()
+                            long dispatchedAt = (entry.dispatchedAtEpochMs as Number).longValue()
+                            if (observedStatus == 'orphaned' && observationTime >= dispatchedAt &&
+                                observationTime - dispatchedAt >= 15 * 60 * 1000L) {
+                                observedStatus = portfolioPollRecoverOrphanedCheck(
+                                    currentBuild.rawBuild,
+                                    portfolioPollAppCredentialId,
+                                    priorRepository,
+                                    entry.pullRequestNumber as Integer,
+                                    priorSha,
+                                    expectedAppId,
+                                    (Map) checkObservation.checkRun
+                                )
+                            }
                             observations.add([
                                 repository: priorRepository,
                                 pullRequestNumber: entry.pullRequestNumber as Integer,
                                 headSha: priorSha.toLowerCase(),
-                                status: portfolioPollCheckObservation(
-                                    currentBuild.rawBuild, portfolioPollAppCredentialId, priorRepository, priorSha, expectedAppId
-                                )
+                                status: observedStatus
                             ])
                         }
                     }
@@ -425,8 +563,10 @@ pipeline {
                         !(dispatch.headSha ==~ /(?i)(?:[0-9a-f]{40}|[0-9a-f]{64})/)) {
                         error('The trusted poll planner returned invalid dispatch metadata; no downstream build was queued.')
                     }
-                    // Persist the attempt intent before queueing: if this poller is
-                    // canceled after scheduling, the next run can reconcile it.
+                    // The planner returns at most one dispatch and advances only
+                    // that selected PR's state. Persist its attempt intent before
+                    // queueing so a canceled poller can reconcile the exact head;
+                    // other eligible PRs are not counted as attempted.
                     portfolioPollWriteState(state)
                     build job: 'portfolio-dispatch/portfolio-pr-gate',
                         parameters: [
