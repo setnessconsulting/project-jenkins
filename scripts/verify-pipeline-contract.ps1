@@ -31,6 +31,7 @@ $restoreScriptPath = Join-Path $repositoryRoot 'scripts/vm/restore-jenkins-backu
 $rollbackScriptPath = Join-Path $repositoryRoot 'scripts/rollback-jenkins-vm-forward.ps1'
 $windowsControllerShimPath = Join-Path $repositoryRoot 'scripts/start-controller.ps1'
 $testPlatformPipelinePath = Join-Path $repositoryRoot 'casc/pipelines/test-platform.groovy'
+$portfolioPipelinePath = Join-Path $repositoryRoot 'casc/pipelines/portfolio-pr-gate.groovy'
 $testPlatformCatalogPath = Join-Path $repositoryRoot 'integration/test-platform-contract/src/approved-catalog.json'
 $testPlatformAdapterPath = Join-Path $repositoryRoot 'integration/test-platform-contract/src/adapter.mjs'
 $testPlatformWirePath = Join-Path $repositoryRoot 'integration/test-platform-contract/src/wire.mjs'
@@ -79,6 +80,7 @@ $backupScript = Get-Content -LiteralPath $backupScriptPath -Raw
 $restoreScript = Get-Content -LiteralPath $restoreScriptPath -Raw
 $windowsControllerShim = Get-Content -LiteralPath $windowsControllerShimPath -Raw
 $testPlatformPipeline = Read-NormalizedText -LiteralPath $testPlatformPipelinePath
+$portfolioPipeline = Read-NormalizedText -LiteralPath $portfolioPipelinePath
 $testPlatformCatalog = Read-NormalizedText -LiteralPath $testPlatformCatalogPath
 $testPlatformAdapter = Read-NormalizedText -LiteralPath $testPlatformAdapterPath
 $testPlatformWire = Read-NormalizedText -LiteralPath $testPlatformWirePath
@@ -272,6 +274,8 @@ if (-not $jobs.Contains('scanCredentialsId(appCredentialId)') -or
 if (-not $pilotConfigParser.Contains("'JENKINS_GITHUB_APP_CREDENTIAL_ID'") -or
     -not $pilotConfigParser.Contains("'github-app'") -or
     -not $pilotConfigParser.Contains('AppCredentialId = $appCredentialId') -or
+    -not $pilotConfigParser.Contains("'JENKINS_PORTFOLIO_CATALOG_REPOSITORY'") -or
+    -not $pilotConfigParser.Contains('PortfolioCatalogRepository = $portfolioCatalogRepository') -or
     -not $pilotConfigParser.Contains("'JENKINS_CHECKOUT_SSH_CREDENTIAL_ID'") -or
     -not $pilotConfigParser.Contains("'JENKINS_TUTOR_WEB_DIRECTORY'") -or
     -not $pilotConfigParser.Contains("'JENKINS_E2E_JOB_NAME'") -or
@@ -302,7 +306,7 @@ if (-not $gitIgnore.Contains('*.env')) {
 if (-not $compose.Contains('${JENKINS_HTTP_BIND_IP:-127.0.0.1}:${JENKINS_HTTP_PORT:-18080}:8080')) {
     throw 'Jenkins must default to loopback and support binding only to the VM host-only address.'
 }
-foreach ($privateConfigurationKey in @('JENKINS_GITHUB_APP_CREDENTIAL_ID', 'JENKINS_CHECKOUT_SSH_CREDENTIAL_ID', 'JENKINS_PRIMARY_CHECK_NAME', 'JENKINS_CANDIDATE_CHECK_NAME', 'JENKINS_APP_DIRECTORY', 'JENKINS_TUTOR_WEB_DIRECTORY', 'JENKINS_E2E_JOB_NAME', 'JENKINS_SITE_URL')) {
+foreach ($privateConfigurationKey in @('JENKINS_GITHUB_APP_CREDENTIAL_ID', 'JENKINS_PORTFOLIO_CATALOG_REPOSITORY', 'JENKINS_CHECKOUT_SSH_CREDENTIAL_ID', 'JENKINS_PRIMARY_CHECK_NAME', 'JENKINS_CANDIDATE_CHECK_NAME', 'JENKINS_APP_DIRECTORY', 'JENKINS_TUTOR_WEB_DIRECTORY', 'JENKINS_E2E_JOB_NAME', 'JENKINS_SITE_URL')) {
     if (-not $compose.Contains($privateConfigurationKey)) {
         throw "Private target configuration must be injected from local runtime settings: $privateConfigurationKey."
     }
@@ -342,7 +346,8 @@ foreach ($setting in @(
     'JENKINS_TEST_PLATFORM_JOB_NAME:',
     'JENKINS_TEST_PLATFORM_NODE:',
     'JENKINS_TEST_PLATFORM_ADAPTER_ROOT:',
-    'JENKINS_TEST_PLATFORM_EVIDENCE_ROOT:'
+    'JENKINS_TEST_PLATFORM_EVIDENCE_ROOT:',
+    'JENKINS_PORTFOLIO_CATALOG_REPOSITORY:'
 )) {
     if (-not $restoreSection.Contains($setting)) {
         throw "The isolated restore controller must receive every required Test Platform setting: $setting."
@@ -784,6 +789,12 @@ foreach ($cliGuard in @('finalize', 'verify')) {
 if (-not $jobs.Contains('test-platform.groovy') -or -not $jobs.Contains('testPlatformPipelineTemplate')) {
     throw 'CasC must install the trusted Test Platform pipeline exactly like the other trusted pipelines.'
 }
+if (-not $jobs.Contains('portfolio-pr-gate.groovy') -or
+    -not $jobs.Contains('portfolioPipelineTemplate') -or
+    -not $jobs.Contains("pipelineJob('portfolio-pr-gate')") -or
+    $jobs -match '(?s)pipelineJob\(''portfolio-pr-gate''\).*?triggers\s*\{') {
+    throw 'The portfolio dispatcher must be a manual-only trusted Jenkins job with no routine trigger.'
+}
 if (-not $controllerDockerfile.Contains('integration/test-platform-contract') -or -not $controllerDockerfile.Contains('nodejs.org')) {
     throw 'The controller image must provision the pinned Node runtime and the trusted Test Platform adapter.'
 }
@@ -850,6 +861,43 @@ foreach ($portfolioGuard in @(
         throw "The trusted portfolio profile consumer is missing a required fail-closed guard: $portfolioGuard"
     }
 }
+foreach ($portfolioRuntimeGuard in @(
+    'def portfolioCatalogRepository = /* JENKINS_PORTFOLIO_CATALOG_REPOSITORY */',
+    "def portfolioCatalogPath = 'profiles/profiles.json'",
+    "def portfolioAdapterImplementationAllowlist = ['node22-verify-clean-checkout-v1']",
+    'portfolioScopedAppToken(def run, String credentialId, String repository, Map permissions)',
+    'new org.jenkinsci.plugins.github_branch_source.app_credentials.AccessSpecifiedRepositories(parts[0], [parts[1]])',
+    'Map portfolioRepoApiRequest(',
+    'Map portfolioFetchJsonFile(',
+    'Map portfolioResolveProfile(',
+    'portfolioCleanupStaleCheckoutCredentials(2 * 60 * 60 * 1000L)',
+    'Map refreshedPullRequest = portfolioRepoApiRequest(',
+    'temporaryCheckoutCredentialId = portfolioCreateCheckoutCredential(',
+    'portfolioRemoveCheckoutCredential(temporaryCheckoutCredentialId)',
+    'refs/pull/${params.PULL_REQUEST_NUMBER}/head:refs/remotes/origin/pull/${params.PULL_REQUEST_NUMBER}/head',
+    'checkedOutSha != env.PORTFOLIO_HEAD_SHA.toLowerCase()',
+    "name: 'jenkins-pr-gate'",
+    'portfolioCreateCheck(currentBuild.rawBuild',
+    'portfolioCompleteCheck(',
+    'portfolioAppCredentialId',
+    "node(env.PORTFOLIO_AGENT_CLASS)",
+    'disableConcurrentBuilds()',
+    "PORTFOLIO_STATE = 'AUTHORIZED'",
+    'Actions remains authoritative'
+)) {
+    if (-not $portfolioPipeline.Contains($portfolioRuntimeGuard)) {
+        throw "The manual portfolio controller dispatcher is missing a required scope, exact-SHA, or cleanup boundary: $portfolioRuntimeGuard"
+    }
+}
+if (-not $jobs.Contains("def portfolioCatalogRepository = System.getenv('JENKINS_PORTFOLIO_CATALOG_REPOSITORY')?.trim()") -or
+    -not $jobs.Contains('def portfolioCatalogEnabled = !portfolioCatalogRepository.isEmpty()') -or
+    -not $jobs.Contains('if (portfolioCatalogEnabled) {') -or
+    -not $jobs.Contains("JsonOutput.toJson(portfolioCatalogRepository)") -or
+    -not $jobs.Contains('portfolioPipelineTemplate.count(portfolioCatalogRepositoryMarker) != 1') -or
+    -not $environmentExample.Contains('JENKINS_PORTFOLIO_CATALOG_REPOSITORY=') -or
+    -not $compose.Contains('JENKINS_PORTFOLIO_CATALOG_REPOSITORY: ${JENKINS_PORTFOLIO_CATALOG_REPOSITORY:-}')) {
+    throw 'The private catalog location must be optional, injected through ignored local configuration, and JSON-encoded into the trusted Pipeline.'
+}
 if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
     $portfolioConsumer.Contains('export function resolveShadowExecution(catalog, profileId, headSha)') -or
     -not $portfolioConsumer.Contains("if (!allowed.has(key)) reject('unexpected-field'") -or
@@ -876,13 +924,16 @@ if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
     $playwrightDockerfile.Contains('integration/portfolio-profile-contract') -or
     $secondaryPlaywrightDockerfile.Contains('integration/portfolio-profile-contract') -or
     -not $portfolioConsumerPackage.Contains('"node": ">=22.23.3"') -or
-    $portfolioConsumerDocs -notmatch 'not yet wired into\s+a live Jenkins job' -or
-    -not $portfolioAdapterDocs.Contains('No Jenkins job') -or
-    -not $portfolioAdapterDocs.Contains('no App token is fetched') -or
-    -not $portfolioAdapterDocs.Contains('GitHub''s API immediately before invoking') -or
-    -not $portfolioAdapterDocs.Contains('controller image; the agent images do not include it') -or
+    $portfolioPipeline.Contains('withCredentials(') -or
+    $portfolioPipeline.Contains('env.PORTFOLIO_CHECKOUT_TOKEN') -or
+    $portfolioConsumerDocs -match 'not yet wired into\s+a live Jenkins job' -or
+    -not $portfolioAdapterDocs.Contains('manual shadow dispatcher') -or
+    -not $portfolioAdapterDocs.Contains('one-repository App tokens') -or
+    -not $portfolioAdapterDocs.Contains('refreshes the PR again after an agent becomes available') -or
+    -not $portfolioAdapterDocs.Contains('controller image') -or
+    -not $portfolioAdapterDocs.Contains('agent images do not include it') -or
     -not $portfolioConsumerDocs.Contains('Fork PRs are rejected')) {
-    throw 'The portfolio profile consumer must remain data-only, tested, Node 22-compatible, and explicitly non-qualified until runtime wiring and isolation are verified.'
+    throw 'The portfolio resolver must remain data-only and the manual controller dispatcher must preserve per-repository token, exact-SHA, no-target-Pipeline, and cleanup boundaries.'
 }
 
-Write-Output 'Compose isolation, disposable Node 22/Node 22.14/Node 24/Playwright agents, controller-before-checkout authorization, opt-in secondary-repository profile, separate verification lanes, credential boundaries, check reporting, recovery gates, trusted-pipeline contracts, Test Platform consumer contract, and bounded controller-side portfolio profile adapter contract passed.'
+Write-Output 'Compose isolation, disposable Node 22/Node 22.14/Node 24/Playwright agents, controller-before-checkout authorization, opt-in secondary-repository profile, separate verification lanes, credential boundaries, check reporting, recovery gates, trusted-pipeline contracts, Test Platform consumer contract, and manual repository-scoped portfolio dispatcher contract passed.'

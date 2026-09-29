@@ -28,6 +28,10 @@ def replacementsByFile = [
         '/* JENKINS_SECONDARY_PRIMARY_CHECK_NAME */': 'jenkins-pr-gate',
         '/* JENKINS_SECONDARY_SMOKE_CHECK_NAME */': 'jenkins-production-smoke',
         '/* JENKINS_SECONDARY_SMOKE_URL */': ''
+    ],
+    'portfolio-pr-gate.groovy': [
+        '/* JENKINS_PORTFOLIO_APP_CREDENTIAL_ID */': 'syntax-check-app',
+        '/* JENKINS_PORTFOLIO_CATALOG_REPOSITORY */': 'syntax-check-catalog'
     ]
 ]
 

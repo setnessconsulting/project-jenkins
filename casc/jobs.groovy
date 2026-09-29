@@ -13,6 +13,8 @@ def e2eScheduleEnabledValue = (System.getenv('JENKINS_E2E_SCHEDULE_ENABLED') ?: 
 def siteUrl = System.getenv('JENKINS_SITE_URL')?.trim()
 def githubAppId = System.getenv('JENKINS_GITHUB_APP_ID')?.trim()
 def appCredentialId = System.getenv('JENKINS_GITHUB_APP_CREDENTIAL_ID')?.trim()
+def portfolioCatalogRepository = System.getenv('JENKINS_PORTFOLIO_CATALOG_REPOSITORY')?.trim() ?: ''
+def portfolioCatalogEnabled = !portfolioCatalogRepository.isEmpty()
 def checkoutCredentialId = System.getenv('JENKINS_CHECKOUT_SSH_CREDENTIAL_ID')?.trim() ?: 'jenkins-readonly-checkout'
 def candidatePathRules = (System.getenv('JENKINS_CANDIDATE_PATHS') ?: '')
     .split(',')
@@ -43,6 +45,9 @@ if (!(primaryCheckName ==~ /[A-Za-z0-9][A-Za-z0-9 ._-]{0,99}/) ||
         !(e2eJobName ==~ /[A-Za-z0-9._-]{1,100}/) || e2eJobName == jobName ||
         !siteUrl?.startsWith('https://') || siteUrl.contains('@') || siteUrl.contains(' ')) {
     throw new IllegalStateException('Set valid private check names, relative application directories, a separate E2E job name, and HTTPS site URL in the ignored local .env file.')
+}
+if (portfolioCatalogEnabled && !(portfolioCatalogRepository ==~ /(?i)setnessconsulting\/[A-Za-z0-9._-]{1,100}/)) {
+    throw new IllegalStateException('The optional portfolio catalog must be a Setness Consulting repository in owner/name form.')
 }
 if (candidatePathRules.isEmpty() || candidatePathRules.any { rule ->
         !(rule ==~ /[A-Za-z0-9._\/-]+/) || rule.startsWith('/') ||
@@ -115,6 +120,29 @@ if (!(testPlatformJobName ==~ /[A-Za-z0-9._-]{1,100}/) ||
 def testPlatformPipelineTemplate = new File(
     '/usr/share/jenkins/casc/pipelines/test-platform.groovy'
 ).getText('UTF-8')
+
+def portfolioPipelineTemplate
+if (portfolioCatalogEnabled) {
+    portfolioPipelineTemplate = new File(
+        '/usr/share/jenkins/casc/pipelines/portfolio-pr-gate.groovy'
+    ).getText('UTF-8')
+    def portfolioAppCredentialMarker = '/* JENKINS_PORTFOLIO_APP_CREDENTIAL_ID */'
+    def portfolioCatalogRepositoryMarker = '/* JENKINS_PORTFOLIO_CATALOG_REPOSITORY */'
+    if (portfolioPipelineTemplate.count(portfolioAppCredentialMarker) != 1) {
+        throw new IllegalStateException('The trusted portfolio Pipeline has a missing or duplicate App credential marker.')
+    }
+    if (portfolioPipelineTemplate.count(portfolioCatalogRepositoryMarker) != 1) {
+        throw new IllegalStateException('The trusted portfolio Pipeline has a missing or duplicate catalog repository marker.')
+    }
+    portfolioPipelineTemplate = portfolioPipelineTemplate.replace(
+        portfolioAppCredentialMarker,
+        JsonOutput.toJson(appCredentialId)
+    )
+    portfolioPipelineTemplate = portfolioPipelineTemplate.replace(
+        portfolioCatalogRepositoryMarker,
+        JsonOutput.toJson(portfolioCatalogRepository)
+    )
+}
 
 // The second repository is a separately enabled profile. Its repo-scoped
 // checkout key and trusted author allowlist must be configured explicitly;
@@ -409,6 +437,36 @@ pipelineJob(testPlatformJobName) {
         cps {
             script(testPlatformPipelineTemplate)
             sandbox(false)
+        }
+    }
+}
+
+// Manual-only bridge from the private data catalog to one centrally trusted
+// profile implementation. It has no repository-provided Pipeline and no
+// routine trigger; Actions remains authoritative until a repository completes
+// its own shadow qualification and cutover.
+if (portfolioCatalogEnabled) {
+    pipelineJob('portfolio-pr-gate') {
+        displayName('Portfolio PR Gate (manual shadow)')
+        description('''
+        Manually dispatches only explicitly shadow-enabled, centrally approved portfolio profiles.
+        The controller refreshes private catalog and exact PR metadata before checkout. Routine Actions,
+        branch protection, and deployment settings are not changed by this job.
+        '''.stripIndent().trim())
+        logRotator {
+            daysToKeep(30)
+            numToKeep(100)
+        }
+        parameters {
+            stringParam('TARGET_REPOSITORY', '', 'Repository in owner/name form; must have a centrally approved shadow profile.')
+            stringParam('PULL_REQUEST_NUMBER', '', 'Open same-repository PR number.')
+            stringParam('EXPECTED_HEAD_SHA', '', 'Full 40- or 64-character PR head SHA; stale inputs fail closed.')
+        }
+        definition {
+            cps {
+                script(portfolioPipelineTemplate)
+                sandbox(false)
+            }
         }
     }
 }

@@ -52,6 +52,12 @@ function Get-JenkinsPilotConfig {
     $owner = [string] $values['JENKINS_TARGET_REPO_OWNER']
     $repository = [string] $values['JENKINS_TARGET_REPO_NAME']
     $appId = [string] $values['JENKINS_GITHUB_APP_ID']
+    $portfolioCatalogRepository = if ($values.ContainsKey('JENKINS_PORTFOLIO_CATALOG_REPOSITORY')) {
+        [string] $values['JENKINS_PORTFOLIO_CATALOG_REPOSITORY']
+    }
+    else {
+        ''
+    }
     $appCredentialId = if ($values.ContainsKey('JENKINS_GITHUB_APP_CREDENTIAL_ID')) {
         [string] $values['JENKINS_GITHUB_APP_CREDENTIAL_ID']
     }
@@ -85,6 +91,10 @@ function Get-JenkinsPilotConfig {
     }
     if ($appId -notmatch '^\d+$') {
         throw 'The configured GitHub App ID must contain digits only.'
+    }
+    if (-not [string]::IsNullOrWhiteSpace($portfolioCatalogRepository) -and
+        $portfolioCatalogRepository -notmatch '^setnessconsulting/[A-Za-z0-9._-]{1,100}$') {
+        throw 'The optional portfolio catalog must be a Setness Consulting repository in owner/name form.'
     }
     if ($appCredentialId -notmatch '^[A-Za-z0-9._-]{1,100}$') {
         throw 'The configured GitHub App credential ID is invalid.'
@@ -216,6 +226,7 @@ function Get-JenkinsPilotConfig {
         Repository = $repository
         FullName = "$owner/$repository"
         AppId = $appId
+        PortfolioCatalogRepository = $portfolioCatalogRepository
         AppCredentialId = $appCredentialId
         CheckoutCredentialId = $checkoutCredentialId
         JobName = $jobName
