@@ -51,8 +51,16 @@ function makePullRequest({ number = 7, sha = shaA, author = 'setnessconsulting',
   };
 }
 
-function state({ number = 7, sha = shaA, attempt = 1, dispatchedAtEpochMs = now, status = 'pending' } = {}) {
-  return { repository, pullRequestNumber: number, headSha: sha, attempt, dispatchedAtEpochMs, status };
+function state({ number = 7, sha = shaA, attempt = 1, dispatchedAtEpochMs = now, status = 'pending', dispatchId } = {}) {
+  return {
+    repository,
+    pullRequestNumber: number,
+    headSha: sha,
+    attempt,
+    dispatchedAtEpochMs,
+    status,
+    ...(dispatchId ? { dispatchId } : {}),
+  };
 }
 
 function observation({ number = 7, sha = shaA, status = 'in_progress' } = {}) {
@@ -140,7 +148,7 @@ test('a missing check waits through the grace period before a bounded retry', ()
 });
 
 test('an orphaned in-progress check waits through the grace period before recovery', () => {
-  const previous = [state()];
+  const previous = [state({ dispatchId: '8e8752b3-c0d2-4aaf-8bb2-a19c53c809f9' })];
   const beforeGrace = plan(
     makeCatalog(), [makePullRequest()], previous, [observation({ status: 'orphaned' })], now + retryAfterMs - 1,
   );
@@ -152,7 +160,7 @@ test('an orphaned in-progress check waits through the grace period before recove
   );
   assert.equal(recovered.dispatches.length, 1);
   assert.equal(recovered.dispatches[0].attempt, 2);
-  assert.deepEqual(recovered.state, [{ ...state(), attempt: 2, dispatchedAtEpochMs: now + retryAfterMs }]);
+  assert.deepEqual(recovered.state, [{ ...state({ attempt: 2, dispatchedAtEpochMs: now + retryAfterMs }) }]);
 });
 
 test('an in-progress check not linked to this poller is never overwritten or retried', () => {
@@ -228,6 +236,11 @@ test('duplicate prior-state entries fail closed', () => {
     state(),
     { ...state(), headSha: shaB },
   ]), /duplicate PR/);
+});
+
+test('dispatch correlation IDs in prior state must be controller-shaped UUIDv4 values', () => {
+  assert.throws(() => plan(makeCatalog(), [], [state({ dispatchId: 'not-a-dispatch-id' })]),
+    (error) => error.code === 'invalid-poll-state');
 });
 
 test('malformed PR entries fail closed instead of partially planning dispatches', () => {

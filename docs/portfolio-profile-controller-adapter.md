@@ -33,12 +33,18 @@ set. The poller reads open PR metadata using short-lived single-repository
 PR it also reads only the `checks:read` permission, then reconciles the exact
 head SHA, check name, and GitHub App ID. For an in-progress check, it resolves
 the check's Jenkins external ID to the centrally trusted gate job and verifies
-that the referenced build is still running with the same repository, PR, and
-head SHA. A live match is left alone, including a legitimately long-running
-build. A check whose build is no longer queued or running is treated as
+the per-dispatch UUID stored in controller state. This avoids selecting a
+"latest" check using timestamps that the Check Runs API does not return. It
+then verifies the referenced build's repository, PR, SHA, and dispatch UUID. A
+live match is left alone, including a legitimately long-running build. A
+matching check whose build is no longer queued or running is treated as
 orphaned; after the 15-minute grace period the controller re-reads it, verifies
 identity again, and uses a controller-only `checks:write` token to finish it as
-a visible failure before allowing a bounded retry. It accepts same-repository
+a visible failure. That distinct recovery-failure marker remains retryable if
+the poller is interrupted before scheduling the replacement. Build identity
+mismatches or checks from another Jenkins job are untracked and are never
+overwritten or retried; they surface as operator attention after the grace
+period. The poller accepts same-repository
 non-draft PRs by `setnessconsulting` only, and queues one exact-head SHA at a
 time. Only the selected PR advances retry state; eligible PRs waiting behind it
 are not counted as attempted. The poller never checks out repository code.
@@ -56,7 +62,10 @@ limit, the poller reports an operator attention item instead of silently
 suppressing that SHA forever or retrying without limit. The poller persists the
 selected dispatch intent before queueing so a poller cancellation after
 downstream scheduling can be reconciled on its next run; unselected candidates
-do not consume attempts.
+do not consume attempts. Every automated queue request gets a controller-
+generated UUID, propagated to the trusted gate and embedded in the check's
+external ID. Manual gate runs leave that field blank and cannot be mistaken for
+a poller-owned check.
 The dispatcher is always declared but disabled unless the private catalog
 repository is provided through ignored local runtime configuration. The old
 root-level job name is explicitly replaced by a disabled deprecation stub, so

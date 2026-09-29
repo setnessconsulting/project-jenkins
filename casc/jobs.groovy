@@ -507,6 +507,7 @@ pipelineJob('portfolio-dispatch/portfolio-pr-gate') {
         stringParam('TARGET_REPOSITORY', '', 'Repository in owner/name form; must have a centrally approved shadow profile.')
         stringParam('PULL_REQUEST_NUMBER', '', 'Open same-repository PR number.')
         stringParam('EXPECTED_HEAD_SHA', '', 'Full 40- or 64-character PR head SHA; stale inputs fail closed.')
+        stringParam('PORTFOLIO_DISPATCH_ID', '', 'Controller-generated correlation ID for an automated poller dispatch; leave blank for manual runs.')
     }
     definition {
         cps {

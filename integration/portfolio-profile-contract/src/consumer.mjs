@@ -365,14 +365,17 @@ function validatePollState(previousState) {
   }
   const state = new Map();
   for (const entry of previousState) {
-    exactKeys(entry, new Set(['repository', 'pullRequestNumber', 'headSha', 'attempt', 'dispatchedAtEpochMs', 'status']),
+    exactKeys(entry, new Set(['repository', 'pullRequestNumber', 'headSha', 'attempt', 'dispatchedAtEpochMs', 'status', 'dispatchId']),
       ['repository', 'pullRequestNumber', 'headSha', 'attempt', 'dispatchedAtEpochMs', 'status'], 'poll state entry');
     if (!validRepository(entry.repository)
         || !Number.isInteger(entry.pullRequestNumber) || entry.pullRequestNumber < 1
         || typeof entry.headSha !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(entry.headSha)
         || !Number.isInteger(entry.attempt) || entry.attempt < 1 || entry.attempt > POLL_MAX_ATTEMPTS
         || !Number.isSafeInteger(entry.dispatchedAtEpochMs) || entry.dispatchedAtEpochMs < 0
-        || !['pending', 'completed', 'stalled'].includes(entry.status)) {
+        || !['pending', 'completed', 'stalled'].includes(entry.status)
+        || (Object.hasOwn(entry, 'dispatchId')
+          && (typeof entry.dispatchId !== 'string'
+            || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(entry.dispatchId)))) {
       reject('invalid-poll-state', 'poll state entry is invalid');
     }
     const key = pollStateKey(entry.repository, entry.pullRequestNumber);
@@ -384,6 +387,7 @@ function validatePollState(previousState) {
       attempt: entry.attempt,
       dispatchedAtEpochMs: entry.dispatchedAtEpochMs,
       status: entry.status,
+      ...(Object.hasOwn(entry, 'dispatchId') ? { dispatchId: entry.dispatchId.toLowerCase() } : {}),
     }));
   }
   return state;
