@@ -1,0 +1,14 @@
+{
+  "name": "@setness/jenkins-portfolio-profile-contract",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Trusted, data-only resolver contract for the private Jenkins portfolio profile catalog.",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22.23.3"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  }
+}

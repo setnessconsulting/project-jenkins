@@ -49,6 +49,14 @@ jobs:
       - name: Check patch whitespace
         run: git diff --check HEAD^ HEAD
 
+      - name: Set up Node.js for portfolio profile contract
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.23.3
+
+      - name: Test portfolio profile contract
+        run: node --test integration/portfolio-profile-contract/test/*.test.mjs
+
       - name: Validate Compose model
         run: docker compose --profile build-images --file compose.yaml config --quiet
 
