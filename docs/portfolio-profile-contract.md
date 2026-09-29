@@ -17,12 +17,13 @@ The first centrally defined adapter is `node22-foundation-v1`. It uses the
 existing `setness-ephemeral` agent class, pinned to Node 22.23.3, and static
 argument vectors for `npm ci --ignore-scripts`, `npm run check`, `npm test`, and
 `npm run verify`. It rejects a profile whose required Node version does not
-exactly match that agent. For example,
-`project-github-api`'s current Actions workflow pins Node 22.14.0, so its planned
-profile cannot run on this adapter until a matching trusted agent is available.
-The target's package scripts are test code, not trusted policy; they must run
-only after checkout credentials have been removed and inside the unprivileged
-disposable agent. This adapter is not yet wired into a live Jenkins job.
+exactly match that agent. A profile pinned to a different Node patch must remain
+planned until a matching trusted agent is available or its repository's CI
+baseline is deliberately updated and verified. Repository-specific profile
+details belong in the private catalog, not this public repository. The target's
+package scripts are test code, not trusted policy; they must run only after
+checkout credentials have been removed and inside the unprivileged disposable
+agent. This adapter is not yet wired into a live Jenkins job.
 
 Fork PRs are rejected. An owner allowlist is a bounded shadow policy, not a
 sandbox. Do not broaden access or make this check required until the runtime
