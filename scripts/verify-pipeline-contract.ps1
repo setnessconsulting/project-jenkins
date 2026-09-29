@@ -36,6 +36,7 @@ $portfolioPollerPipelinePath = Join-Path $repositoryRoot 'casc/pipelines/portfol
 $portfolioCredentialHelpersPath = Join-Path $repositoryRoot 'casc/pipelines/portfolio-credential-store.groovy'
 $portfolioReaperPipelinePath = Join-Path $repositoryRoot 'casc/pipelines/portfolio-checkout-credential-reaper.groovy'
 $groovySyntaxVerifierPath = Join-Path $repositoryRoot 'scripts/verify-groovy-syntax.ps1'
+$groovySyntaxFixturePath = Join-Path $repositoryRoot 'scripts/verify-groovy-syntax.groovy'
 $testPlatformCatalogPath = Join-Path $repositoryRoot 'integration/test-platform-contract/src/approved-catalog.json'
 $testPlatformAdapterPath = Join-Path $repositoryRoot 'integration/test-platform-contract/src/adapter.mjs'
 $testPlatformWirePath = Join-Path $repositoryRoot 'integration/test-platform-contract/src/wire.mjs'
@@ -92,6 +93,7 @@ $portfolioPollerPipeline = Read-NormalizedText -LiteralPath $portfolioPollerPipe
 $portfolioCredentialHelpers = Read-NormalizedText -LiteralPath $portfolioCredentialHelpersPath
 $portfolioReaperPipeline = Read-NormalizedText -LiteralPath $portfolioReaperPipelinePath
 $groovySyntaxVerifier = Read-NormalizedText -LiteralPath $groovySyntaxVerifierPath
+$groovySyntaxFixture = Read-NormalizedText -LiteralPath $groovySyntaxFixturePath
 $testPlatformCatalog = Read-NormalizedText -LiteralPath $testPlatformCatalogPath
 $testPlatformAdapter = Read-NormalizedText -LiteralPath $testPlatformAdapterPath
 $testPlatformWire = Read-NormalizedText -LiteralPath $testPlatformWirePath
@@ -952,6 +954,8 @@ if (-not $jobs.Contains("def portfolioCatalogRepository = System.getenv('JENKINS
     throw 'The private catalog location must be optional, injected through ignored local configuration, and JSON-encoded into the trusted Pipeline.'
 }
 if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.groovy'") -or
+    -not $groovySyntaxFixture.Contains("'portfolio-pr-poller.groovy': [") -or
+    -not $groovySyntaxFixture.Contains("'/* JENKINS_PORTFOLIO_NODE_BINARY */': '/usr/bin/node'") -or
     -not $portfolioPollerPipeline.Contains('agent none') -or
     -not $portfolioPollerPipeline.Contains('skipDefaultCheckout(true)') -or
     -not $portfolioPollerPipeline.Contains('portfolioPollDrain(') -or
