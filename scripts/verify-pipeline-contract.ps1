@@ -22,6 +22,7 @@ $knownHostsPath = Join-Path $repositoryRoot 'agent/known_hosts'
 $credentialScriptPath = Join-Path $repositoryRoot 'scripts/provision-vm-github-app.ps1'
 $pilotConfigParserPath = Join-Path $repositoryRoot 'scripts/pilot-config.ps1'
 $hypervPreflightPath = Join-Path $repositoryRoot 'scripts/hyperv-preflight.ps1'
+$windowsLicensePolicyPath = Join-Path $repositoryRoot 'scripts/windows-license-policy.ps1'
 $newVmScriptPath = Join-Path $repositoryRoot 'scripts/new-jenkins-vm.ps1'
 $vmStartScriptPath = Join-Path $repositoryRoot 'scripts/vm/start-jenkins.sh'
 $backupScriptPath = Join-Path $repositoryRoot 'scripts/vm/backup-jenkins.sh'
@@ -69,6 +70,7 @@ $knownHosts = Get-Content -LiteralPath $knownHostsPath -Raw
 $credentialScript = Get-Content -LiteralPath $credentialScriptPath -Raw
 $pilotConfigParser = Get-Content -LiteralPath $pilotConfigParserPath -Raw
 $hypervPreflight = Get-Content -LiteralPath $hypervPreflightPath -Raw
+$windowsLicensePolicy = Get-Content -LiteralPath $windowsLicensePolicyPath -Raw
 $newVmScript = Get-Content -LiteralPath $newVmScriptPath -Raw
 $vmStartScript = Get-Content -LiteralPath $vmStartScriptPath -Raw
 $backupScript = Get-Content -LiteralPath $backupScriptPath -Raw
@@ -512,12 +514,67 @@ if (-not $credentialScript.Contains('DefaultPermissionsStrategy.CONTENTS_READ') 
     throw 'The repository-discovery App must retain its least-privilege default for untrusted contexts; checkout must use the separate SSH credential.'
 }
 if (-not $hypervPreflight.Contains("KeyProtectorType -eq 'RecoveryPassword'") -or
+    -not $hypervPreflight.Contains('Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop') -or
+    -not $hypervPreflight.Contains('$operatingSystem.Caption -match ''^Microsoft Windows 11 Pro(?:\s|$)''') -or
+    -not $hypervPreflight.Contains('$operatingSystem.OperatingSystemSKU -eq 48') -or
+    -not $hypervPreflight.Contains('if (-not $isWindows11Pro)') -or
+    -not $hypervPreflight.Contains('Get-CimInstance -ClassName SoftwareLicensingProduct') -or
+    -not $hypervPreflight.Contains("ApplicationID='55c92734-d682-4d71-983e-d6ec3f16059f' AND LicenseStatus=1") -or
+    -not $hypervPreflight.Contains('-Property ApplicationID, LicenseStatus, LicenseFamily, Name') -or
+    -not $hypervPreflight.Contains("Test-Windows11ProLicense -Products `$licensedWindowsProducts") -or
+    -not $windowsLicensePolicy.Contains("`$product.LicenseFamily -ieq 'Professional'") -or
+    -not $windowsLicensePolicy.Contains("`$product.Name -ieq 'Windows(R), Professional edition'") -or
+    -not $windowsLicensePolicy.Contains("`$product.ApplicationID -ieq '55c92734-d682-4d71-983e-d6ec3f16059f'") -or
+    -not $windowsLicensePolicy.Contains('$product.LicenseStatus -eq 1') -or
+    -not $hypervPreflight.Contains('if ($windowsActivationRead -and -not $isWindowsActivated)') -or
+    -not $hypervPreflight.Contains('Windows activation state could not be read.') -or
+    -not $hypervPreflight.Contains('Windows is not activated.') -or
+    -not $hypervPreflight.Contains('Windows edition: $windowsEdition; Windows 11 Pro installed: $isWindows11Pro; activation: $activationStatus') -or
     -not $hypervPreflight.Contains('Hyper-V is not enabled; enable it and reboot only after reviewing these preflight results.') -or
     -not $hypervPreflight.Contains('Get-BitLockerVolume -MountPoint $ProtectedVolume') -or
     -not $hypervPreflight.Contains("throw 'Host prerequisites are not yet ready. No VM, network, firewall, or credential state was changed.'") -or
     -not $newVmScript.Contains('RECOVERY-KEY-VERIFIED') -or
     -not $newVmScript.Contains('[string] $RecoveryKeyConfirmation')) {
     throw 'VM creation must require a BitLocker recovery-password protector and explicit operator confirmation that recovery material is retrievable.'
+}
+. $windowsLicensePolicyPath
+$licensePolicyCases = @(
+    [pscustomobject]@{
+        Label = 'licensed Windows 11 Pro'
+        Product = [pscustomobject]@{ ApplicationID = '55c92734-d682-4d71-983e-d6ec3f16059f'; LicenseStatus = 1; LicenseFamily = 'Professional'; Name = 'Windows(R), Professional edition' }
+        Expected = $true
+    },
+    [pscustomobject]@{
+        Label = 'licensed Windows Home'
+        Product = [pscustomobject]@{ ApplicationID = '55c92734-d682-4d71-983e-d6ec3f16059f'; LicenseStatus = 1; LicenseFamily = 'Core'; Name = 'Windows(R), Core edition' }
+        Expected = $false
+    },
+    [pscustomobject]@{
+        Label = 'licensed Windows Pro for Workstations'
+        Product = [pscustomobject]@{ ApplicationID = '55c92734-d682-4d71-983e-d6ec3f16059f'; LicenseStatus = 1; LicenseFamily = 'ProfessionalWorkstation'; Name = 'Windows(R), ProfessionalWorkstation edition' }
+        Expected = $false
+    },
+    [pscustomobject]@{
+        Label = 'unlicensed Windows 11 Pro'
+        Product = [pscustomobject]@{ ApplicationID = '55c92734-d682-4d71-983e-d6ec3f16059f'; LicenseStatus = 0; LicenseFamily = 'Professional'; Name = 'Windows(R), Professional edition' }
+        Expected = $false
+    },
+    [pscustomobject]@{
+        Label = 'licensed Office product'
+        Product = [pscustomobject]@{ ApplicationID = '0ff1ce15-a989-479d-af46-f275c6370663'; LicenseStatus = 1; LicenseFamily = 'Professional'; Name = 'Windows(R), Professional edition' }
+        Expected = $false
+    }
+)
+foreach ($case in $licensePolicyCases) {
+    $actual = Test-Windows11ProLicense -Products @($case.Product)
+    if ($actual -ne $case.Expected) {
+        throw "Windows activation policy must classify '$($case.Label)' as $($case.Expected)."
+    }
+}
+$preflightElevationGuardIndex = $hypervPreflight.IndexOf('if (-not $principal.IsInRole')
+$preflightWindowsReadIndex = $hypervPreflight.IndexOf('Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop')
+if ($preflightElevationGuardIndex -lt 0 -or $preflightWindowsReadIndex -le $preflightElevationGuardIndex) {
+    throw 'The Windows host preflight must require Administrator elevation before reading host state.'
 }
 if (-not $vmStartScript.Contains('[[ "$action" == start || "$action" == install || "$action" == restart ]]') -or
     -not $vmStartScript.Contains('export JENKINS_ADMIN_PASSWORD="$(<"$admin_password_file")"')) {
