@@ -103,7 +103,7 @@ test('resolves the centrally pinned Node 24 lint, type, and test implementation'
   assert.deepEqual(plan.commands, [
     ['npm', 'ci'],
     ['npm', 'run', 'lint'],
-    ['npx', 'tsc', '--noEmit'],
+    ['node_modules/.bin/tsc', '--noEmit'],
     ['npm', 'test'],
   ]);
 

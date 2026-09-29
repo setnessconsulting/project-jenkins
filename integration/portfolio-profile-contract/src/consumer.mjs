@@ -66,7 +66,7 @@ export const IMPLEMENTATIONS = Object.freeze({
     commands: Object.freeze([
       Object.freeze(['npm', 'ci']),
       Object.freeze(['npm', 'run', 'lint']),
-      Object.freeze(['npx', 'tsc', '--noEmit']),
+      Object.freeze(['node_modules/.bin/tsc', '--noEmit']),
       Object.freeze(['npm', 'test']),
     ]),
   }),

@@ -743,7 +743,7 @@ foreach ($portfolioGuard in @(
     "Object.freeze(['npm', 'run', 'check'])",
     "Object.freeze(['npm', 'test'])",
     "Object.freeze(['npm', 'run', 'lint'])",
-    "Object.freeze(['npx', 'tsc', '--noEmit'])",
+    "Object.freeze(['node_modules/.bin/tsc', '--noEmit'])",
     'export function validateProfileCatalog(catalog)',
     'function resolveShadowExecution(catalog, profileId, headSha)',
     'export function resolveAuthorizedShadowPullRequest(',
