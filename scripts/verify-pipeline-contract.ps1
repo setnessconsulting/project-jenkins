@@ -36,9 +36,12 @@ $testPlatformCliPath = Join-Path $repositoryRoot 'integration/test-platform-cont
 $testPlatformPackagePath = Join-Path $repositoryRoot 'integration/test-platform-contract/package.json'
 $testPlatformRequestFixturePath = Join-Path $repositoryRoot 'integration/test-platform-contract/fixtures/execution-request.json'
 $portfolioConsumerPath = Join-Path $repositoryRoot 'integration/portfolio-profile-contract/src/consumer.mjs'
+$portfolioCliPath = Join-Path $repositoryRoot 'integration/portfolio-profile-contract/src/resolve-pr.mjs'
 $portfolioConsumerTestsPath = Join-Path $repositoryRoot 'integration/portfolio-profile-contract/test/consumer.test.mjs'
+$portfolioCliTestsPath = Join-Path $repositoryRoot 'integration/portfolio-profile-contract/test/resolve-pr.test.mjs'
 $portfolioConsumerPackagePath = Join-Path $repositoryRoot 'integration/portfolio-profile-contract/package.json'
 $portfolioConsumerDocsPath = Join-Path $repositoryRoot 'docs/portfolio-profile-contract.md'
+$portfolioAdapterDocsPath = Join-Path $repositoryRoot 'docs/portfolio-profile-controller-adapter.md'
 
 # A Windows checkout keeps CRLF line endings. Normalize every inspected document
 # so the structural contracts below hold on every platform.
@@ -79,9 +82,12 @@ $testPlatformCli = Read-NormalizedText -LiteralPath $testPlatformCliPath
 $testPlatformPackage = Read-NormalizedText -LiteralPath $testPlatformPackagePath
 $testPlatformRequestFixture = Read-NormalizedText -LiteralPath $testPlatformRequestFixturePath
 $portfolioConsumer = Read-NormalizedText -LiteralPath $portfolioConsumerPath
+$portfolioCli = Read-NormalizedText -LiteralPath $portfolioCliPath
 $portfolioConsumerTests = Read-NormalizedText -LiteralPath $portfolioConsumerTestsPath
+$portfolioCliTests = Read-NormalizedText -LiteralPath $portfolioCliTestsPath
 $portfolioConsumerPackage = Read-NormalizedText -LiteralPath $portfolioConsumerPackagePath
 $portfolioConsumerDocs = Read-NormalizedText -LiteralPath $portfolioConsumerDocsPath
+$portfolioAdapterDocs = Read-NormalizedText -LiteralPath $portfolioAdapterDocsPath
 
 if (-not $workflow.Contains('Set up Ruby for YAML validation') -or
     -not $workflow.Contains('ruby/setup-ruby@v1') -or
@@ -763,10 +769,28 @@ if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
     -not $portfolioConsumerTests.Contains('returns executable commands only after PR identity and profile repository bind') -or
     -not $portfolioConsumerTests.Contains('rejects a profile whose required Node.js runtime differs from the pinned agent') -or
     -not $portfolioConsumerTests.Contains('rejects qualified and fork claims without full evidence') -or
+    -not $portfolioCli.Contains('readInput()') -or
+    -not $portfolioCli.Contains('MAX_REQUEST_BYTES = 1024 * 1024') -or
+    -not $portfolioCli.Contains("Object.freeze(['setnessconsulting'])") -or
+    -not $portfolioCli.Contains('resolveAuthorizedShadowPullRequestForRepository(') -or
+    $portfolioCli -match '\bresolveAuthorizedShadowPullRequest\s*\(' -or
+    $portfolioCli.Contains('child_process') -or
+    $portfolioCli.Contains('process.env') -or
+    -not $portfolioCliTests.Contains('controller stdin adapter emits only the centrally defined plan') -or
+    -not $portfolioCliTests.Contains('rejects outside authors, stale heads, and an injected author allowlist') -or
+    -not $controllerDockerfile.Contains('integration/portfolio-profile-contract /usr/share/jenkins/portfolio-profile-contract') -or
+    $agentDockerfile.Contains('integration/portfolio-profile-contract') -or
+    $node24Dockerfile.Contains('integration/portfolio-profile-contract') -or
+    $playwrightDockerfile.Contains('integration/portfolio-profile-contract') -or
+    $secondaryPlaywrightDockerfile.Contains('integration/portfolio-profile-contract') -or
     -not $portfolioConsumerPackage.Contains('"node": ">=22.23.3"') -or
     -not $portfolioConsumerDocs.Contains('not yet wired into a live Jenkins job') -or
+    -not $portfolioAdapterDocs.Contains('No Jenkins job') -or
+    -not $portfolioAdapterDocs.Contains('no App token is fetched') -or
+    -not $portfolioAdapterDocs.Contains('GitHub''s API immediately before invoking') -or
+    -not $portfolioAdapterDocs.Contains('controller image; the agent images do not include it') -or
     -not $portfolioConsumerDocs.Contains('Fork PRs are rejected')) {
     throw 'The portfolio profile consumer must remain data-only, tested, Node 22-compatible, and explicitly non-qualified until runtime wiring and isolation are verified.'
 }
 
-Write-Output 'Compose isolation, disposable Node 22/Node 24/Playwright agents, controller-before-checkout authorization, opt-in secondary-repository profile, separate verification lanes, credential boundaries, check reporting, recovery gates, trusted-pipeline contracts, the Test Platform consumer contract, and the data-only portfolio profile resolver contract passed.'
+Write-Output 'Compose isolation, disposable Node 22/Node 24/Playwright agents, controller-before-checkout authorization, opt-in secondary-repository profile, separate verification lanes, credential boundaries, check reporting, recovery gates, trusted-pipeline contracts, Test Platform consumer contract, and bounded controller-side portfolio profile adapter contract passed.'

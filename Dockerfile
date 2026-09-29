@@ -28,6 +28,7 @@ RUN set -eux; \
     apt-get clean
 
 COPY --chown=jenkins:jenkins integration/test-platform-contract /usr/share/jenkins/test-platform-contract
+COPY --chown=jenkins:jenkins integration/portfolio-profile-contract /usr/share/jenkins/portfolio-profile-contract
 
 ENV CASC_JENKINS_CONFIG=/usr/share/jenkins/casc/jenkins.yaml \
     PATH="/opt/setness-jenkins/tools/node-v22.23.3-linux-x64/bin:${PATH}"
