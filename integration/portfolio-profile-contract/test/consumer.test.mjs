@@ -91,6 +91,26 @@ test('validates the closed catalog and resolves centrally-owned static commands'
   ]);
 });
 
+test('resolves the centrally pinned Node 24 lint, type, and test implementation', () => {
+  const input = catalog();
+  input.approvedImplementations.push('node24-lint-typescript-test-v1');
+  input.profiles[0].implementationId = 'node24-lint-typescript-test-v1';
+  input.profiles[0].requiredNodeVersion = '24.21.0';
+
+  const plan = resolve(input);
+  assert.equal(plan.agentClass, 'setness-node24-ephemeral');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['npm', 'ci'],
+    ['npm', 'run', 'lint'],
+    ['node_modules/.bin/tsc', '--noEmit'],
+    ['npm', 'test'],
+  ]);
+
+  input.profiles[0].requiredNodeVersion = '24.21.1';
+  rejectsCode(() => resolve(input), 'runtime-mismatch');
+});
+
 test('rejects profile fields that could inject commands or credentials', () => {
   const input = catalog();
   input.profiles[0].commands = ['curl attacker.invalid'];

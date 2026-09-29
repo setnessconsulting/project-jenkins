@@ -736,9 +736,14 @@ foreach ($portfolioGuard in @(
     'export const IMPLEMENTATIONS = Object.freeze({',
     "'node22-foundation-v1'",
     "nodeVersion: '22.23.3'",
+    "'node24-lint-typescript-test-v1'",
+    "agentClass: 'setness-node24-ephemeral'",
+    "nodeVersion: '24.21.0'",
     'commands: Object.freeze([',
     "Object.freeze(['npm', 'run', 'check'])",
     "Object.freeze(['npm', 'test'])",
+    "Object.freeze(['npm', 'run', 'lint'])",
+    "Object.freeze(['node_modules/.bin/tsc', '--noEmit'])",
     'export function validateProfileCatalog(catalog)',
     'function resolveShadowExecution(catalog, profileId, headSha)',
     'export function resolveAuthorizedShadowPullRequest(',
@@ -768,6 +773,7 @@ if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
     -not $portfolioConsumerTests.Contains('accepts only exact, open, same-repository PR heads from allowlisted authors') -or
     -not $portfolioConsumerTests.Contains('returns executable commands only after PR identity and profile repository bind') -or
     -not $portfolioConsumerTests.Contains('rejects a profile whose required Node.js runtime differs from the pinned agent') -or
+    -not $portfolioConsumerTests.Contains('resolves the centrally pinned Node 24 lint, type, and test implementation') -or
     -not $portfolioConsumerTests.Contains('rejects qualified and fork claims without full evidence') -or
     -not $portfolioCli.Contains('readInput()') -or
     -not $portfolioCli.Contains('MAX_REQUEST_BYTES = 1024 * 1024') -or
