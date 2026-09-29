@@ -13,11 +13,13 @@ GitHub App token broker must call this contract before a profile is executable.
 Do not treat the contract package or catalog installation as proof of live
 Jenkins qualification.
 
-For any pull-request execution, use `resolveAuthorizedShadowPullRequest` as the
-single entry point. It verifies the open same-repository PR, allowlisted author,
-and exact current head SHA, then confirms the resolved profile names that same
-repository before returning any command vectors. Do not call the lower-level
-PR verifier and profile resolver independently in Jenkins orchestration code.
+For portfolio pull-request dispatch, use
+`resolveAuthorizedShadowPullRequestForRepository` as the single entry point. It
+selects the profile from the verified repository identity, then verifies the
+open same-repository PR, allowlisted author, and exact current head SHA before
+returning any command vectors. Do not accept a profile ID independently from
+the SCM repository or call the lower-level PR verifier and profile resolver
+separately in Jenkins orchestration code.
 
 The first centrally defined adapter is `node22-foundation-v1`. It uses the
 existing `setness-ephemeral` agent class, pinned to Node 22.23.3, and static
