@@ -602,6 +602,10 @@ if (-not $vmStartScript.Contains('[[ "$action" == start || "$action" == install 
     -not $vmStartScript.Contains('export JENKINS_ADMIN_PASSWORD="$(<"$admin_password_file")"')) {
     throw 'Every controller-starting action, including first install, must load the protected bootstrap password rather than a placeholder.'
 }
+if (-not $vmStartScript.Contains('docker image inspect ''jenkins-pilot-agent:node-22.14.0''') -or
+    -not $vmStartScript.Contains('build node22-14-agent-image')) {
+    throw 'A normal VM start must build the new Node 22.14 agent image when it is not already present.'
+}
 if (-not $vmStartScript.Contains('build controller agent-image node22-14-agent-image node24-agent-image e2e-agent-image secondary-agent-image')) {
     throw 'VM installation and restart must prebuild every disposable agent profile.'
 }

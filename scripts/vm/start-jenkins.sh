@@ -64,6 +64,9 @@ case "$action" in
   start|install|restart)
     docker info --format '{{.OperatingSystem}}' >/dev/null || fail 'the guest Docker daemon is not ready.'
     "${compose[@]}" config --quiet
+    if [[ "$action" == start ]] && ! docker image inspect 'jenkins-pilot-agent:node-22.14.0' >/dev/null 2>&1; then
+      "${compose[@]}" build node22-14-agent-image
+    fi
     if [[ "$action" == install || "$action" == restart ]]; then
       "${compose[@]}" build controller agent-image node22-14-agent-image node24-agent-image e2e-agent-image secondary-agent-image
     fi
