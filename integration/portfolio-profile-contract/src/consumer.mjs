@@ -164,7 +164,8 @@ export function validateProfileCatalog(catalog) {
     profileIds.add(profile.id);
     if (!PROFILE_STATUSES.has(profile.status) || !Array.isArray(profile.repositories)
         || profile.repositories.length === 0 || profile.repositories.some((repo) => !validRepository(repo))
-        || new Set(profile.repositories).size !== profile.repositories.length
+        || new Set(profile.repositories.map((repository) => repository.toLowerCase())).size
+          !== profile.repositories.length
         || !Array.isArray(profile.checkNames)
         || profile.checkNames.some((name) => !validCheckName(name))
         || new Set(profile.checkNames).size !== profile.checkNames.length) {
@@ -201,10 +202,11 @@ export function validateProfileCatalog(catalog) {
       validateForkQualification(profile.forkSandboxQualification, profile.id);
     }
     for (const repository of profile.repositories) {
-      if (repositoryOwners.has(repository)) {
+      const normalizedRepository = repository.toLowerCase();
+      if (repositoryOwners.has(normalizedRepository)) {
         reject('duplicate-repository-profile', `repository ${repository} is assigned to multiple profiles`);
       }
-      repositoryOwners.set(repository, profile.id);
+      repositoryOwners.set(normalizedRepository, profile.id);
     }
   }
 

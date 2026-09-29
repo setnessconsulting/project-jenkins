@@ -128,6 +128,21 @@ test('rejects ambiguous profiles, missing required gate, and malformed SHA', () 
   rejectsCode(() => resolve(catalog(), { headSha: 'main' }), 'invalid-pr-request');
 });
 
+test('rejects case-insensitive repository aliases within and across profiles', () => {
+  const withinProfile = catalog();
+  withinProfile.profiles[0].repositories.push('setnessconsulting/Example-Repository');
+  rejectsCode(() => validateProfileCatalog(withinProfile), 'invalid-profile');
+
+  const acrossProfiles = catalog();
+  acrossProfiles.profiles.push({
+    ...acrossProfiles.profiles[0],
+    id: 'example-retired',
+    status: 'retired',
+    repositories: ['setnessconsulting/Example-Repository'],
+  });
+  rejectsCode(() => validateProfileCatalog(acrossProfiles), 'duplicate-repository-profile');
+});
+
 test('rejects a profile whose required Node.js runtime differs from the pinned agent', () => {
   const mismatched = catalog();
   mismatched.profiles[0].requiredNodeVersion = '22.14.0';
