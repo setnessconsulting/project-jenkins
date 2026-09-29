@@ -498,12 +498,27 @@ if (-not $credentialScript.Contains('DefaultPermissionsStrategy.CONTENTS_READ') 
     throw 'The repository-discovery App must retain its least-privilege default for untrusted contexts; checkout must use the separate SSH credential.'
 }
 if (-not $hypervPreflight.Contains("KeyProtectorType -eq 'RecoveryPassword'") -or
+    -not $hypervPreflight.Contains('Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop') -or
+    -not $hypervPreflight.Contains('$operatingSystem.Caption -match ''^Microsoft Windows 11 Pro(?:\s|$)''') -or
+    -not $hypervPreflight.Contains('if (-not $isWindows11Pro)') -or
+    -not $hypervPreflight.Contains('Get-CimInstance -ClassName SoftwareLicensingProduct') -or
+    -not $hypervPreflight.Contains("ApplicationID='55c92734-d682-4d71-983e-d6ec3f16059f' AND LicenseStatus=1") -or
+    -not $hypervPreflight.Contains('$isWindowsActivated = $windowsActivationRead -and $licensedWindowsProducts.Count -gt 0') -or
+    -not $hypervPreflight.Contains('if ($windowsActivationRead -and -not $isWindowsActivated)') -or
+    -not $hypervPreflight.Contains('Windows activation state could not be read.') -or
+    -not $hypervPreflight.Contains('Windows is not activated.') -or
+    -not $hypervPreflight.Contains('Windows edition: $windowsEdition; Windows 11 Pro installed: $isWindows11Pro; activation: $activationStatus') -or
     -not $hypervPreflight.Contains('Hyper-V is not enabled; enable it and reboot only after reviewing these preflight results.') -or
     -not $hypervPreflight.Contains('Get-BitLockerVolume -MountPoint $ProtectedVolume') -or
     -not $hypervPreflight.Contains("throw 'Host prerequisites are not yet ready. No VM, network, firewall, or credential state was changed.'") -or
     -not $newVmScript.Contains('RECOVERY-KEY-VERIFIED') -or
     -not $newVmScript.Contains('[string] $RecoveryKeyConfirmation')) {
     throw 'VM creation must require a BitLocker recovery-password protector and explicit operator confirmation that recovery material is retrievable.'
+}
+$preflightElevationGuardIndex = $hypervPreflight.IndexOf('if (-not $principal.IsInRole')
+$preflightWindowsReadIndex = $hypervPreflight.IndexOf('Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop')
+if ($preflightElevationGuardIndex -lt 0 -or $preflightWindowsReadIndex -le $preflightElevationGuardIndex) {
+    throw 'The Windows host preflight must require Administrator elevation before reading host state.'
 }
 if (-not $vmStartScript.Contains('[[ "$action" == start || "$action" == install || "$action" == restart ]]') -or
     -not $vmStartScript.Contains('export JENKINS_ADMIN_PASSWORD="$(<"$admin_password_file")"')) {
