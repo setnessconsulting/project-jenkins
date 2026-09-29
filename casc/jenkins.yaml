@@ -45,6 +45,29 @@ jenkins:
               privileged: false
               environment:
                 - "JENKINS_WEB_SOCKET=true"
+          - name: "setness-node22-14-one-build"
+            labelString: "setness-node22-14-ephemeral"
+            mode: EXCLUSIVE
+            instanceCapStr: "1"
+            retentionStrategy:
+              idleMinutes: 0
+            remoteFs: "/home/jenkins/agent"
+            pullStrategy: PULL_NEVER
+            removeVolumes: true
+            stopTimeout: 10
+            connector:
+              jnlp:
+                jenkinsUrl: "http://controller:8080/"
+                user: "1000"
+            dockerTemplateBase:
+              image: "jenkins-pilot-agent:node-22.14.0"
+              network: "setness-jenkins-private"
+              cpus: "4.0"
+              memoryLimit: 6144
+              memorySwap: 6144
+              privileged: false
+              environment:
+                - "JENKINS_WEB_SOCKET=true"
           - name: "setness-node24-one-build"
             labelString: "setness-node24-ephemeral"
             mode: EXCLUSIVE

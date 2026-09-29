@@ -29,6 +29,7 @@ backup_root='/var/backups/setness-jenkins'
 controller_image='jenkins-pilot-controller:2.568.3-pilot1'
 agent_images=(
   'jenkins-pilot-agent:node-22.23.3'
+  'jenkins-pilot-agent:node-22.14.0'
   'jenkins-pilot-agent:node-24.21.0'
   'jenkins-pilot-agent:node-22.23.3-playwright-1.62.1'
   'jenkins-pilot-agent:node-24.21.0-playwright-1.62.1'

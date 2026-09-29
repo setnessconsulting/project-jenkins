@@ -27,11 +27,19 @@ argument vectors for `npm ci --ignore-scripts`, `npm run check`, `npm test`, and
 `npm run verify`. It rejects a profile whose required Node version does not
 exactly match that agent. A profile pinned to a different Node patch must remain
 planned until a matching trusted agent is available or its repository's CI
-baseline is deliberately updated and verified. Repository-specific profile
-details belong in the private catalog, not this public repository. The target's
-package scripts are test code, not trusted policy; they must run only after
-checkout credentials have been removed and inside the unprivileged disposable
-agent. This adapter is not yet wired into a live Jenkins job.
+baseline is deliberately updated and verified.
+
+The `node22-verify-clean-checkout-v1` implementation uses a separate one-use
+agent pinned to Node 22.14.0/npm 10.9.2 and the static argument vectors
+`npm ci`, `npm run verify`, and `npm run verify:clean-checkout`. It exists for
+repositories whose reviewed CI contract requires that exact runtime and
+command sequence; repository-specific profiles remain private and planned
+until the live Jenkins consumer and exact-SHA qualification are complete.
+Repository-specific profile details belong in the private catalog, not this
+public repository. Target package scripts are test code, not trusted policy;
+they must run only after checkout credentials have been removed and inside
+the unprivileged disposable agent. The profile resolver is not yet wired into
+a live Jenkins job.
 
 Fork PRs are rejected. An owner allowlist is a bounded shadow policy, not a
 sandbox. Do not broaden access or make this check required until the runtime

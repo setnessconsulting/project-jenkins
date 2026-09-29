@@ -13,6 +13,7 @@ $environmentExamplePath = Join-Path $repositoryRoot '.env.example'
 $gitIgnorePath = Join-Path $repositoryRoot '.gitignore'
 $pluginsPath = Join-Path $repositoryRoot 'plugins.txt'
 $agentDockerfilePath = Join-Path $repositoryRoot 'agent/Dockerfile'
+$node2214DockerfilePath = Join-Path $repositoryRoot 'agent/Node22.14.Dockerfile'
 $node24DockerfilePath = Join-Path $repositoryRoot 'agent/Node24.Dockerfile'
 $playwrightDockerfilePath = Join-Path $repositoryRoot 'agent/Playwright.Dockerfile'
 $secondaryPlaywrightDockerfilePath = Join-Path $repositoryRoot 'agent/Node24Playwright.Dockerfile'
@@ -61,6 +62,7 @@ $environmentExample = Get-Content -LiteralPath $environmentExamplePath -Raw
 $gitIgnore = Get-Content -LiteralPath $gitIgnorePath -Raw
 $plugins = Get-Content -LiteralPath $pluginsPath -Raw
 $agentDockerfile = Get-Content -LiteralPath $agentDockerfilePath -Raw
+$node2214Dockerfile = Get-Content -LiteralPath $node2214DockerfilePath -Raw
 $node24Dockerfile = Get-Content -LiteralPath $node24DockerfilePath -Raw
 $playwrightDockerfile = Get-Content -LiteralPath $playwrightDockerfilePath -Raw
 $secondaryPlaywrightDockerfile = Get-Content -LiteralPath $secondaryPlaywrightDockerfilePath -Raw
@@ -369,8 +371,8 @@ $oneBuildTemplateCapCount = [regex]::Matches(
     '(?m)^[ \t]+instanceCapStr: "1"$'
 ).Count
 if (-not $jenkinsConfig.Contains('containerCap: 1') -or
-    $oneBuildTemplateCapCount -ne 4 -or
-    $oneBuildRetentionStrategyCount -ne 4 -or
+    $oneBuildTemplateCapCount -ne 5 -or
+    $oneBuildRetentionStrategyCount -ne 5 -or
     $jenkinsConfig.Contains('$class: com.nirima.jenkins.plugins.docker.strategy.DockerOnceRetentionStrategy') -or
     $jenkinsConfig.Contains('dockerOnce:') -or
     -not $jenkinsConfig.Contains('idleMinutes: 0') -or
@@ -381,12 +383,14 @@ if (-not $jenkinsConfig.Contains('containerCap: 1') -or
     -not $jenkinsConfig.Contains('cpus: "4.0"') -or
     -not $jenkinsConfig.Contains('privileged: false') -or
     -not $jenkinsConfig.Contains('network: "setness-jenkins-private"')) {
-    throw 'The Docker cloud must configure four correctly bounded one-build templates through the plugin CasC schema and provision resource-limited, unprivileged containers on its private network.'
+    throw 'The Docker cloud must configure five correctly bounded one-build templates through the plugin CasC schema and provision resource-limited, unprivileged containers on its private network.'
 }
 if ($jenkinsConfig.Contains('permanent:') -or $jenkinsConfig.Contains('setness-linux-agent')) {
     throw 'A persistent Jenkins agent must not be configured.'
 }
 foreach ($agentContract in @(
+    'labelString: "setness-node22-14-ephemeral"',
+    'image: "jenkins-pilot-agent:node-22.14.0"',
     'labelString: "setness-node24-ephemeral"',
     'image: "jenkins-pilot-agent:node-24.21.0"',
     'labelString: "setness-e2e-ephemeral"',
@@ -404,6 +408,13 @@ if (-not [regex]::IsMatch(
 )) {
     throw 'The secondary one-use agent label must remain nested under its Docker template in Jenkins CasC.'
 }
+if (-not [regex]::IsMatch(
+    $jenkinsConfig,
+    '(?m)^          - name: "setness-node22-14-one-build"\r?\n            labelString: "setness-node22-14-ephemeral"$'
+) -or -not $jenkinsConfig.Contains('image: "jenkins-pilot-agent:node-22.14.0"') -or
+    -not $jenkinsConfig.Contains('memoryLimit: 6144')) {
+    throw 'The exact Node 22.14 profile must have a dedicated one-use, resource-limited Docker agent template.'
+}
 if (-not $plugins.Contains('docker-plugin:1327.v9524f1ee134e')) {
     throw 'The Docker cloud plugin must be explicitly version-pinned.'
 }
@@ -413,13 +424,22 @@ if (-not $agentDockerfile.Contains('openssh-client') -or
     throw 'The SSH checkout agent must include the pinned GitHub host key and SSH client.'
 }
 if (-not $agentDockerfile.Contains('v22.23.3') -or
+    -not $node2214Dockerfile.Contains('v22.14.0') -or
+    -not $node2214Dockerfile.Contains('npm --version') -or
+    -not $node2214Dockerfile.Contains('10.9.2') -or
+    -not $node2214Dockerfile.Contains('69b09dba5c8dcb05c4e4273a4340db1005abeafe3927efda2bc5b249e80437ec') -or
+    -not $node2214Dockerfile.Contains('sha256sum --check --strict') -or
+    -not $node2214Dockerfile.Contains('USER jenkins') -or
+    $node2214Dockerfile.Contains('docker.sock') -or
+    $node2214Dockerfile.Contains('JENKINS_SECRET') -or
+    $node2214Dockerfile.Contains('GITHUB_APP') -or
     -not $node24Dockerfile.Contains('v24.21.0') -or
     -not $node24Dockerfile.Contains('sha256sum --check --strict') -or
     -not $playwrightDockerfile.Contains('PLAYWRIGHT_VERSION=1.62.1') -or
     -not $playwrightDockerfile.Contains('playwright install-deps chromium') -or
     -not $playwrightDockerfile.Contains('playwright install chromium') -or
     -not $playwrightDockerfile.Contains('USER jenkins')) {
-    throw 'The pinned Node 22, Node 24, and pre-baked unprivileged Playwright agent images are incomplete.'
+    throw 'The pinned Node 22, Node 22.14, Node 24, and pre-baked unprivileged Playwright agent images are incomplete.'
 }
 if (-not $secondaryPlaywrightDockerfile.Contains('v24.21.0') -or
     -not $secondaryPlaywrightDockerfile.Contains('sha256sum --check --strict') -or
@@ -432,7 +452,9 @@ if (-not $secondaryPlaywrightDockerfile.Contains('v24.21.0') -or
     $secondaryPlaywrightDockerfile.Contains('GITHUB_APP')) {
     throw 'The secondary Node 24/Playwright image must pin Node and Playwright, preinstall all three browsers, and contain no controller or credential access.'
 }
-if (-not $compose.Contains('dockerfile: agent/Node24.Dockerfile') -or
+if (-not $compose.Contains('dockerfile: agent/Node22.14.Dockerfile') -or
+    -not $compose.Contains('jenkins-pilot-agent:node-22.14.0') -or
+    -not $compose.Contains('dockerfile: agent/Node24.Dockerfile') -or
     -not $compose.Contains('dockerfile: agent/Playwright.Dockerfile') -or
     -not $compose.Contains('dockerfile: agent/Node24Playwright.Dockerfile') -or
     -not $compose.Contains('jenkins-pilot-agent:node-24.21.0') -or
@@ -580,11 +602,12 @@ if (-not $vmStartScript.Contains('[[ "$action" == start || "$action" == install 
     -not $vmStartScript.Contains('export JENKINS_ADMIN_PASSWORD="$(<"$admin_password_file")"')) {
     throw 'Every controller-starting action, including first install, must load the protected bootstrap password rather than a placeholder.'
 }
-if (-not $vmStartScript.Contains('build controller agent-image node24-agent-image e2e-agent-image secondary-agent-image')) {
+if (-not $vmStartScript.Contains('build controller agent-image node22-14-agent-image node24-agent-image e2e-agent-image secondary-agent-image')) {
     throw 'VM installation and restart must prebuild every disposable agent profile.'
 }
 foreach ($agentImage in @(
     'jenkins-pilot-agent:node-22.23.3',
+    'jenkins-pilot-agent:node-22.14.0',
     'jenkins-pilot-agent:node-24.21.0',
     'jenkins-pilot-agent:node-22.23.3-playwright-1.62.1',
     'jenkins-pilot-agent:node-24.21.0-playwright-1.62.1'
@@ -831,6 +854,7 @@ if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
     -not $portfolioConsumerTests.Contains('returns executable commands only after PR identity and profile repository bind') -or
     -not $portfolioConsumerTests.Contains('rejects a profile whose required Node.js runtime differs from the pinned agent') -or
     -not $portfolioConsumerTests.Contains('resolves the centrally pinned Node 24 lint, type, and test implementation') -or
+    -not $portfolioConsumerTests.Contains('resolves the clean-checkout workflow only on its exactly pinned Node 22.14 agent') -or
     -not $portfolioConsumerTests.Contains('rejects qualified and fork claims without full evidence') -or
     -not $portfolioCli.Contains('readInput()') -or
     -not $portfolioCli.Contains('MAX_REQUEST_BYTES = 1024 * 1024') -or
@@ -843,11 +867,12 @@ if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
     -not $portfolioCliTests.Contains('rejects outside authors, stale heads, and an injected author allowlist') -or
     -not $controllerDockerfile.Contains('integration/portfolio-profile-contract /usr/share/jenkins/portfolio-profile-contract') -or
     $agentDockerfile.Contains('integration/portfolio-profile-contract') -or
+    $node2214Dockerfile.Contains('integration/portfolio-profile-contract') -or
     $node24Dockerfile.Contains('integration/portfolio-profile-contract') -or
     $playwrightDockerfile.Contains('integration/portfolio-profile-contract') -or
     $secondaryPlaywrightDockerfile.Contains('integration/portfolio-profile-contract') -or
     -not $portfolioConsumerPackage.Contains('"node": ">=22.23.3"') -or
-    -not $portfolioConsumerDocs.Contains('not yet wired into a live Jenkins job') -or
+    $portfolioConsumerDocs -notmatch 'not yet wired into\s+a live Jenkins job' -or
     -not $portfolioAdapterDocs.Contains('No Jenkins job') -or
     -not $portfolioAdapterDocs.Contains('no App token is fetched') -or
     -not $portfolioAdapterDocs.Contains('GitHub''s API immediately before invoking') -or
@@ -856,4 +881,4 @@ if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
     throw 'The portfolio profile consumer must remain data-only, tested, Node 22-compatible, and explicitly non-qualified until runtime wiring and isolation are verified.'
 }
 
-Write-Output 'Compose isolation, disposable Node 22/Node 24/Playwright agents, controller-before-checkout authorization, opt-in secondary-repository profile, separate verification lanes, credential boundaries, check reporting, recovery gates, trusted-pipeline contracts, Test Platform consumer contract, and bounded controller-side portfolio profile adapter contract passed.'
+Write-Output 'Compose isolation, disposable Node 22/Node 22.14/Node 24/Playwright agents, controller-before-checkout authorization, opt-in secondary-repository profile, separate verification lanes, credential boundaries, check reporting, recovery gates, trusted-pipeline contracts, Test Platform consumer contract, and bounded controller-side portfolio profile adapter contract passed.'
