@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  IMPLEMENTATIONS,
+  ROUTINE_DISPATCH_IMPLEMENTATIONS,
   listRoutinePullRequestPollRepositories,
   planRoutinePullRequestPoll,
 } from '../src/consumer.mjs';
@@ -29,7 +31,7 @@ function makeCatalog({ controlPlaneStatus = 'active', profileStatus = 'shadow', 
       status: profileStatus,
       repositories: [repository],
       checkNames: ['jenkins-pr-gate'],
-      requiredNodeVersion: '22.14.0',
+      requiredNodeVersion: IMPLEMENTATIONS[implementationId]?.nodeVersion ?? '22.14.0',
       qualification,
     }],
     controlPlane: {
@@ -216,6 +218,20 @@ test('only centrally approved implementations are polled', () => {
   assert.deepEqual(planRoutinePullRequestPoll(catalog, [], [], [], now), {
     status: 'ready', dispatches: [], state: [],
   });
+});
+
+test('the foundation implementation is pollable only after its repository profile is shadow-enabled', () => {
+  assert.deepEqual(ROUTINE_DISPATCH_IMPLEMENTATIONS, [
+    'node22-foundation-v1',
+    'node22-verify-clean-checkout-v1',
+  ]);
+  const catalog = makeCatalog({ implementationId: 'node22-foundation-v1' });
+  assert.deepEqual(listRoutinePullRequestPollRepositories(catalog), [repository]);
+  assert.equal(plan(catalog, [makePullRequest()]).dispatches[0].headSha, shaA);
+
+  catalog.profiles[0].status = 'planned';
+  assert.deepEqual(listRoutinePullRequestPollRepositories(catalog), []);
+  assert.deepEqual(planRoutinePullRequestPoll(catalog, [], [], [], now).dispatches, []);
 });
 
 test('qualified profiles remain runnable after their evidence gate passes', () => {

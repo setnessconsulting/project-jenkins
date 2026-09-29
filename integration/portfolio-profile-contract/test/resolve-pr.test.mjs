@@ -73,6 +73,8 @@ test('controller stdin adapter emits only the centrally defined plan for the exa
       headSha: sha,
       requiredCheck: 'jenkins-pr-gate',
       agentClass: 'setness-ephemeral',
+      nodeVersion: '22.23.3',
+      npmVersion: '10.9.9',
       commands: [
         ['npm', 'ci', '--ignore-scripts'],
         ['npm', 'run', 'check'],

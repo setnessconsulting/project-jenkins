@@ -51,6 +51,7 @@ export const IMPLEMENTATIONS = Object.freeze({
   'node22-foundation-v1': Object.freeze({
     agentClass: 'setness-ephemeral',
     nodeVersion: '22.23.3',
+    npmVersion: '10.9.9',
     requiredCheck: 'jenkins-pr-gate',
     commands: Object.freeze([
       Object.freeze(['npm', 'ci', '--ignore-scripts']),
@@ -86,6 +87,7 @@ export const IMPLEMENTATIONS = Object.freeze({
 // Adding an implementation requires a reviewed trusted runtime and profile
 // contract; catalog data cannot expand this set.
 export const ROUTINE_DISPATCH_IMPLEMENTATIONS = Object.freeze([
+  'node22-foundation-v1',
   'node22-verify-clean-checkout-v1',
 ]);
 
@@ -272,6 +274,8 @@ function resolveShadowExecution(catalog, profileId, headSha) {
     headSha: headSha.toLowerCase(),
     requiredCheck: implementation.requiredCheck,
     agentClass: implementation.agentClass,
+    nodeVersion: implementation.nodeVersion,
+    ...(implementation.npmVersion ? { npmVersion: implementation.npmVersion } : {}),
     commands: Object.freeze(implementation.commands.map((argv) => Object.freeze([...argv]))),
   });
 }
