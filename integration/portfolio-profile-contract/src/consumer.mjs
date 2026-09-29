@@ -59,6 +59,17 @@ export const IMPLEMENTATIONS = Object.freeze({
       Object.freeze(['npm', 'run', 'verify']),
     ]),
   }),
+  'node24-lint-typescript-test-v1': Object.freeze({
+    agentClass: 'setness-node24-ephemeral',
+    nodeVersion: '24.21.0',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['npm', 'ci']),
+      Object.freeze(['npm', 'run', 'lint']),
+      Object.freeze(['npx', 'tsc', '--noEmit']),
+      Object.freeze(['npm', 'test']),
+    ]),
+  }),
 });
 
 export class ProfileRejection extends Error {
