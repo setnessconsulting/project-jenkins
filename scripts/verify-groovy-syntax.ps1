@@ -35,7 +35,10 @@ try {
         'casc/pipelines/repository-pilot.groovy',
         'casc/pipelines/secondary-repository.groovy',
         'casc/pipelines/e2e.groovy',
-        'casc/pipelines/test-platform.groovy'
+        'casc/pipelines/test-platform.groovy',
+        'casc/pipelines/portfolio-pr-gate.groovy',
+        'casc/pipelines/portfolio-credential-store.groovy',
+        'casc/pipelines/portfolio-checkout-credential-reaper.groovy'
     ) | ForEach-Object { Join-Path $repositoryRoot $_ }
 
     & $javaCommand.Source -cp $jarPath groovy.ui.GroovyMain (Join-Path $PSScriptRoot 'verify-groovy-syntax.groovy') @pipelinePaths

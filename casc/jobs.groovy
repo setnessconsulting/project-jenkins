@@ -13,6 +13,8 @@ def e2eScheduleEnabledValue = (System.getenv('JENKINS_E2E_SCHEDULE_ENABLED') ?: 
 def siteUrl = System.getenv('JENKINS_SITE_URL')?.trim()
 def githubAppId = System.getenv('JENKINS_GITHUB_APP_ID')?.trim()
 def appCredentialId = System.getenv('JENKINS_GITHUB_APP_CREDENTIAL_ID')?.trim()
+def portfolioCatalogRepository = System.getenv('JENKINS_PORTFOLIO_CATALOG_REPOSITORY')?.trim() ?: ''
+def portfolioCatalogEnabled = !portfolioCatalogRepository.isEmpty()
 def checkoutCredentialId = System.getenv('JENKINS_CHECKOUT_SSH_CREDENTIAL_ID')?.trim() ?: 'jenkins-readonly-checkout'
 def candidatePathRules = (System.getenv('JENKINS_CANDIDATE_PATHS') ?: '')
     .split(',')
@@ -43,6 +45,9 @@ if (!(primaryCheckName ==~ /[A-Za-z0-9][A-Za-z0-9 ._-]{0,99}/) ||
         !(e2eJobName ==~ /[A-Za-z0-9._-]{1,100}/) || e2eJobName == jobName ||
         !siteUrl?.startsWith('https://') || siteUrl.contains('@') || siteUrl.contains(' ')) {
     throw new IllegalStateException('Set valid private check names, relative application directories, a separate E2E job name, and HTTPS site URL in the ignored local .env file.')
+}
+if (portfolioCatalogEnabled && !(portfolioCatalogRepository ==~ /(?i)setnessconsulting\/[A-Za-z0-9._-]{1,100}/)) {
+    throw new IllegalStateException('The optional portfolio catalog must be a Setness Consulting repository in owner/name form.')
 }
 if (candidatePathRules.isEmpty() || candidatePathRules.any { rule ->
         !(rule ==~ /[A-Za-z0-9._\/-]+/) || rule.startsWith('/') ||
@@ -115,6 +120,46 @@ if (!(testPlatformJobName ==~ /[A-Za-z0-9._-]{1,100}/) ||
 def testPlatformPipelineTemplate = new File(
     '/usr/share/jenkins/casc/pipelines/test-platform.groovy'
 ).getText('UTF-8')
+
+def portfolioCredentialStoreHelpers = new File(
+    '/usr/share/jenkins/casc/pipelines/portfolio-credential-store.groovy'
+).getText('UTF-8')
+def portfolioCredentialStoreMarker = '/* JENKINS_PORTFOLIO_CREDENTIAL_STORE_HELPERS */'
+def portfolioPipelineTemplate = new File(
+    '/usr/share/jenkins/casc/pipelines/portfolio-pr-gate.groovy'
+).getText('UTF-8')
+def portfolioReaperPipelineTemplate = new File(
+    '/usr/share/jenkins/casc/pipelines/portfolio-checkout-credential-reaper.groovy'
+).getText('UTF-8')
+if (portfolioCredentialStoreHelpers.isEmpty() ||
+    portfolioPipelineTemplate.count(portfolioCredentialStoreMarker) != 1 ||
+    portfolioReaperPipelineTemplate.count(portfolioCredentialStoreMarker) != 1) {
+    throw new IllegalStateException('The trusted portfolio jobs require exactly one shared folder-credential helper marker each.')
+}
+portfolioPipelineTemplate = portfolioPipelineTemplate.replace(
+    portfolioCredentialStoreMarker,
+    portfolioCredentialStoreHelpers
+)
+portfolioReaperPipelineTemplate = portfolioReaperPipelineTemplate.replace(
+    portfolioCredentialStoreMarker,
+    portfolioCredentialStoreHelpers
+)
+def portfolioAppCredentialMarker = '/* JENKINS_PORTFOLIO_APP_CREDENTIAL_ID */'
+def portfolioCatalogRepositoryMarker = '/* JENKINS_PORTFOLIO_CATALOG_REPOSITORY */'
+if (portfolioPipelineTemplate.count(portfolioAppCredentialMarker) != 1) {
+    throw new IllegalStateException('The trusted portfolio Pipeline has a missing or duplicate App credential marker.')
+}
+if (portfolioPipelineTemplate.count(portfolioCatalogRepositoryMarker) != 1) {
+    throw new IllegalStateException('The trusted portfolio Pipeline has a missing or duplicate catalog repository marker.')
+}
+portfolioPipelineTemplate = portfolioPipelineTemplate.replace(
+    portfolioAppCredentialMarker,
+    JsonOutput.toJson(appCredentialId)
+)
+portfolioPipelineTemplate = portfolioPipelineTemplate.replace(
+    portfolioCatalogRepositoryMarker,
+    JsonOutput.toJson(portfolioCatalogRepository)
+)
 
 // The second repository is a separately enabled profile. Its repo-scoped
 // checkout key and trusted author allowlist must be configured explicitly;
@@ -408,6 +453,77 @@ pipelineJob(testPlatformJobName) {
     definition {
         cps {
             script(testPlatformPipelineTemplate)
+            sandbox(false)
+        }
+    }
+}
+
+// This folder must contain only these two centrally trusted jobs. The folder
+// credential provider scopes short-lived checkout tokens to its children.
+folder('portfolio-dispatch') {
+    displayName('Portfolio Dispatch (trusted only)')
+    description('Dedicated folder for the centrally trusted portfolio PR dispatcher and its temporary-credential reaper; do not add repository-controlled jobs.')
+}
+
+// Manual-only bridge from the private data catalog to one centrally trusted
+// profile implementation. It has no repository-provided Pipeline or routine
+// verification trigger; Actions remains authoritative during qualification.
+pipelineJob('portfolio-dispatch/portfolio-pr-gate') {
+    displayName('Portfolio PR Gate (manual shadow)')
+    disabled(!portfolioCatalogEnabled)
+    description('''
+        Manually dispatches only explicitly shadow-enabled, centrally approved portfolio profiles.
+        The controller refreshes private catalog and exact PR metadata before checkout. Routine Actions,
+        branch protection, and deployment settings are not changed by this job. Temporary checkout
+        credentials live only in this dedicated folder and are removed after checkout or reaped after expiry.
+        '''.stripIndent().trim())
+    logRotator {
+        daysToKeep(30)
+        numToKeep(100)
+    }
+    parameters {
+        stringParam('TARGET_REPOSITORY', '', 'Repository in owner/name form; must have a centrally approved shadow profile.')
+        stringParam('PULL_REQUEST_NUMBER', '', 'Open same-repository PR number.')
+        stringParam('EXPECTED_HEAD_SHA', '', 'Full 40- or 64-character PR head SHA; stale inputs fail closed.')
+    }
+    definition {
+        cps {
+            script(portfolioPipelineTemplate)
+            sandbox(false)
+        }
+    }
+}
+
+// Reap temporary App checkout tokens independently of a later manual PR run.
+pipelineJob('portfolio-dispatch/portfolio-checkout-credential-reaper') {
+    displayName('Portfolio checkout credential reaper')
+    disabled(false)
+    description('Removes expired, one-repository checkout tokens from the dedicated portfolio folder credential store. It does not access repositories or publish checks.')
+    logRotator {
+        daysToKeep(14)
+        numToKeep(30)
+    }
+    triggers {
+        cron('H/15 * * * *')
+    }
+    definition {
+        cps {
+            script(portfolioReaperPipelineTemplate)
+            sandbox(false)
+        }
+    }
+}
+
+// Explicitly retire the former root-level dispatcher path so a persisted job
+// cannot continue running an older definition after catalog configuration is
+// cleared or the folder-scoped replacement is installed.
+pipelineJob('portfolio-pr-gate') {
+    displayName('Portfolio PR Gate (deprecated, disabled)')
+    disabled(true)
+    description('Deprecated root-level dispatcher. Use portfolio-dispatch/portfolio-pr-gate when explicitly enabled by the private catalog configuration.')
+    definition {
+        cps {
+            script("error('This deprecated portfolio job is disabled; use portfolio-dispatch/portfolio-pr-gate.')")
             sandbox(false)
         }
     }
