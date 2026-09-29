@@ -772,7 +772,8 @@ if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
     -not $portfolioCli.Contains('readInput()') -or
     -not $portfolioCli.Contains('MAX_REQUEST_BYTES = 1024 * 1024') -or
     -not $portfolioCli.Contains("Object.freeze(['setnessconsulting'])") -or
-    -not $portfolioCli.Contains('resolveAuthorizedShadowPullRequest(') -or
+    -not $portfolioCli.Contains('resolveAuthorizedShadowPullRequestForRepository(') -or
+    $portfolioCli -match '\bresolveAuthorizedShadowPullRequest\s*\(' -or
     $portfolioCli.Contains('child_process') -or
     $portfolioCli.Contains('process.env') -or
     -not $portfolioCliTests.Contains('controller stdin adapter emits only the centrally defined plan') -or

@@ -1,7 +1,5 @@
 import {
-  ProfileRejection,
-  resolveAuthorizedShadowPullRequest,
-  validateProfileCatalog,
+  resolveAuthorizedShadowPullRequestForRepository,
 } from './consumer.mjs';
 
 const MAX_REQUEST_BYTES = 1024 * 1024;
@@ -43,12 +41,7 @@ function resolveForRepository(catalog, pr, request) {
   if (typeof request.repository !== 'string') {
     throw new AdapterError('invalid-repository');
   }
-  validateProfileCatalog(catalog);
-  const profile = catalog.profiles.find((candidate) => candidate.repositories.some((repository) =>
-    repository.toLowerCase() === request.repository.toLowerCase()));
-  if (!profile) throw new ProfileRejection('unknown-profile', 'repository is not mapped');
-
-  return resolveAuthorizedShadowPullRequest(catalog, profile.id, pr, {
+  return resolveAuthorizedShadowPullRequestForRepository(catalog, pr, {
     ...request,
     allowedAuthors: TRUSTED_SHADOW_AUTHORS,
   });
