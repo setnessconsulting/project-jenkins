@@ -32,6 +32,9 @@ $rollbackScriptPath = Join-Path $repositoryRoot 'scripts/rollback-jenkins-vm-for
 $windowsControllerShimPath = Join-Path $repositoryRoot 'scripts/start-controller.ps1'
 $testPlatformPipelinePath = Join-Path $repositoryRoot 'casc/pipelines/test-platform.groovy'
 $portfolioPipelinePath = Join-Path $repositoryRoot 'casc/pipelines/portfolio-pr-gate.groovy'
+$portfolioCredentialHelpersPath = Join-Path $repositoryRoot 'casc/pipelines/portfolio-credential-store.groovy'
+$portfolioReaperPipelinePath = Join-Path $repositoryRoot 'casc/pipelines/portfolio-checkout-credential-reaper.groovy'
+$groovySyntaxVerifierPath = Join-Path $repositoryRoot 'scripts/verify-groovy-syntax.ps1'
 $testPlatformCatalogPath = Join-Path $repositoryRoot 'integration/test-platform-contract/src/approved-catalog.json'
 $testPlatformAdapterPath = Join-Path $repositoryRoot 'integration/test-platform-contract/src/adapter.mjs'
 $testPlatformWirePath = Join-Path $repositoryRoot 'integration/test-platform-contract/src/wire.mjs'
@@ -81,6 +84,9 @@ $restoreScript = Get-Content -LiteralPath $restoreScriptPath -Raw
 $windowsControllerShim = Get-Content -LiteralPath $windowsControllerShimPath -Raw
 $testPlatformPipeline = Read-NormalizedText -LiteralPath $testPlatformPipelinePath
 $portfolioPipeline = Read-NormalizedText -LiteralPath $portfolioPipelinePath
+$portfolioCredentialHelpers = Read-NormalizedText -LiteralPath $portfolioCredentialHelpersPath
+$portfolioReaperPipeline = Read-NormalizedText -LiteralPath $portfolioReaperPipelinePath
+$groovySyntaxVerifier = Read-NormalizedText -LiteralPath $groovySyntaxVerifierPath
 $testPlatformCatalog = Read-NormalizedText -LiteralPath $testPlatformCatalogPath
 $testPlatformAdapter = Read-NormalizedText -LiteralPath $testPlatformAdapterPath
 $testPlatformWire = Read-NormalizedText -LiteralPath $testPlatformWirePath
@@ -789,11 +795,15 @@ foreach ($cliGuard in @('finalize', 'verify')) {
 if (-not $jobs.Contains('test-platform.groovy') -or -not $jobs.Contains('testPlatformPipelineTemplate')) {
     throw 'CasC must install the trusted Test Platform pipeline exactly like the other trusted pipelines.'
 }
-if (-not $jobs.Contains('portfolio-pr-gate.groovy') -or
+if (-not $jobs.Contains("pipelineJob('portfolio-dispatch/portfolio-pr-gate')") -or
     -not $jobs.Contains('portfolioPipelineTemplate') -or
+    -not $jobs.Contains('disabled(!portfolioCatalogEnabled)') -or
+    -not $jobs.Contains("pipelineJob('portfolio-dispatch/portfolio-checkout-credential-reaper')") -or
+    -not $jobs.Contains("cron('H/15 * * * *')") -or
     -not $jobs.Contains("pipelineJob('portfolio-pr-gate')") -or
-    $jobs -match '(?s)pipelineJob\(''portfolio-pr-gate''\).*?triggers\s*\{') {
-    throw 'The portfolio dispatcher must be a manual-only trusted Jenkins job with no routine trigger.'
+    -not $jobs.Contains('disabled(true)') -or
+    -not $jobs.Contains('Deprecated root-level dispatcher')) {
+    throw 'The portfolio dispatcher must be folder-scoped, disabled when catalog configuration is absent, and paired with a scheduled credential reaper; the legacy root job must be disabled.'
 }
 if (-not $controllerDockerfile.Contains('integration/test-platform-contract') -or -not $controllerDockerfile.Contains('nodejs.org')) {
     throw 'The controller image must provision the pinned Node runtime and the trusted Test Platform adapter.'
@@ -867,13 +877,18 @@ foreach ($portfolioRuntimeGuard in @(
     "def portfolioAdapterImplementationAllowlist = ['node22-verify-clean-checkout-v1']",
     'portfolioScopedAppToken(def run, String credentialId, String repository, Map permissions)',
     'new org.jenkinsci.plugins.github_branch_source.app_credentials.AccessSpecifiedRepositories(parts[0], [parts[1]])',
+    'portfolioFolderCredentialStore(run)',
+    'store.addCredentials(domain, credential)',
+    'if (!partial.is(credential)',
+    'store.removeCredentials(domain, partial)',
+    'Temporary checkout credential setup failed and rollback could not be confirmed',
     'Map portfolioRepoApiRequest(',
     'Map portfolioFetchJsonFile(',
     'Map portfolioResolveProfile(',
-    'portfolioCleanupStaleCheckoutCredentials(2 * 60 * 60 * 1000L)',
+    'portfolioCleanupStaleCheckoutCredentials(currentBuild.rawBuild, 65 * 60 * 1000L)',
     'Map refreshedPullRequest = portfolioRepoApiRequest(',
     'temporaryCheckoutCredentialId = portfolioCreateCheckoutCredential(',
-    'portfolioRemoveCheckoutCredential(temporaryCheckoutCredentialId)',
+    'portfolioRemoveCheckoutCredential(currentBuild.rawBuild, temporaryCheckoutCredentialId)',
     'refs/pull/${params.PULL_REQUEST_NUMBER}/head:refs/remotes/origin/pull/${params.PULL_REQUEST_NUMBER}/head',
     'checkedOutSha != env.PORTFOLIO_HEAD_SHA.toLowerCase()',
     "name: 'jenkins-pr-gate'",
@@ -889,9 +904,39 @@ foreach ($portfolioRuntimeGuard in @(
         throw "The manual portfolio controller dispatcher is missing a required scope, exact-SHA, or cleanup boundary: $portfolioRuntimeGuard"
     }
 }
+if (-not $portfolioCredentialHelpers.Contains('CredentialsProvider.lookupStores(folder)') -or
+    -not $portfolioCredentialHelpers.Contains('candidate.getContext()?.is(folder)') -or
+    -not $portfolioCredentialHelpers.Contains("folder.getFullName() != 'portfolio-dispatch'") -or
+    -not $portfolioCredentialHelpers.Contains("'portfolio-dispatch/portfolio-pr-gate'") -or
+    -not $portfolioCredentialHelpers.Contains("'portfolio-dispatch/portfolio-checkout-credential-reaper'") -or
+    -not $portfolioCredentialHelpers.Contains('store.save()') -or
+    $portfolioCredentialHelpers.Contains('SystemCredentialsProvider') -or
+    $portfolioPipeline.Contains('SystemCredentialsProvider') -or
+    -not $portfolioReaperPipeline.Contains('portfolioCleanupStaleCheckoutCredentials(currentBuild.rawBuild, 65 * 60 * 1000L)') -or
+    -not $jobs.Contains('portfolioCredentialStoreHelpers.isEmpty()') -or
+    -not $jobs.Contains('portfolioPipelineTemplate.count(portfolioCredentialStoreMarker) != 1') -or
+    -not $jobs.Contains('portfolioReaperPipelineTemplate.count(portfolioCredentialStoreMarker) != 1') -or
+    -not $jobs.Contains('portfolioReaperPipelineTemplate = portfolioReaperPipelineTemplate.replace(')) {
+    throw 'Temporary checkout credentials must stay in the dedicated folder credential store, roll back on registration failures, and be reaped independently of manual dispatch.'
+}
+if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-credential-store.groovy'") -or
+    -not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-checkout-credential-reaper.groovy'")) {
+    throw 'Jenkins-pinned Groovy syntax validation must parse the shared portfolio credential helper and its reaper Pipeline.'
+}
+foreach ($forbiddenPublicPortfolioOutput in @(
+    'Catalog file blob:',
+    'Jenkins run:',
+    'summary: "Centrally trusted profile ${profileId}',
+    '${catalogBlobSha}',
+    '${jenkinsUrl}'
+)) {
+    if ($portfolioPipeline.Contains($forbiddenPublicPortfolioOutput)) {
+        throw "The GitHub-visible portfolio check output must not disclose private implementation metadata: $forbiddenPublicPortfolioOutput"
+    }
+}
 if (-not $jobs.Contains("def portfolioCatalogRepository = System.getenv('JENKINS_PORTFOLIO_CATALOG_REPOSITORY')?.trim()") -or
     -not $jobs.Contains('def portfolioCatalogEnabled = !portfolioCatalogRepository.isEmpty()') -or
-    -not $jobs.Contains('if (portfolioCatalogEnabled) {') -or
+    -not $jobs.Contains('disabled(!portfolioCatalogEnabled)') -or
     -not $jobs.Contains("JsonOutput.toJson(portfolioCatalogRepository)") -or
     -not $jobs.Contains('portfolioPipelineTemplate.count(portfolioCatalogRepositoryMarker) != 1') -or
     -not $environmentExample.Contains('JENKINS_PORTFOLIO_CATALOG_REPOSITORY=') -or

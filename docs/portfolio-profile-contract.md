@@ -8,8 +8,9 @@ variables, network policy, or check conclusions.
 `integration/portfolio-profile-contract` defines the strict catalog envelope,
 the central implementation registry, exact-SHA request resolution, and the
 initial same-repository/owner-only PR policy. Its Node 22 adapter is a
-contract-tested component. The manual-only `portfolio-pr-gate` invokes it from
-the controller after reading the private catalog and refreshing the live PR.
+contract-tested component. The manual-only
+`portfolio-dispatch/portfolio-pr-gate` invokes it from the controller after
+reading the private catalog and refreshing the live PR.
 This does not make a repository Jenkins-authoritative or qualify its profile.
 
 For portfolio pull-request dispatch, use
@@ -42,8 +43,22 @@ centrally implemented Node 22.14 clean-checkout implementation. Catalog
 profiles remain `planned` until the matching runtime is loaded and ready and
 the private catalog explicitly moves an individual repository profile to
 shadow. Existing pilot jobs remain separate and are not routed through this
-dispatcher, avoiding duplicate check publishers. There is no portfolio polling
-or automatic trigger in this increment.
+dispatcher, avoiding duplicate check publishers. The dispatcher is disabled
+when its private catalog setting is absent, and the former root-level job is
+explicitly disabled to prevent stale definitions from surviving reconfiguration.
+
+Temporary read-only checkout tokens are stored only in the folder-scoped
+credentials store of the dedicated `portfolio-dispatch` folder, whose only
+jobs are the centrally trusted dispatcher and credential reaper. The token is
+removed after checkout and in failure cleanup; a dedicated reaper runs every
+15 minutes and removes matching credentials older than 65 minutes. If a failed
+store write cannot be rolled back, the error is sanitized and the token's
+one-hour expiry plus scheduled retry bound the recovery window. The folder
+store is selected by exact folder context; the controller-wide System
+credentials store is never used for checkout tokens.
+
+There is no portfolio polling or automatic PR verification trigger in this
+increment; the reaper schedule is maintenance only.
 
 Fork PRs are rejected. An owner allowlist is a bounded shadow policy, not a
 sandbox. Do not broaden access or make this check required until the runtime
