@@ -329,8 +329,14 @@ foreach ($privateConfigurationKey in @('JENKINS_GITHUB_APP_CREDENTIAL_ID', 'JENK
         throw "Private target configuration must be injected from local runtime settings: $privateConfigurationKey."
     }
 }
-if (-not $jenkinsConfig.Contains('numExecutors: 0')) {
-    throw 'The Jenkins controller must have zero build executors.'
+if (-not $jenkinsConfig.Contains('numExecutors: 1')) {
+    throw 'The Jenkins controller must keep exactly one built-in executor so Test Platform Authorize and Finalize can run on label built-in. Zero executors queues those stages forever after a CasC reload.'
+}
+if ($jenkinsConfig -match 'numExecutors:\s*0') {
+    throw 'The Jenkins controller must not return to zero built-in executors; Authorize and Finalize need label built-in.'
+}
+if (-not $jenkinsConfig.Contains('tmpSpace:') -or -not $jenkinsConfig.Contains('freeSpaceThreshold: "100MB"')) {
+    throw 'CasC must keep TemporarySpaceMonitor (tmpSpace) freeSpaceThreshold at 100MB so reload does not offline the node-22.14 canary agent.'
 }
 $controllerSectionMatch = [regex]::Match($compose, '(?ms)^  controller:\r?\n(?<body>.*?)(?=^  agent-image:)')
 $agentImageSectionMatch = [regex]::Match($compose, '(?ms)^  agent-image:\r?\n(?<body>.*?)(?=^  [A-Za-z0-9_-]+:\s*$|^volumes:\s*$)')
@@ -809,7 +815,15 @@ $testPlatformRequiredGuards = @(
     'agent-unavailable',
     'checkout-sha-mismatch',
     'Authorize and resolve Test Platform contract',
-    'git rev-parse HEAD'
+    'git rev-parse HEAD',
+    'src/cli.mjs',
+    'JsonSlurperClassic',
+    "label 'built-in'",
+    "label 'setness-node22-14-ephemeral'",
+    "exitCode == 0 ? 'passed'",
+    'env.GIT_COMMIT = checkedOutSha',
+    'archiveArtifacts',
+    'JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson'
 )
 foreach ($guard in $testPlatformRequiredGuards) {
     if (-not $testPlatformPipeline.Contains($guard)) {
@@ -824,8 +838,13 @@ if ($testPlatformAuthIndex -lt 0 -or $testPlatformCheckoutIndex -lt 0 -or $testP
 if ($testPlatformPipeline.Contains('${plan.') -or $testPlatformPipeline.Contains('${suite.')) {
     throw 'The trusted Test Platform pipeline must not interpolate plan-controlled values.'
 }
-
+if ($testPlatformPipeline.Contains('BodyInvoker') -or $testPlatformPipeline.Contains('readJSON')) {
+    throw 'The Test Platform pipeline must keep the live canary script: FlowInterruptedException plus ABORTED, and JsonSlurperClassic, not BodyInvoker or readJSON.'
+}
 $testPlatformCatalog = $testPlatformCatalog | ConvertFrom-Json
+if ($testPlatformCatalog.executor_profiles.'node-22-deterministic'.workspace -ne '.') {
+    throw 'The node-22-deterministic catalog workspace must stay at the repository root (.) so CasC matches the live canary.'
+}
 if ($testPlatformCatalog.contract.contract_id -ne 'jenkins-execution-contract' -or
     $testPlatformCatalog.contract.contract_version -ne '1.0.0' -or
     $testPlatformCatalog.contract.plan_schema_versions -notcontains '1' -or

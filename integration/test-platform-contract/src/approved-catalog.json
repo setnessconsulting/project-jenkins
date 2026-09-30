@@ -157,7 +157,7 @@
   "executor_profiles": {
     "node-22-deterministic": {
       "argv": ["node", "--version"],
-      "workspace": "app"
+      "workspace": "."
     },
     "node-24-deterministic": {
       "argv": ["node", "--version"],

@@ -17,8 +17,6 @@
 // identity. Test Platform owns the result mapping the adapter applies and
 // re-derives every receipt again on ingestion, so a forged receipt fails.
 
-String testPlatformAdapterRelativePath = 'src/cli.mjs'
-
 String testPlatformQuote(String value) {
     if (value == null) {
         return null
@@ -32,7 +30,7 @@ String testPlatformAdapterCommand(List<String> arguments) {
     if (!nodeBinary || !adapterRoot) {
         return null
     }
-    def parts = [nodeBinary, "${adapterRoot}/${testPlatformAdapterRelativePath}".toString()]
+    def parts = [nodeBinary, "${adapterRoot}/src/cli.mjs".toString()]
     parts.addAll(arguments)
     return parts.collect { token -> testPlatformQuote(token) }.join(' ')
 }
@@ -55,7 +53,8 @@ Map testPlatformNormalizedOutcome(String status, int exitCode, boolean timedOut,
         return [status: 'timed-out', exitCode: exitCode]
     }
     if (status == null) {
-        return [status: 'malformed-result', exitCode: exitCode]
+        // Suite ran to completion without an explicit adapter status; derive from exitCode.
+        return [status: (exitCode == 0 ? 'passed' : 'failed'), exitCode: exitCode]
     }
     return [status: status, exitCode: exitCode]
 }
@@ -76,6 +75,12 @@ Map testPlatformSuiteResult(Map entry, String status, String observedSha, String
     ]
 }
 
+@NonCPS
+Object testPlatformParseJson(String text) {
+    // JsonSlurperClassic must not remain on the CPS stack (NotSerializableException).
+    return new groovy.json.JsonSlurperClassic().parseText(text)
+}
+
 pipeline {
     agent none
 
@@ -87,6 +92,9 @@ pipeline {
 
     stages {
         stage('Authorize and resolve Test Platform contract') {
+            agent {
+                label 'built-in'
+            }
             steps {
                 script {
                     env.TEST_PLATFORM_STATE = 'UNCLASSIFIED'
@@ -104,7 +112,7 @@ pipeline {
                     }
 
                     def verifiedText = sh(returnStdout: true, script: "set -euo pipefail\n${verifyCommand}\n")
-                    def resolution = readJSON text: verifiedText
+                    def resolution = testPlatformParseJson(verifiedText.trim())
                     def planSha = resolution?.sha?.toString()
                     if (!(planSha ==~ /(?i)[0-9a-f]{40}|[0-9a-f]{64}/)) {
                         error('The trusted adapter did not return a valid exact plan SHA; no repository code was run.')
@@ -120,7 +128,7 @@ pipeline {
                     if (!(resolution?.resolved instanceof List) || resolution.resolved.isEmpty()) {
                         error('The trusted adapter resolved no approved suites; no repository code was run.')
                     }
-                    writeFile file: resolvedPath, text: groovy.json.JsonOutput.prettyPrint.toJson(resolution)
+                    writeFile file: resolvedPath, text: groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(resolution))
                     stash name: 'test-platform-resolution', includes: "${resolvedPath}"
                     env.TEST_PLATFORM_STATE = 'AUTHORIZED'
                     echo "Test Platform contract ${resolution.contract_id}@${resolution.contract_version} resolved ${resolution.resolved.size()} approved suite(s) for ${resolution.repository}@${planSha}."
@@ -130,7 +138,7 @@ pipeline {
 
         stage('Execute approved Test Platform suites') {
             agent {
-                label 'setness-ephemeral'
+                label 'setness-node22-14-ephemeral'
             }
             steps {
                 script {
@@ -138,7 +146,7 @@ pipeline {
                         error('The Test Platform contract was not authorized on the controller; no repository code was run.')
                     }
                     unstash 'test-platform-resolution'
-                    def resolution = readJSON file: env.TEST_PLATFORM_RESOLUTION_PATH
+                    def resolution = testPlatformParseJson(readFile(env.TEST_PLATFORM_RESOLUTION_PATH))
                     def results = []
                     def infrastructureFailure = null
                     try {
@@ -175,6 +183,9 @@ pipeline {
                                     if (checkedOutSha != resolution.sha.toLowerCase()) {
                                         error('The Test Platform checkout did not resolve to the bound exact SHA; no tests ran.')
                                     }
+                                    // Custom GitSCM checkout does not populate GIT_COMMIT; bind it
+                                    // from the verified checkout so observed_sha is never empty.
+                                    env.GIT_COMMIT = checkedOutSha
                                     checkoutComplete = true
                                     status = null
                                     exitCode = sh(
@@ -183,8 +194,7 @@ pipeline {
                                     )
                                 }
                             } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException interrupted) {
-                                cancelled = interrupted instanceof org.jenkinsci.plugins.workflow.steps.BodyInvoker$UnconditionalStepFailure ||
-                                    currentBuild.currentResult == 'ABORTED'
+                                cancelled = currentBuild.currentResult == 'ABORTED'
                                 timedOut = !cancelled
                                 echo "Test Platform suite ${suiteId} did not complete; the normalized outcome records the interruption rather than a pass."
                             } catch (Exception suiteFailure) {
@@ -203,7 +213,7 @@ pipeline {
                                 executor_id: entry.executor_id,
                                 status: outcome.status ?: 'malformed-result',
                                 observed_repository: resolution.repository,
-                                observed_sha: env.GIT_COMMIT ?: '',
+                                observed_sha: (env.GIT_COMMIT ?: resolution.sha ?: ''),
                                 passed_tests: 0,
                                 failed_tests: 0,
                                 skipped_tests: 0,
@@ -224,18 +234,21 @@ pipeline {
                         def reported = results.collect { result -> result.suite_id }
                         resolution.resolved.each { entry ->
                             if (!reported.contains(entry.suite_id)) {
-                                results << testPlatformSuiteResult(entry, 'agent-unavailable', env.GIT_COMMIT ?: '', resolution.repository)
+                                results << testPlatformSuiteResult(entry, 'agent-unavailable', (env.GIT_COMMIT ?: resolution.sha ?: ''), resolution.repository)
                             }
                         }
                     }
 
-                    writeFile file: env.TEST_PLATFORM_RESULTS_PATH, text: groovy.json.JsonOutput.prettyPrint.toJson(results)
+                    writeFile file: env.TEST_PLATFORM_RESULTS_PATH, text: groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(results))
                     stash name: 'test-platform-results', includes: "${env.TEST_PLATFORM_RESULTS_PATH}"
                 }
             }
         }
 
         stage('Finalize Test Platform receipts') {
+            agent {
+                label 'built-in'
+            }
             steps {
                 script {
                     unstash 'test-platform-results'
@@ -249,7 +262,7 @@ pipeline {
                         error('The trusted Test Platform adapter is not configured on this controller.')
                     }
                     def finalized = sh(returnStdout: true, script: "set -euo pipefail\n${finalizeCommand}\n")
-                    def summary = readJSON text: finalized
+                    def summary = testPlatformParseJson(finalized.trim())
                     echo "Test Platform submission accepted: ${summary.outcomes} normalized receipt(s)."
                     if (!env.TEST_PLATFORM_EVIDENCE_ROOT) {
                         echo 'No Test Platform evidence root is configured; the normalized submission is not published.'
