@@ -65,7 +65,9 @@ trap cleanup EXIT
 # portfolio posture, including whether each job's rendered script is
 # approved. Approval state is asked of script-security directly: pending
 # entries persist after a script is no longer rendered, so counting them
-# would report stale failures.
+# would report stale failures. The trailing summary exists so an operator can
+# tell "no portfolio job is loaded" apart from "loaded and approved" without
+# reading every job line.
 portfolio_posture_script() {
   cat <<'PORTFOLIO_POSTURE'
 import org.jenkinsci.plugins.scriptsecurity.scripts.Language
@@ -75,14 +77,21 @@ def sa = ScriptApproval.get()
 def jenkins = jenkins.model.Jenkins.get()
 def groovyLanguage = jenkins.getExtensionList(Language.class).find { it.getName().equalsIgnoreCase('groovy') }
 println 'PORTFOLIO_EXECUTORS=' + jenkins.getNumExecutors()
+def loaded = 0
+def approved = 0
+def unapproved = 0
+def withoutScript = 0
+def missing = 0
 ['portfolio-dispatch/portfolio-pr-gate',
  'portfolio-dispatch/portfolio-pr-poller',
  'portfolio-dispatch/portfolio-checkout-credential-reaper'].each { full ->
     def job = jenkins.getItemByFullName(full)
     if (job == null) {
+        missing++
         println 'PORTFOLIO_JOB ' + full + ' state=missing script=missing'
         return
     }
+    loaded++
     def definition = job.getDefinition()
     def script = null
     try {
@@ -94,8 +103,16 @@ println 'PORTFOLIO_EXECUTORS=' + jenkins.getNumExecutors()
     if (script != null) {
         scriptState = sa.isScriptApproved(script, groovyLanguage) ? 'approved' : 'unapproved'
     }
+    if (scriptState == 'approved') {
+        approved++
+    } else if (scriptState == 'unapproved') {
+        unapproved++
+    } else {
+        withoutScript++
+    }
     println 'PORTFOLIO_JOB ' + full + ' state=' + (job.isDisabled() ? 'disabled' : 'enabled') + ' script=' + scriptState
 }
+println 'PORTFOLIO_SUMMARY loaded=' + loaded + ' approved=' + approved + ' unapproved=' + unapproved + ' no-script=' + withoutScript + ' missing=' + missing
 PORTFOLIO_POSTURE
 }
 
@@ -104,10 +121,12 @@ PORTFOLIO_POSTURE
 # in script-security before the job can run, and an unapproved script fails
 # the build within milliseconds. Provisioning and restart therefore verify it
 # explicitly. This never approves anything itself: approving privileged
-# controller code stays a deliberate operator action.
+# controller code stays a deliberate operator action. Enabled state is
+# reported rather than asserted, because a job may be enabled deliberately for
+# a qualification run, so the operator reads the report for the default posture.
 portfolio_verify() {
-  local container ready=0 admin_password bind_ip http_port script response
-  local cookie_jar crumb_json crumb crumb_field
+  local container ready=0 admin_password bind_ip http_port response
+  local cookie_jar crumb_json crumb crumb_field netrc_file script_file
   container="$("${compose[@]}" ps -q controller 2>/dev/null || true)"
   if [[ -z "$container" ]]; then
     printf 'Portfolio verification: the controller container is not running.\n' >&2
@@ -135,26 +154,36 @@ portfolio_verify() {
   http_port="$(sed -n 's/^JENKINS_HTTP_PORT=//p' "$repo_root/.env" | tr -d '\r' | tail -1)"
   bind_ip="${bind_ip:-127.0.0.1}"
   http_port="${http_port:-18080}"
+  # The administrator secret and the probe body are handed to curl by file, not
+  # on the command line, so neither appears in the process table. umask 077
+  # already restricts these temporary files to the invoking user.
   cookie_jar="$(mktemp)"
-  crumb_json="$(curl --silent --user "jenkins-admin:${admin_password}" --cookie-jar "$cookie_jar" "http://${bind_ip}:${http_port}/crumbIssuer/api/json" 2>/dev/null || true)"
+  netrc_file="$(mktemp)"
+  script_file="$(mktemp)"
+  printf 'machine %s login jenkins-admin password %s\n' "$bind_ip" "$admin_password" > "$netrc_file"
+  portfolio_posture_script > "$script_file"
+  crumb_json="$(curl --silent --netrc-file "$netrc_file" --cookie-jar "$cookie_jar" "http://${bind_ip}:${http_port}/crumbIssuer/api/json" 2>/dev/null || true)"
   crumb="$(printf '%s' "$crumb_json" | sed -n 's/.*"crumb":"\([^"]*\)".*/\1/p')"
   crumb_field="$(printf '%s' "$crumb_json" | sed -n 's/.*"crumbRequestField":"\([^"]*\)".*/\1/p')"
-  script="$(portfolio_posture_script)"
   if [[ -n "$crumb" && -n "$crumb_field" ]]; then
-    response="$(curl --silent --show-error --user "jenkins-admin:${admin_password}" --cookie "$cookie_jar" --header "${crumb_field}: ${crumb}" --data-urlencode "script=${script}" "http://${bind_ip}:${http_port}/scriptText" 2>/dev/null || true)"
+    response="$(curl --silent --show-error --netrc-file "$netrc_file" --cookie "$cookie_jar" --header "${crumb_field}: ${crumb}" --data-urlencode "script@${script_file}" "http://${bind_ip}:${http_port}/scriptText" 2>/dev/null || true)"
   else
     response=""
   fi
-  rm -f "$cookie_jar"
-  unset admin_password cookie_jar crumb_json crumb crumb_field script
+  rm -f "$cookie_jar" "$netrc_file" "$script_file"
+  unset admin_password cookie_jar crumb_json crumb crumb_field netrc_file script_file
   printf '%s\n' "$response" | grep '^PORTFOLIO_' || true
   if ! printf '%s\n' "$response" | grep -q '^PORTFOLIO_'; then
     printf 'Portfolio verification FAILED: the controller did not report a portfolio posture; treat the loaded portfolio jobs as unverified.\n' >&2
     return 1
   fi
   if printf '%s\n' "$response" | grep -q 'script=unapproved'; then
-    printf 'Portfolio verification FAILED: at least one loaded portfolio job script is not approved, and such a job fails immediately at run time. Review it in Manage Jenkins -> Script Console, approve it deliberately, then rerun this check.\n' >&2
+    printf 'Portfolio verification FAILED: at least one loaded portfolio job script is not approved, and such a job fails immediately at run time. Review it in Manage Jenkins -> Script Console, approve it deliberately, then rerun this check. When this ran as part of install or restart the controller is already running, so a non-zero exit means the portfolio jobs cannot run yet, not that the controller failed to start; re-running the same action is idempotent.\n' >&2
     return 1
+  fi
+  if printf '%s\n' "$response" | grep -q '^PORTFOLIO_SUMMARY loaded=0 '; then
+    printf 'Portfolio verification passed: no portfolio-dispatch job is loaded, so there is nothing to verify. The portfolio gate is created only when a catalog repository is configured, so this is the expected default posture.\n'
+    return 0
   fi
   printf 'Portfolio verification passed: every loaded portfolio job reports an approved script. Re-rendering a job script changes it, so re-run this check after any configuration change.\n'
 }

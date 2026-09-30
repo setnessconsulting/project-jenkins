@@ -647,6 +647,19 @@ $portfolioStartArm = $vmStartScript.Substring($portfolioStartArmIndex, $portfoli
 if (-not $portfolioStartArm.Contains('portfolio_verify')) {
     throw 'Provisioning and restart must run portfolio verification after the controller starts.'
 }
+if (-not $vmStartScript.Contains('--netrc-file "$netrc_file"') -or
+    -not $vmStartScript.Contains('--data-urlencode "script@${script_file}"') -or
+    $vmStartScript.Contains('--user "jenkins-admin:${admin_password}"')) {
+    throw 'Portfolio verification must hand the administrator secret and the probe body to curl by file so neither appears in the process table.'
+}
+if (-not $vmStartScript.Contains('PORTFOLIO_SUMMARY loaded=') -or
+    -not $vmStartScript.Contains('^PORTFOLIO_SUMMARY loaded=0 ')) {
+    throw 'Portfolio verification must report a loaded/approved summary and give an explicit pass for a controller with no loaded portfolio job.'
+}
+if (-not $vmStartScript.Contains('the controller is already running') -or
+    -not $vmStartScript.Contains('there is nothing to verify')) {
+    throw 'Portfolio verification must state its own install/restart exit semantics and its no-loaded-job posture.'
+}
 if (-not $vmStartScript.Contains('build controller agent-image node22-14-agent-image node24-agent-image e2e-agent-image secondary-agent-image')) {
     throw 'VM installation and restart must prebuild every disposable agent profile.'
 }
