@@ -5,7 +5,7 @@ def portfolioCatalogRepository = /* JENKINS_PORTFOLIO_CATALOG_REPOSITORY */
 def portfolioCatalogPath = 'profiles/profiles.json'
 def portfolioNodeBinary = '/opt/setness-jenkins/tools/node-v22.23.3-linux-x64/bin/node'
 def portfolioResolver = '/usr/share/jenkins/portfolio-profile-contract/src/resolve-pr.mjs'
-def portfolioAdapterImplementationAllowlist = ['node22-foundation-v1', 'node22-verify-clean-checkout-v1', 'python312-test-platform-v1', 'python312-playtest-lab-v1']
+def portfolioAdapterImplementationAllowlist = ['node22-foundation-v1', 'node22-verify-clean-checkout-v1', 'python312-test-platform-v1', 'python312-playtest-lab-v1', 'python312-cloudflare-api-uv-v1']
 /* JENKINS_PORTFOLIO_CREDENTIAL_STORE_HELPERS */
 
 @com.cloudbees.groovy.cps.NonCPS
