@@ -50,6 +50,15 @@ Python 3.12.14 agent and centrally owned command vectors to install pinned
 pull-request job from the repository's primary workflow; its self-hosted,
 scheduled, release, and manual workflows remain in Actions.
 
+The five additional first-wave implementations—`python312-blender-api-v1`,
+`python312-fmod-api-v1`, `python312-game-maker-v1`,
+`python312-context-file-maker-v1`, and `python312-cpa-ai-pack-v1`—also use the
+dedicated Python 3.12.14 agent and fixed commands from this resolver. They are
+partial supplemental shadows: Python 3.11 matrices, Windows-specific checks,
+Gitleaks, path filters, and event-specific behavior remain in Actions as
+documented in `python312-first-wave-remaining-2026-09-30.md`. None is added to
+routine polling, and none permits Jenkins cutover.
+
 The `node22-verify-clean-checkout-v1` implementation uses a separate one-use
 agent pinned to Node 22.14.0/npm 10.9.2 and the static argument vectors
 `npm ci`, `npm run verify`, and `npm run verify:clean-checkout`. It exists for
