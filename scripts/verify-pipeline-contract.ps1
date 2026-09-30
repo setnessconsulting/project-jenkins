@@ -155,6 +155,8 @@ $requiredContracts = @(
     "name: 'RUN_CLOUDFLARE_CANDIDATE'",
     'params.RUN_CLOUDFLARE_CANDIDATE == true',
     "'Cloudflare Candidate success for an owner-triggered manual run.'",
+    'Object resolveBranchSourcePullRequestRevision(def run)',
+    'factory.getLastSeenRevision(job)',
     'String verifiedPullRequestHeadSha(def run, String expectedChangeId)',
     'agent none',
     "stage('Authorize pull request')",
