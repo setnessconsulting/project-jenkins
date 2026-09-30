@@ -122,6 +122,82 @@ export const IMPLEMENTATIONS = Object.freeze({
       Object.freeze(['uv', 'run', 'cloudflare-api', 'doctor', '--json']),
     ]),
   }),
+  'python312-blender-api-v1': Object.freeze({
+    agentClass: 'setness-python312-ephemeral',
+    pythonVersion: '3.12.14',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['python', '-m', 'pip', 'install', '--require-hashes', '-r', 'requirements-lock-linux-py312.txt']),
+      Object.freeze(['python', '-m', 'pip', 'install', '--no-deps', '--no-build-isolation', '-e', '.']),
+      Object.freeze(['python', '-m', 'ruff', 'check', '.']),
+      Object.freeze(['python', '-m', 'mypy', 'src']),
+      Object.freeze(['python', '-m', 'pytest', '-q']),
+      Object.freeze([
+        'python', '-m', 'pytest', '-q',
+        'tests/test_batch_recovery.py', 'tests/test_batch_pipeline.py',
+        'tests/test_batch.py', 'tests/test_runtime.py', 'tests/test_qualification.py',
+        'tests/test_qualification_identity.py',
+      ]),
+    ]),
+  }),
+  'python312-fmod-api-v1': Object.freeze({
+    agentClass: 'setness-python312-ephemeral',
+    pythonVersion: '3.12.14',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['python', '-m', 'pip', 'install', '.[dev]']),
+      Object.freeze(['python', 'scripts/generate_scripting_api.py', '--check']),
+      Object.freeze(['python', '-m', 'ruff', 'check', '.']),
+      Object.freeze(['python', 'scripts/scan_secrets.py']),
+      Object.freeze(['python', '-m', 'mypy', 'src']),
+      Object.freeze(['python', '-m', 'pytest', '-q']),
+      Object.freeze(['python', '-m', 'build']),
+    ]),
+  }),
+  'python312-game-maker-v1': Object.freeze({
+    agentClass: 'setness-python312-ephemeral',
+    pythonVersion: '3.12.14',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['python', '-m', 'pip', 'install', '--upgrade', 'pip']),
+      Object.freeze(['python', '-m', 'pip', 'install', '-e', '.[dev]']),
+      Object.freeze(['python', '-m', 'ruff', 'check', '.']),
+      Object.freeze(['python', '-m', 'mypy', 'src']),
+      Object.freeze(['python', '-m', 'pytest', '-q']),
+      Object.freeze(['python', '-m', 'game_maker', '--version']),
+      Object.freeze(['python', '-m', 'game_maker', '--help']),
+      Object.freeze(['python', '-m', 'game_maker', 'doctor']),
+      Object.freeze(['python', '-m', 'game_maker', 'status']),
+      Object.freeze([
+        'python', '-c',
+        "import subprocess, sys; result = subprocess.run(['git', 'status', '--porcelain'], check=True, capture_output=True, text=True); print(result.stdout, end=''); sys.exit(1 if result.stdout else 0)",
+      ]),
+    ]),
+  }),
+  'python312-context-file-maker-v1': Object.freeze({
+    agentClass: 'setness-python312-ephemeral',
+    pythonVersion: '3.12.14',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['python', '-m', 'pip', 'install', 'pytest', 'jsonschema']),
+      Object.freeze(['python', '-m', 'pytest', '-q']),
+      Object.freeze(['python', 'scripts/validate.py', '--strict']),
+    ]),
+  }),
+  'python312-cpa-ai-pack-v1': Object.freeze({
+    agentClass: 'setness-python312-ephemeral',
+    pythonVersion: '3.12.14',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['python', '-m', 'pip', 'install', 'pytest']),
+      Object.freeze(['python', 'scripts/check_release.py']),
+      Object.freeze(['python', '-m', 'pytest', '-q']),
+      Object.freeze([
+        'python', '-c',
+        "import hashlib, json; from pathlib import Path; expected_raw = '2dd103d7624c1021d19f04a8b4a64fae38c2e26935cba425f88fe1a9d0a2af2c'; expected_content = 'edac0d21deb04df402e2c8715eaacfe9d4f60aaa0e31be242fd540619b157de5'; zip_path = Path('dist/ai-skills-agent-starter-pack-1.0.0.zip'); raw = hashlib.sha256(zip_path.read_bytes()).hexdigest(); recorded = json.loads(Path('RELEASE.json').read_text(encoding='utf-8'))['checksum_sha256']; print(f'raw_sha256={raw}'); print(f'release_content_checksum={recorded}'); assert raw == expected_raw; assert recorded == expected_content",
+      ]),
+    ]),
+  }),
 });
 
 // Only implementations explicitly admitted here may be polled automatically.
