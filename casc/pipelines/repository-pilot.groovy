@@ -63,12 +63,65 @@ boolean isAuthorizedPullRequestAuthor(String author, List<String> trustedAuthors
         trustedAuthors.any { trusted -> trusted.equalsIgnoreCase(normalizedAuthor) }
 }
 
+Object resolveBranchSourcePullRequestRevision(def run) {
+    // Fallback when Multibranch scheduled the PR build without SCMRevisionAction
+    // (observed on Branch indexing / Build Now for InlineDefinitionBranchProjectFactory PR jobs).
+    // Mirrors workflow-multibranch SCMVar tip resolution: factory revision, then last-seen, then fetch.
+    try {
+        def job = run.getParent()
+        def bjp = job.getProperty(org.jenkinsci.plugins.workflow.multibranch.BranchJobProperty.class)
+        if (bjp == null) {
+            return null
+        }
+        def mb = job.getParent()
+        if (!(mb instanceof org.jenkinsci.plugins.workflow.multibranch.WorkflowMultiBranchProject)) {
+            return null
+        }
+        def factory = mb.getProjectFactory()
+        def revision = null
+        try {
+            revision = factory.getRevision(job)
+        } catch (Throwable ignored) {
+        }
+        if (!(revision instanceof org.jenkinsci.plugins.github_branch_source.PullRequestSCMRevision)) {
+            try {
+                revision = factory.getLastSeenRevision(job)
+            } catch (Throwable ignored) {
+            }
+        }
+        if (!(revision instanceof org.jenkinsci.plugins.github_branch_source.PullRequestSCMRevision)) {
+            def branch = bjp.getBranch()
+            def source = mb.getSCMSource(branch.getSourceId())
+            if (source != null) {
+                revision = source.fetch(branch.getHead(), hudson.model.TaskListener.NULL)
+            }
+        }
+        return revision
+    } catch (Throwable ignored) {
+        return null
+    }
+}
+
 String verifiedPullRequestHeadSha(def run, String expectedChangeId) {
     if (expectedChangeId == null || !(expectedChangeId ==~ /[0-9]+/)) {
         return null
     }
     def revisionAction = run.getAction(jenkins.scm.api.SCMRevisionAction.class)
     def revision = revisionAction?.getRevision()
+    if (!(revision instanceof org.jenkinsci.plugins.github_branch_source.PullRequestSCMRevision)) {
+        revision = resolveBranchSourcePullRequestRevision(run)
+        if (revision instanceof org.jenkinsci.plugins.github_branch_source.PullRequestSCMRevision &&
+            run.getAction(jenkins.scm.api.SCMRevisionAction.class) == null) {
+            try {
+                def job = run.getParent()
+                def bjp = job.getProperty(org.jenkinsci.plugins.workflow.multibranch.BranchJobProperty.class)
+                def mb = job.getParent()
+                def source = mb.getSCMSource(bjp.getBranch().getSourceId())
+                run.addAction(new jenkins.scm.api.SCMRevisionAction(source, revision))
+            } catch (Throwable ignored) {
+            }
+        }
+    }
     if (!(revision instanceof org.jenkinsci.plugins.github_branch_source.PullRequestSCMRevision)) {
         return null
     }
