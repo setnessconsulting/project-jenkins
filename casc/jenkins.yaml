@@ -1,8 +1,25 @@
 jenkins:
   systemMessage: "Private repository CI pilot with opt-in centrally trusted profiles. Do not use for production deployment."
   mode: NORMAL
-  numExecutors: 0
+  # One built-in executor so test-platform-contract Authorize and Finalize
+  # (agent label built-in) can run. CasC reload with 0 queues those stages
+  # forever. Do not raise this; repository work stays on ephemeral agents.
+  numExecutors: 1
   slaveAgentPort: -1
+  # Listing nodeMonitors replaces the set. Keep the core monitors and lower
+  # only TemporarySpaceMonitor (tmpSpace) to 100MB so the node-22.14 canary
+  # agent is not taken offline for a small /tmp. diskSpace stays at the
+  # Jenkins core default of 1GB.
+  nodeMonitors:
+    - "architecture"
+    - "clock"
+    - diskSpace:
+        freeSpaceThreshold: "1GB"
+    - "responseTime"
+    - swapSpace:
+        ignored: true
+    - tmpSpace:
+        freeSpaceThreshold: "100MB"
   securityRealm:
     local:
       allowsSignup: false
