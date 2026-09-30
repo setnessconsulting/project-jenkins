@@ -45,6 +45,13 @@ String testPlatformSuiteScript(Map entry) {
         "exec ${tokens.join(' ')}\n"
 }
 
+boolean testPlatformAgentClassAllowed(String agentClass) {
+    // These are the only agent classes exposed by the centrally approved
+    // Test Platform catalog. The resolved suite, not this pipeline stage,
+    // chooses among them.
+    return ['setness-ephemeral', 'setness-node24-ephemeral', 'setness-e2e-ephemeral'].contains(agentClass)
+}
+
 Map testPlatformNormalizedOutcome(String status, int exitCode, boolean timedOut, boolean cancelled) {
     if (cancelled) {
         return [status: 'cancelled', exitCode: exitCode]
@@ -138,7 +145,10 @@ pipeline {
 
         stage('Execute approved Test Platform suites') {
             agent {
-                label 'setness-node22-14-ephemeral'
+                // This stage only orchestrates trusted suite selection and
+                // result collection. Each repository checkout and command
+                // runs inside node(entry.agent_class) below.
+                label 'built-in'
             }
             steps {
                 script {
@@ -152,59 +162,79 @@ pipeline {
                     try {
                         resolution.resolved.each { entry ->
                             def suiteId = entry.suite_id
+                            def agentClass = entry.agent_class?.toString()
                             def status = 'malformed-result'
                             def exitCode = -1
                             def timedOut = false
                             def cancelled = false
+                            def agentAllocated = false
                             def checkoutComplete = false
-                            try {
-                                timeout(time: entry.timeout_seconds, unit: 'SECONDS') {
-                                    deleteDir()
-                                    // The repository identity is centrally approved and the
-                                    // SHA is the controller-verified plan binding, so the
-                                    // checkout target is never repository-controlled.
-                                    checkout([
-                                        $class: 'GitSCM',
-                                        branches: [[name: resolution.sha]],
-                                        doGenerateSubmoduleConfigurations: false,
-                                        extensions: [
-                                            [$class: 'CleanBeforeCheckout'],
-                                            [$class: 'CloneOption', depth: 1, noTags: true, shallow: true, timeout: 10]
-                                        ],
-                                        userRemoteConfigs: [[
-                                            credentialsId: env.JENKINS_CHECKOUT_SSH_CREDENTIAL_ID,
-                                            url: "git@github.com:${resolution.repository}.git"
-                                        ]]
-                                    ])
-                                    def checkedOutSha = sh(
-                                        returnStdout: true,
-                                        script: 'git rev-parse HEAD'
-                                    ).trim().toLowerCase()
-                                    if (checkedOutSha != resolution.sha.toLowerCase()) {
-                                        error('The Test Platform checkout did not resolve to the bound exact SHA; no tests ran.')
+                            def cleanupSucceeded = false
+                            def observedSha = resolution.sha?.toString()?.toLowerCase() ?: ''
+                            if (!testPlatformAgentClassAllowed(agentClass)) {
+                                status = 'agent-unavailable'
+                                echo "Test Platform suite ${suiteId} resolved to an unapproved agent class; no repository code ran."
+                            } else {
+                                try {
+                                    timeout(time: entry.timeout_seconds, unit: 'SECONDS') {
+                                        node(agentClass) {
+                                            agentAllocated = true
+                                            try {
+                                                deleteDir()
+                                                // The repository identity is centrally approved and the
+                                                // SHA is the controller-verified plan binding, so the
+                                                // checkout target is never repository-controlled.
+                                                checkout([
+                                                    $class: 'GitSCM',
+                                                    branches: [[name: resolution.sha]],
+                                                    doGenerateSubmoduleConfigurations: false,
+                                                    extensions: [
+                                                        [$class: 'CleanBeforeCheckout'],
+                                                        [$class: 'CloneOption', depth: 1, noTags: true, shallow: true, timeout: 10]
+                                                    ],
+                                                    userRemoteConfigs: [[
+                                                        credentialsId: env.JENKINS_CHECKOUT_SSH_CREDENTIAL_ID,
+                                                        url: "git@github.com:${resolution.repository}.git"
+                                                    ]]
+                                                ])
+                                                def checkedOutSha = sh(
+                                                    returnStdout: true,
+                                                    script: 'git rev-parse HEAD'
+                                                ).trim().toLowerCase()
+                                                if (checkedOutSha != resolution.sha.toLowerCase()) {
+                                                    error('The Test Platform checkout did not resolve to the bound exact SHA; no tests ran.')
+                                                }
+                                                // Custom GitSCM checkout does not populate GIT_COMMIT; bind it
+                                                // from the verified checkout so observed_sha is never empty.
+                                                env.GIT_COMMIT = checkedOutSha
+                                                observedSha = checkedOutSha
+                                                checkoutComplete = true
+                                                status = null
+                                                exitCode = sh(
+                                                    returnStatus: true,
+                                                    script: testPlatformSuiteScript(entry)
+                                                )
+                                            } finally {
+                                                deleteDir()
+                                                cleanupSucceeded = true
+                                            }
+                                        }
                                     }
-                                    // Custom GitSCM checkout does not populate GIT_COMMIT; bind it
-                                    // from the verified checkout so observed_sha is never empty.
-                                    env.GIT_COMMIT = checkedOutSha
-                                    checkoutComplete = true
-                                    status = null
-                                    exitCode = sh(
-                                        returnStatus: true,
-                                        script: testPlatformSuiteScript(entry)
-                                    )
+                                } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException interrupted) {
+                                    cancelled = currentBuild.currentResult == 'ABORTED'
+                                    timedOut = !cancelled
+                                    echo "Test Platform suite ${suiteId} did not complete; the normalized outcome records the interruption rather than a pass."
+                                } catch (Exception suiteFailure) {
+                                    if (!agentAllocated) {
+                                        status = 'agent-unavailable'
+                                    } else if (!checkoutComplete) {
+                                        status = 'checkout-sha-mismatch'
+                                    } else if (!cleanupSucceeded) {
+                                        status = 'failed'
+                                        exitCode = 1
+                                    }
+                                    echo "Test Platform suite ${suiteId} did not complete cleanly; the normalized outcome records the failure rather than a pass."
                                 }
-                            } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException interrupted) {
-                                cancelled = currentBuild.currentResult == 'ABORTED'
-                                timedOut = !cancelled
-                                echo "Test Platform suite ${suiteId} did not complete; the normalized outcome records the interruption rather than a pass."
-                            } catch (Exception suiteFailure) {
-                                if (!checkoutComplete) {
-                                    status = 'checkout-sha-mismatch'
-                                } else {
-                                    echo "Test Platform suite ${suiteId} failed without a normalized result; the outcome records the failure rather than a pass."
-                                }
-                            } finally {
-                                deleteDir()
                             }
 
                             def outcome = testPlatformNormalizedOutcome(status, exitCode, timedOut, cancelled)
@@ -213,7 +243,7 @@ pipeline {
                                 executor_id: entry.executor_id,
                                 status: outcome.status ?: 'malformed-result',
                                 observed_repository: resolution.repository,
-                                observed_sha: (env.GIT_COMMIT ?: resolution.sha ?: ''),
+                                observed_sha: observedSha,
                                 passed_tests: 0,
                                 failed_tests: 0,
                                 skipped_tests: 0,

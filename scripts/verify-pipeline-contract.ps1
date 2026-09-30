@@ -819,7 +819,11 @@ $testPlatformRequiredGuards = @(
     'src/cli.mjs',
     'JsonSlurperClassic',
     "label 'built-in'",
-    "label 'setness-node22-14-ephemeral'",
+    'testPlatformAgentClassAllowed(agentClass)',
+    'node(agentClass)',
+    'cleanupSucceeded = true',
+    'setness-node24-ephemeral',
+    'setness-e2e-ephemeral',
     "exitCode == 0 ? 'passed'",
     'env.GIT_COMMIT = checkedOutSha',
     'archiveArtifacts',
@@ -838,12 +842,16 @@ if ($testPlatformAuthIndex -lt 0 -or $testPlatformCheckoutIndex -lt 0 -or $testP
 if ($testPlatformPipeline.Contains('${plan.') -or $testPlatformPipeline.Contains('${suite.')) {
     throw 'The trusted Test Platform pipeline must not interpolate plan-controlled values.'
 }
+if ($testPlatformPipeline.Contains("label 'setness-node22-14-ephemeral'") -or
+    -not $testPlatformPipeline.Contains("['setness-ephemeral', 'setness-node24-ephemeral', 'setness-e2e-ephemeral'].contains(agentClass)")) {
+    throw 'Each approved Test Platform suite must run on its centrally resolved agent class, restricted to the controller allowlist.'
+}
 if ($testPlatformPipeline.Contains('BodyInvoker') -or $testPlatformPipeline.Contains('readJSON')) {
     throw 'The Test Platform pipeline must keep the live canary script: FlowInterruptedException plus ABORTED, and JsonSlurperClassic, not BodyInvoker or readJSON.'
 }
 $testPlatformCatalog = $testPlatformCatalog | ConvertFrom-Json
 if ($testPlatformCatalog.executor_profiles.'node-22-deterministic'.workspace -ne '.') {
-    throw 'The node-22-deterministic catalog workspace must stay at the repository root (.) so CasC matches the live canary.'
+    throw 'The node-22-deterministic catalog workspace must stay at the repository root (.).'
 }
 if ($testPlatformCatalog.contract.contract_id -ne 'jenkins-execution-contract' -or
     $testPlatformCatalog.contract.contract_version -ne '1.0.0' -or
