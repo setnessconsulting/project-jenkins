@@ -407,8 +407,8 @@ if (-not $jenkinsConfig.Contains('containerCap: 1') -or
     -not $jenkinsConfig.Contains('idleMinutes: 0') -or
     -not $jenkinsConfig.Contains('labelString: "setness-ephemeral"') -or
     -not $jenkinsConfig.Contains('removeVolumes: true') -or
-    -not $jenkinsConfig.Contains('memoryLimit: 8192') -or
-    -not $jenkinsConfig.Contains('memorySwap: 8192') -or
+    -not $jenkinsConfig.Contains('memoryLimit: 4096') -or
+    -not $jenkinsConfig.Contains('memorySwap: 4096') -or
     -not $jenkinsConfig.Contains('cpus: "4.0"') -or
     -not $jenkinsConfig.Contains('privileged: false') -or
     -not $jenkinsConfig.Contains('network: "setness-jenkins-private"')) {
@@ -443,15 +443,41 @@ if (-not [regex]::IsMatch(
     $jenkinsConfig,
     '(?m)^          - name: "setness-node22-14-one-build"\r?\n            labelString: "setness-node22-14-ephemeral"$'
 ) -or -not $jenkinsConfig.Contains('image: "jenkins-pilot-agent:node-22.14.0"') -or
-    -not $jenkinsConfig.Contains('memoryLimit: 6144')) {
+    -not $jenkinsConfig.Contains('memoryLimit: 4096')) {
     throw 'The exact Node 22.14 profile must have a dedicated one-use, resource-limited Docker agent template.'
 }
 if (-not [regex]::IsMatch(
     $jenkinsConfig,
     '(?m)^          - name: "setness-python312-one-build"\r?\n            labelString: "setness-python312-ephemeral"$'
 ) -or -not $jenkinsConfig.Contains('image: "jenkins-pilot-agent:python-3.12.14"') -or
-    -not $jenkinsConfig.Contains('memoryLimit: 6144')) {
+    -not $jenkinsConfig.Contains('memoryLimit: 4096')) {
     throw 'The pinned Python 3.12 profile must have a dedicated one-use, resource-limited Docker agent template.'
+}
+
+# Node 22 / Node 22.14 agents that run Test Platform docker-backed suites mount
+# the guest Docker socket through the docker-plugin CasC mounts field (not
+# Compose). Compose still mounts the socket only on the controller.
+if (-not $jenkinsConfig.Contains('type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock')) {
+    throw 'CasC must bind-mount the guest Docker socket into docker-backed agent templates via dockerTemplateBase.mounts.'
+}
+$dockerSockMountCount = [regex]::Matches(
+    $jenkinsConfig,
+    [regex]::Escape('type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock')
+).Count
+if ($dockerSockMountCount -lt 2) {
+    throw 'At least the Node 22 and Node 22.14 one-build templates must mount the guest Docker socket.'
+}
+if (-not $agentDockerfile.Contains('docker-29.8.1.tgz') -or
+    -not $agentDockerfile.Contains('d8db66739d2e28d4933786d73e918d9be643a67fbd835db1bf740d650a259e70') -or
+    -not $agentDockerfile.Contains('/usr/local/bin/docker') -or
+    -not $agentDockerfile.Contains('groupadd --gid 988 docker') -or
+    -not $agentDockerfile.Contains('usermod --append --groups docker jenkins') -or
+    -not $node2214Dockerfile.Contains('docker-29.8.1.tgz') -or
+    -not $node2214Dockerfile.Contains('d8db66739d2e28d4933786d73e918d9be643a67fbd835db1bf740d650a259e70') -or
+    -not $node2214Dockerfile.Contains('/usr/local/bin/docker') -or
+    -not $node2214Dockerfile.Contains('groupadd --gid 988 docker') -or
+    -not $node2214Dockerfile.Contains('usermod --append --groups docker jenkins')) {
+    throw 'The Node 22 and Node 22.14 agent images must ship a pinned Docker CLI and docker group GID 988 matching the Hyper-V guest.'
 }
 if (-not $plugins.Contains('docker-plugin:1327.v9524f1ee134e')) {
     throw 'The Docker cloud plugin must be explicitly version-pinned.'

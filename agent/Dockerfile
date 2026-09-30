@@ -7,6 +7,18 @@ RUN set -eux; \
     apt-get install --yes --no-install-recommends ca-certificates curl git openssh-client xz-utils; \
     rm -rf /var/lib/apt/lists/*; \
     curl --fail --location --silent --show-error \
+      https://download.docker.com/linux/static/stable/x86_64/docker-29.8.1.tgz \
+      --output /tmp/docker-29.8.1.tgz; \
+    printf '%s  %s\n' \
+      'd8db66739d2e28d4933786d73e918d9be643a67fbd835db1bf740d650a259e70' \
+      '/tmp/docker-29.8.1.tgz' | sha256sum --check --strict; \
+    tar --extract --gzip --file /tmp/docker-29.8.1.tgz \
+      --directory /tmp docker/docker; \
+    install -o root -g root -m 0755 /tmp/docker/docker /usr/local/bin/docker; \
+    rm -rf /tmp/docker /tmp/docker-29.8.1.tgz; \
+    groupadd --gid 988 docker; \
+    usermod --append --groups docker jenkins; \
+    curl --fail --location --silent --show-error \
       https://nodejs.org/dist/v22.23.3/node-v22.23.3-linux-x64.tar.xz \
       --output /tmp/node-v22.23.3-linux-x64.tar.xz; \
     printf '%s  %s\n' \

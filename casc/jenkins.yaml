@@ -35,6 +35,9 @@ jenkins:
     - docker:
         name: "setness-ephemeral-agents"
         containerCap: 1
+        # Agent memoryLimit/memorySwap are 4096 MiB so one agent + the 4g
+        # controller fit a static 12 GiB Hyper-V guest (OS/docker overhead
+        # remains). containerCap stays 1. Do not raise without more guest RAM.
         dockerApi:
           dockerHost:
             uri: "unix:///var/run/docker.sock"
@@ -57,9 +60,14 @@ jenkins:
               image: "jenkins-pilot-agent:node-22.23.3"
               network: "setness-jenkins-private"
               cpus: "4.0"
-              memoryLimit: 8192
-              memorySwap: 8192
+              memoryLimit: 4096
+              memorySwap: 4096
               privileged: false
+              # Host Docker socket for Test Platform docker-backed suites on
+              # this dedicated pilot VM only. Agent image docker group GID 988
+              # matches the guest docker group so jenkins can use the socket.
+              mounts:
+                - "type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock"
               environment:
                 - "JENKINS_WEB_SOCKET=true"
           - name: "setness-node22-14-one-build"
@@ -80,9 +88,14 @@ jenkins:
               image: "jenkins-pilot-agent:node-22.14.0"
               network: "setness-jenkins-private"
               cpus: "4.0"
-              memoryLimit: 6144
-              memorySwap: 6144
+              memoryLimit: 4096
+              memorySwap: 4096
               privileged: false
+              # Host Docker socket for Test Platform docker-backed suites on
+              # this dedicated pilot VM only. Agent image docker group GID 988
+              # matches the guest docker group so jenkins can use the socket.
+              mounts:
+                - "type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock"
               environment:
                 - "JENKINS_WEB_SOCKET=true"
           - name: "setness-node24-one-build"
@@ -103,8 +116,8 @@ jenkins:
               image: "jenkins-pilot-agent:node-24.21.0"
               network: "setness-jenkins-private"
               cpus: "4.0"
-              memoryLimit: 6144
-              memorySwap: 6144
+              memoryLimit: 4096
+              memorySwap: 4096
               privileged: false
               environment:
                 - "JENKINS_WEB_SOCKET=true"
@@ -126,8 +139,8 @@ jenkins:
               image: "jenkins-pilot-agent:python-3.12.14"
               network: "setness-jenkins-private"
               cpus: "4.0"
-              memoryLimit: 6144
-              memorySwap: 6144
+              memoryLimit: 4096
+              memorySwap: 4096
               privileged: false
               environment:
                 - "JENKINS_WEB_SOCKET=true"
@@ -149,8 +162,8 @@ jenkins:
               image: "jenkins-pilot-agent:node-22.23.3-playwright-1.62.1"
               network: "setness-jenkins-private"
               cpus: "4.0"
-              memoryLimit: 8192
-              memorySwap: 8192
+              memoryLimit: 4096
+              memorySwap: 4096
               privileged: false
               environment:
                 - "JENKINS_WEB_SOCKET=true"
@@ -172,8 +185,8 @@ jenkins:
               image: "jenkins-pilot-agent:node-24.21.0-playwright-1.62.1"
               network: "setness-jenkins-private"
               cpus: "4.0"
-              memoryLimit: 8192
-              memorySwap: 8192
+              memoryLimit: 4096
+              memorySwap: 4096
               privileged: false
               environment:
                 - "JENKINS_WEB_SOCKET=true"
