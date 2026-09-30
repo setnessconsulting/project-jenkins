@@ -1,4 +1,4 @@
-﻿# GROKBOT-25 S05 stale-review supersession canary — DELETE
+# GROKBOT-25 S05 stale-review supersession canary � DELETE
 
-Initial SHA gets stale CHANGES_REQUESTED; follow-up supersedes.
-
+SUPERSEDED: acceptance evidence section added. Prior CHANGES_REQUESTED is stale for this SHA.
+Labeled throwaway/DELETE.
