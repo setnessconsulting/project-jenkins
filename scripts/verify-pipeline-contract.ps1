@@ -713,6 +713,10 @@ if ($backupScript.IndexOf('export GIT_OPTIONAL_LOCKS=0') -lt 0 -or
     $backupScript.IndexOf('export GIT_OPTIONAL_LOCKS=0') -gt $backupScript.IndexOf('git -c safe.directory=')) {
     throw 'The root-only Jenkins backup must not refresh the guest-owned Git index and change checkout ownership.'
 }
+if ($restoreScript.IndexOf('export GIT_OPTIONAL_LOCKS=0') -lt 0 -or
+    $restoreScript.IndexOf('export GIT_OPTIONAL_LOCKS=0') -gt $restoreScript.IndexOf('git -c safe.directory=')) {
+    throw 'The root-only Jenkins restore drill must not refresh the guest-owned Git index and change checkout ownership.'
+}
 if (-not $jobs.Contains('InlineDefinitionBranchProjectFactory') -or
     -not $jobs.Contains("inlineFactory.appendNode('script', trustedPipeline)") -or
     -not $jobs.Contains("inlineFactory.appendNode('sandbox', 'false')") -or

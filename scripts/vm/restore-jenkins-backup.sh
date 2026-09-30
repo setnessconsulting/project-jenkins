@@ -25,6 +25,9 @@ virt="$(systemd-detect-virt 2>/dev/null || true)"
 [[ "$virt" == microsoft || "$virt" == hyperv ]] || fail 'restore testing is allowed only inside the dedicated Hyper-V guest.'
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+# This root-only restore drill inspects a checkout owned by the guest admin.
+# Prevent optional Git index refreshes from changing the checkout's ownership.
+export GIT_OPTIONAL_LOCKS=0
 backup_root='/var/backups/setness-jenkins'
 controller_image='jenkins-pilot-controller:2.568.3-pilot1'
 agent_images=(
