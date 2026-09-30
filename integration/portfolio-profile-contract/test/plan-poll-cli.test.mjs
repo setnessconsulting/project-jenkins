@@ -5,19 +5,19 @@ import test from 'node:test';
 
 const adapterPath = fileURLToPath(new URL('../src/plan-poll.mjs', import.meta.url));
 const sha = 'c'.repeat(40);
-const repository = 'setnessconsulting/example-repository';
+const repository = 'setnessconsulting/project-test-platform';
 
 function catalog(status = 'active') {
   return {
     schemaVersion: 1,
-    approvedImplementations: ['node22-verify-clean-checkout-v1'],
+    approvedImplementations: ['python312-test-platform-v1'],
     profiles: [{
-      id: 'example-clean-checkout',
-      implementationId: 'node22-verify-clean-checkout-v1',
+      id: 'example-test-platform',
+      implementationId: 'python312-test-platform-v1',
       status: 'shadow',
       repositories: [repository],
       checkNames: ['jenkins-pr-gate'],
-      requiredNodeVersion: '22.14.0',
+      requiredPythonVersion: '3.12.14',
       qualification: {
         requiredExactShaCases: 10,
         qualifiedExactShaCases: 0,
@@ -80,7 +80,7 @@ test('plan mode emits an exact-SHA owner PR dispatch without caller-supplied com
     repository,
     pullRequestNumber: 4,
     headSha: sha,
-    profileId: 'example-clean-checkout',
+    profileId: 'example-test-platform',
     attempt: 1,
   });
   assert.deepEqual(parsed.state, [{

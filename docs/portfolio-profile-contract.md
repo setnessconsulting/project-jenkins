@@ -59,6 +59,33 @@ Gitleaks, path filters, and event-specific behavior remain in Actions as
 documented in `python312-first-wave-remaining-2026-09-30.md`. None is added to
 routine polling, and none permits Jenkins cutover.
 
+The next focused shadow set adds four centrally trusted lanes:
+
+- `python312-test-platform-v1` runs the existing single Linux verification job
+  on Python 3.12.14. The dedicated Test Platform agent also exposes the Docker
+  socket for that repository's Docker-backed verification; this is limited to
+  the protected pilot VM and remains an owner-only shadow boundary.
+- `node24-game-platform-sdk-v1` runs `npm ci`, `npm run verify`, and
+  `npm run verify:bundle` on Node 24.21.0. It covers the repository's PR
+  verification workflow; artifact upload remains an Actions-only reporting
+  step.
+- `python312-portfolio-graph-uv-v1` installs pinned `uv==0.11.17`, syncs the
+  lockfile, and runs the verification script and CLI checks on Python 3.12.14.
+  It covers only the Ubuntu/Python 3.12 cell of the existing 2-by-2 OS/runtime
+  matrix. Windows and Python 3.13 remain Actions coverage.
+- `node24-curiouspathway-pilot-v1` runs the CI typecheck, lint, unit suites,
+  builds, and three Playwright PR groups on Node 24.21.0. The disposable image
+  preinstalls Playwright 1.62.1 and Chromium, Firefox, and WebKit, matching the
+  target lockfile and replacing the workflow's browser-install step. The
+  production smoke workflow and owner-only Windows local verification remain
+  Actions work.
+
+`project-setness-consulting` is already observed through its separate
+centrally-owned repository pilot; it is not sent through the portfolio
+dispatcher and its Actions checks remain authoritative. Its candidate,
+Tutor Web, scheduled E2E, and deployment/release workflows remain separate
+coverage and must be mapped before any cutover.
+
 The `node22-verify-clean-checkout-v1` implementation uses a separate one-use
 agent pinned to Node 22.14.0/npm 10.9.2 and the static argument vectors
 `npm ci`, `npm run verify`, and `npm run verify:clean-checkout`. It exists for
@@ -90,13 +117,16 @@ credentials store is never used for checkout tokens.
 The poller is opt-in through the ignored local
 `JENKINS_PORTFOLIO_PR_POLL_ENABLED` setting, which defaults to `false`, and
 also requires the private catalog location and `controlPlane.status: active`.
-It checks only open, same-repository, non-draft PRs authored by
-`setnessconsulting`, queues one exact-head SHA at a time, and persists dispatch
-state in Jenkins home. It does not schedule main-branch, fork, or outside-author
-verification. The reaper schedule remains maintenance-only. Enabling this
-poller does not make a repository Jenkins-authoritative; Actions, protection,
-and deployment settings remain unchanged until separately qualified and
-approved.
+Routine dispatch is restricted in trusted code to
+`project-test-platform`, `project-game-platform-sdk`, `curiouspathway`, and
+`project-portfolio-graph`, with only their four matching implementation IDs.
+`project-setness-consulting` uses its separate pilot. The poller checks only
+open, same-repository, non-draft PRs authored by `setnessconsulting`, queues
+one exact-head SHA at a time, and persists dispatch state in Jenkins home. It
+does not schedule main-branch, fork, or outside-author verification. The
+reaper schedule remains maintenance-only. Enabling this poller does not make
+a repository Jenkins-authoritative; Actions, protection, and deployment
+settings remain unchanged until separately qualified and approved.
 
 Fork PRs are rejected. An owner allowlist is a bounded shadow policy, not a
 sandbox. Do not broaden access or make this check required until the runtime

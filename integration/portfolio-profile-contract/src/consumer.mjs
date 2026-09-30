@@ -98,6 +98,51 @@ export const IMPLEMENTATIONS = Object.freeze({
       Object.freeze(['npm', 'test']),
     ]),
   }),
+  'node24-game-platform-sdk-v1': Object.freeze({
+    agentClass: 'setness-node24-ephemeral',
+    nodeVersion: '24.21.0',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['npm', 'ci']),
+      Object.freeze(['npm', 'run', 'verify']),
+      Object.freeze(['npm', 'run', 'verify:bundle']),
+    ]),
+  }),
+  'node24-curiouspathway-pilot-v1': Object.freeze({
+    agentClass: 'secondary-node24-playwright-ephemeral',
+    nodeVersion: '24.21.0',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['npm', 'ci', '--no-audit', '--no-fund']),
+      Object.freeze(['npm', 'run', 'typecheck']),
+      Object.freeze(['npm', 'run', 'lint']),
+      Object.freeze(['npm', 'run', 'test:math-escape-preservation']),
+      Object.freeze(['npm', 'test']),
+      Object.freeze(['npm', 'run', 'build']),
+      Object.freeze(['npm', 'run', 'build:e2e']),
+      Object.freeze([
+        'npm', 'run', 'test:e2e:run', '--', '--forbid-only',
+        '--output=test-results/pilot-core',
+        'tests/wave1/e2e/foundation.spec.ts',
+        'tests/wave1/e2e/cloudflareFoundation.spec.ts',
+        'tests/wave2/e2e/pilotEntry.spec.ts',
+        'tests/wave3/e2e/pilotAssessment.spec.ts',
+        'tests/wave4/e2e/pilotLearning.spec.ts',
+        'tests/wave5/e2e/pilotJourney.spec.ts',
+      ]),
+      Object.freeze([
+        'npm', 'run', 'test:e2e:run', '--', '--forbid-only',
+        '--output=test-results/pilot-no-games',
+        'tests/wave6/e2e/noGames.spec.ts',
+      ]),
+      Object.freeze([
+        'npm', 'run', 'test:e2e:run', '--', '--forbid-only',
+        '--output=test-results/pilot-a11y',
+        'tests/wave2/e2e/mobileLayout.spec.ts',
+        'tests/wave7/e2e/qualification.spec.ts',
+      ]),
+    ]),
+  }),
   'python312-test-platform-v1': Object.freeze({
     agentClass: 'setness-python312-ephemeral',
     pythonVersion: '3.12.14',
@@ -136,6 +181,19 @@ export const IMPLEMENTATIONS = Object.freeze({
       Object.freeze(['uv', 'sync', '--locked', '--extra', 'dev']),
       Object.freeze(['uv', 'run', 'python', 'scripts/verify.py']),
       Object.freeze(['uv', 'run', 'cloudflare-api', 'doctor', '--json']),
+    ]),
+  }),
+  'python312-portfolio-graph-uv-v1': Object.freeze({
+    agentClass: 'setness-python312-ephemeral',
+    pythonVersion: '3.12.14',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['python', '-m', 'pip', 'install', '--disable-pip-version-check', 'uv==0.11.17']),
+      Object.freeze(['uv', 'sync', '--locked']),
+      Object.freeze(['uv', 'run', '--locked', 'python', 'scripts/verify.py']),
+      Object.freeze(['uv', 'run', '--locked', 'portfolio', '--help']),
+      Object.freeze(['uv', 'run', '--locked', 'portfolio', '--version']),
+      Object.freeze(['uv', 'run', '--locked', 'portfolio', 'doctor', '--json']),
     ]),
   }),
   'python312-blender-api-v1': Object.freeze({
@@ -220,8 +278,20 @@ export const IMPLEMENTATIONS = Object.freeze({
 // Adding an implementation requires a reviewed trusted runtime and profile
 // contract; catalog data cannot expand this set.
 export const ROUTINE_DISPATCH_IMPLEMENTATIONS = Object.freeze([
-  'node22-foundation-v1',
-  'node22-verify-clean-checkout-v1',
+  'python312-test-platform-v1',
+  'node24-game-platform-sdk-v1',
+  'node24-curiouspathway-pilot-v1',
+  'python312-portfolio-graph-uv-v1',
+]);
+
+// The portfolio poller is deliberately scoped to this user-selected focus set.
+// Repository profiles outside this set remain eligible for explicit dispatch,
+// but cannot start recurring shadow builds through the poller.
+export const ROUTINE_DISPATCH_REPOSITORIES = Object.freeze([
+  'setnessconsulting/project-test-platform',
+  'setnessconsulting/project-game-platform-sdk',
+  'setnessconsulting/curiouspathway',
+  'setnessconsulting/project-portfolio-graph',
 ]);
 
 export class ProfileRejection extends Error {
@@ -572,7 +642,10 @@ export function listRoutinePullRequestPollRepositories(catalog) {
   if (catalog.controlPlane.status !== 'active') return Object.freeze([]);
   return Object.freeze(catalog.profiles
     .filter((profile) => ['shadow', 'qualified'].includes(profile.status)
-      && ROUTINE_DISPATCH_IMPLEMENTATIONS.includes(profile.implementationId))
+      && ROUTINE_DISPATCH_IMPLEMENTATIONS.includes(profile.implementationId)
+      && profile.repositories.length === 1
+      && ROUTINE_DISPATCH_REPOSITORIES.some((repository) =>
+        repository.toLowerCase() === profile.repositories[0].toLowerCase()))
     .flatMap((profile) => {
       if (profile.repositories.length !== 1) {
         reject('ambiguous-profile', 'a polled profile must identify exactly one repository');
