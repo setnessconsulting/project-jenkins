@@ -43,6 +43,13 @@ verification job in `project-test-platform`; it does not cover unrelated
 repositories or workflows that use another Python version, operating system,
 matrix, or additional verification jobs.
 
+The `python312-cloudflare-api-uv-v1` implementation uses the same dedicated
+Python 3.12.14 agent and centrally owned command vectors to install pinned
+`uv==0.11.17`, synchronize the locked development environment, run
+`scripts/verify.py`, and run `cloudflare-api doctor --json`. It maps only the
+pull-request job from the repository's primary workflow; its self-hosted,
+scheduled, release, and manual workflows remain in Actions.
+
 The `node22-verify-clean-checkout-v1` implementation uses a separate one-use
 agent pinned to Node 22.14.0/npm 10.9.2 and the static argument vectors
 `npm ci`, `npm run verify`, and `npm run verify:clean-checkout`. It exists for
