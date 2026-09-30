@@ -71,6 +71,22 @@ export const IMPLEMENTATIONS = Object.freeze({
       Object.freeze(['npm', 'run', 'verify:clean-checkout']),
     ]),
   }),
+  'node2214-vercel-api-gitleaks-v1': Object.freeze({
+    agentClass: 'setness-node22-14-ephemeral',
+    nodeVersion: '22.14.0',
+    npmVersion: '10.9.2',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze([
+        'gitleaks', 'dir', '--redact', '--exit-code', '1',
+        '--report-format', 'sarif', '--report-path', '/tmp/gitleaks.sarif', '.',
+      ]),
+      Object.freeze(['npm', 'ci', '--ignore-scripts']),
+      Object.freeze(['npm', 'run', 'check']),
+      Object.freeze(['npm', 'test']),
+      Object.freeze(['npm', 'run', 'verify']),
+    ]),
+  }),
   'node24-lint-typescript-test-v1': Object.freeze({
     agentClass: 'setness-node24-ephemeral',
     nodeVersion: '24.21.0',

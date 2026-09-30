@@ -467,6 +467,9 @@ if (-not $agentDockerfile.Contains('v22.23.3') -or
     -not $node2214Dockerfile.Contains('10.9.2') -or
     -not $node2214Dockerfile.Contains('69b09dba5c8dcb05c4e4273a4340db1005abeafe3927efda2bc5b249e80437ec') -or
     -not $node2214Dockerfile.Contains('sha256sum --check --strict') -or
+    -not $node2214Dockerfile.Contains('gitleaks_8.24.3_linux_x64.tar.gz') -or
+    -not $node2214Dockerfile.Contains('9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c') -or
+    -not $node2214Dockerfile.Contains('install -o root -g root -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks') -or
     -not $node2214Dockerfile.Contains('USER jenkins') -or
     $node2214Dockerfile.Contains('docker.sock') -or
     $node2214Dockerfile.Contains('JENKINS_SECRET') -or
@@ -477,7 +480,7 @@ if (-not $agentDockerfile.Contains('v22.23.3') -or
     -not $playwrightDockerfile.Contains('playwright install-deps chromium') -or
     -not $playwrightDockerfile.Contains('playwright install chromium') -or
     -not $playwrightDockerfile.Contains('USER jenkins')) {
-    throw 'The pinned Node 22, Node 22.14, Node 24, and pre-baked unprivileged Playwright agent images are incomplete.'
+    throw 'The pinned Node 22, Node 22.14/Gitleaks, Node 24, and pre-baked unprivileged Playwright agent images are incomplete.'
 }
 if (-not $python312Dockerfile.Contains('ARG PYTHON_VERSION=3.12.14') -or
     -not $python312Dockerfile.Contains('Python-${PYTHON_VERSION}.tar.xz') -or
@@ -988,6 +991,12 @@ foreach ($portfolioGuard in @(
     "Object.freeze(['npm', 'test'])",
     "Object.freeze(['npm', 'run', 'lint'])",
     "Object.freeze(['node_modules/.bin/tsc', '--noEmit'])",
+    "'node2214-vercel-api-gitleaks-v1'",
+    "npmVersion: '10.9.2'",
+    "Object.freeze(['npm', 'ci', '--ignore-scripts'])",
+    "Object.freeze(['npm', 'run', 'check'])",
+    "'gitleaks', 'dir', '--redact', '--exit-code', '1',",
+    "'--report-format', 'sarif', '--report-path', '/tmp/gitleaks.sarif', '.'",
     'export function validateProfileCatalog(catalog)',
     'function resolveShadowExecution(catalog, profileId, headSha)',
     'export function resolveAuthorizedShadowPullRequest(',
@@ -1016,11 +1025,17 @@ foreach ($portfolioRuntimeGuard in @(
     'def portfolioCatalogRepository = /* JENKINS_PORTFOLIO_CATALOG_REPOSITORY */',
     "def portfolioCatalogPath = 'profiles/profiles.json'",
     "def portfolioAdapterImplementationAllowlist = [",
+    "'node22-foundation-v1'",
+    "'node22-verify-clean-checkout-v1'",
+    "'python312-test-platform-v1'",
+    "'python312-playtest-lab-v1'",
+    "'python312-cloudflare-api-uv-v1'",
     "'python312-blender-api-v1'",
     "'python312-fmod-api-v1'",
     "'python312-game-maker-v1'",
     "'python312-context-file-maker-v1'",
     "'python312-cpa-ai-pack-v1'",
+    "'node2214-vercel-api-gitleaks-v1'",
     'resolved.pythonVersion.toString() == profile.requiredPythonVersion?.toString()',
     'env.PORTFOLIO_NODE_VERSION = resolved.nodeVersion?.toString() ?:',
     'env.PORTFOLIO_PYTHON_VERSION = resolved.pythonVersion?.toString() ?:',
