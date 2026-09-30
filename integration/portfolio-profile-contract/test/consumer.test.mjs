@@ -195,6 +195,29 @@ test('resolves the Game AI Playtest Lab workflow to its pinned Python 3.12 comma
   rejectsCode(() => resolve(input), 'runtime-mismatch');
 });
 
+test('resolves Cloudflare API locked verification only on its pinned Python 3.12 agent', () => {
+  const input = catalog();
+  input.approvedImplementations.push('python312-cloudflare-api-uv-v1');
+  input.profiles[0].implementationId = 'python312-cloudflare-api-uv-v1';
+  delete input.profiles[0].requiredNodeVersion;
+  input.profiles[0].requiredPythonVersion = '3.12.14';
+
+  const plan = resolve(input);
+  assert.equal(plan.agentClass, 'setness-python312-ephemeral');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.equal(plan.pythonVersion, '3.12.14');
+  assert.deepEqual(plan.commands, [
+    ['python', '-m', 'pip', 'install', '--disable-pip-version-check', 'uv==0.11.17'],
+    ['uv', 'sync', '--locked', '--extra', 'dev'],
+    ['uv', 'run', 'python', 'scripts/verify.py'],
+    ['uv', 'run', 'cloudflare-api', 'doctor', '--json'],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes('python312-cloudflare-api-uv-v1'), false);
+
+  input.profiles[0].requiredPythonVersion = '3.12.13';
+  rejectsCode(() => resolve(input), 'runtime-mismatch');
+});
+
 test('rejects profile fields that could inject commands or credentials', () => {
   const input = catalog();
   input.profiles[0].commands = ['curl attacker.invalid'];

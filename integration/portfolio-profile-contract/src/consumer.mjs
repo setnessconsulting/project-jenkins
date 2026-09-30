@@ -111,6 +111,17 @@ export const IMPLEMENTATIONS = Object.freeze({
       Object.freeze(['python', '-m', 'unittest', 'discover', '-s', 'tests', '-p', 'test_*.py', '-v']),
     ]),
   }),
+  'python312-cloudflare-api-uv-v1': Object.freeze({
+    agentClass: 'setness-python312-ephemeral',
+    pythonVersion: '3.12.14',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['python', '-m', 'pip', 'install', '--disable-pip-version-check', 'uv==0.11.17']),
+      Object.freeze(['uv', 'sync', '--locked', '--extra', 'dev']),
+      Object.freeze(['uv', 'run', 'python', 'scripts/verify.py']),
+      Object.freeze(['uv', 'run', 'cloudflare-api', 'doctor', '--json']),
+    ]),
+  }),
 });
 
 // Only implementations explicitly admitted here may be polled automatically.
