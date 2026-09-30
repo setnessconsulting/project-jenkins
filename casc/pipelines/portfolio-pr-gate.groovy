@@ -5,7 +5,7 @@ def portfolioCatalogRepository = /* JENKINS_PORTFOLIO_CATALOG_REPOSITORY */
 def portfolioCatalogPath = 'profiles/profiles.json'
 def portfolioNodeBinary = '/opt/setness-jenkins/tools/node-v22.23.3-linux-x64/bin/node'
 def portfolioResolver = '/usr/share/jenkins/portfolio-profile-contract/src/resolve-pr.mjs'
-def portfolioAdapterImplementationAllowlist = ['node22-foundation-v1', 'node22-verify-clean-checkout-v1']
+def portfolioAdapterImplementationAllowlist = ['node22-foundation-v1', 'node22-verify-clean-checkout-v1', 'python312-test-platform-v1']
 /* JENKINS_PORTFOLIO_CREDENTIAL_STORE_HELPERS */
 
 @com.cloudbees.groovy.cps.NonCPS
@@ -460,14 +460,22 @@ pipeline {
                             headSha: expectedSha
                         ]
                     ])
+                    boolean hasNodeRuntime = resolved.nodeVersion?.toString() ==~ /\d+\.\d+\.\d+/
+                    boolean hasPythonRuntime = resolved.pythonVersion?.toString() ==~ /\d+\.\d+\.\d+/
+                    boolean nodeRuntimeMatches = hasNodeRuntime &&
+                        resolved.nodeVersion.toString() == profile.requiredNodeVersion?.toString() &&
+                        profile.requiredPythonVersion == null
+                    boolean pythonRuntimeMatches = hasPythonRuntime &&
+                        resolved.pythonVersion.toString() == profile.requiredPythonVersion?.toString() &&
+                        profile.requiredNodeVersion == null
                     if (resolved.repository?.toString()?.equalsIgnoreCase(repository) != true ||
                         resolved.headSha?.toString()?.equalsIgnoreCase(expectedSha) != true ||
                         resolved.profileId?.toString() != profile.id.toString() ||
                         resolved.requiredCheck != 'jenkins-pr-gate' ||
-                        !(resolved.nodeVersion?.toString() ==~ /\d+\.\d+\.\d+/) ||
-                        resolved.nodeVersion.toString() != profile.requiredNodeVersion?.toString() ||
+                        hasNodeRuntime == hasPythonRuntime ||
+                        !(nodeRuntimeMatches || pythonRuntimeMatches) ||
                         (resolved.npmVersion != null && !(resolved.npmVersion.toString() ==~ /\d+\.\d+\.\d+/)) ||
-                        !(resolved.agentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node24-ephemeral']) ||
+                        !(resolved.agentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral']) ||
                         !(resolved.commands instanceof List) || resolved.commands.isEmpty()) {
                         error('The centrally trusted resolver returned a plan outside the controller contract; no checkout ran.')
                     }
@@ -478,7 +486,8 @@ pipeline {
                     env.PORTFOLIO_REPOSITORY = repository
                     env.PORTFOLIO_PROFILE_ID = profile.id.toString()
                     env.PORTFOLIO_AGENT_CLASS = resolved.agentClass.toString()
-                    env.PORTFOLIO_NODE_VERSION = resolved.nodeVersion.toString()
+                    env.PORTFOLIO_NODE_VERSION = resolved.nodeVersion?.toString() ?: ''
+                    env.PORTFOLIO_PYTHON_VERSION = resolved.pythonVersion?.toString() ?: ''
                     env.PORTFOLIO_NPM_VERSION = resolved.npmVersion?.toString() ?: ''
                     env.PORTFOLIO_COMMANDS_JSON = groovy.json.JsonOutput.toJson(resolved.commands)
                     env.PORTFOLIO_STATE = 'AUTHORIZED'
@@ -545,16 +554,27 @@ pipeline {
                             }
                             portfolioRemoveCheckoutCredential(currentBuild.rawBuild, temporaryCheckoutCredentialId)
                             temporaryCheckoutCredentialId = null
-                            List<String> runtimeEnvironment = ["EXPECTED_NODE_VERSION=v${env.PORTFOLIO_NODE_VERSION}"]
-                            if (env.PORTFOLIO_NPM_VERSION?.trim()) {
-                                runtimeEnvironment.add("EXPECTED_NPM_VERSION=${env.PORTFOLIO_NPM_VERSION}")
+                            List<String> runtimeEnvironment = []
+                            if (env.PORTFOLIO_NODE_VERSION?.trim()) {
+                                runtimeEnvironment.add("EXPECTED_NODE_VERSION=v${env.PORTFOLIO_NODE_VERSION}")
+                                if (env.PORTFOLIO_NPM_VERSION?.trim()) {
+                                    runtimeEnvironment.add("EXPECTED_NPM_VERSION=${env.PORTFOLIO_NPM_VERSION}")
+                                }
+                            } else if (env.PORTFOLIO_PYTHON_VERSION?.trim()) {
+                                runtimeEnvironment.add("EXPECTED_PYTHON_VERSION=${env.PORTFOLIO_PYTHON_VERSION}")
                             }
                             withEnv(runtimeEnvironment) {
                                 sh '''#!/usr/bin/env bash
 set -euo pipefail
-test "$(node --version)" = "$EXPECTED_NODE_VERSION"
-if [ -n "${EXPECTED_NPM_VERSION:-}" ]; then
-  test "$(npm --version)" = "$EXPECTED_NPM_VERSION"
+if [ -n "${EXPECTED_NODE_VERSION:-}" ]; then
+  test "$(node --version)" = "$EXPECTED_NODE_VERSION"
+  if [ -n "${EXPECTED_NPM_VERSION:-}" ]; then
+    test "$(npm --version)" = "$EXPECTED_NPM_VERSION"
+  fi
+elif [ -n "${EXPECTED_PYTHON_VERSION:-}" ]; then
+  test "$(python --version)" = "Python $EXPECTED_PYTHON_VERSION"
+else
+  exit 1
 fi
 '''
                             }

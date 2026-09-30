@@ -15,6 +15,7 @@ $pluginsPath = Join-Path $repositoryRoot 'plugins.txt'
 $agentDockerfilePath = Join-Path $repositoryRoot 'agent/Dockerfile'
 $node2214DockerfilePath = Join-Path $repositoryRoot 'agent/Node22.14.Dockerfile'
 $node24DockerfilePath = Join-Path $repositoryRoot 'agent/Node24.Dockerfile'
+$python312DockerfilePath = Join-Path $repositoryRoot 'agent/Python312.Dockerfile'
 $playwrightDockerfilePath = Join-Path $repositoryRoot 'agent/Playwright.Dockerfile'
 $secondaryPlaywrightDockerfilePath = Join-Path $repositoryRoot 'agent/Node24Playwright.Dockerfile'
 $secondaryPipelinePath = Join-Path $repositoryRoot 'casc/pipelines/secondary-repository.groovy'
@@ -73,6 +74,7 @@ $plugins = Get-Content -LiteralPath $pluginsPath -Raw
 $agentDockerfile = Get-Content -LiteralPath $agentDockerfilePath -Raw
 $node2214Dockerfile = Get-Content -LiteralPath $node2214DockerfilePath -Raw
 $node24Dockerfile = Get-Content -LiteralPath $node24DockerfilePath -Raw
+$python312Dockerfile = Get-Content -LiteralPath $python312DockerfilePath -Raw
 $playwrightDockerfile = Get-Content -LiteralPath $playwrightDockerfilePath -Raw
 $secondaryPlaywrightDockerfile = Get-Content -LiteralPath $secondaryPlaywrightDockerfilePath -Raw
 $secondaryPipeline = Get-Content -LiteralPath $secondaryPipelinePath -Raw
@@ -392,8 +394,8 @@ $oneBuildTemplateCapCount = [regex]::Matches(
     '(?m)^[ \t]+instanceCapStr: "1"$'
 ).Count
 if (-not $jenkinsConfig.Contains('containerCap: 1') -or
-    $oneBuildTemplateCapCount -ne 5 -or
-    $oneBuildRetentionStrategyCount -ne 5 -or
+    $oneBuildTemplateCapCount -ne 6 -or
+    $oneBuildRetentionStrategyCount -ne 6 -or
     $jenkinsConfig.Contains('$class: com.nirima.jenkins.plugins.docker.strategy.DockerOnceRetentionStrategy') -or
     $jenkinsConfig.Contains('dockerOnce:') -or
     -not $jenkinsConfig.Contains('idleMinutes: 0') -or
@@ -404,7 +406,7 @@ if (-not $jenkinsConfig.Contains('containerCap: 1') -or
     -not $jenkinsConfig.Contains('cpus: "4.0"') -or
     -not $jenkinsConfig.Contains('privileged: false') -or
     -not $jenkinsConfig.Contains('network: "setness-jenkins-private"')) {
-    throw 'The Docker cloud must configure five correctly bounded one-build templates through the plugin CasC schema and provision resource-limited, unprivileged containers on its private network.'
+    throw 'The Docker cloud must configure six correctly bounded one-build templates through the plugin CasC schema and provision resource-limited, unprivileged containers on its private network.'
 }
 if ($jenkinsConfig.Contains('permanent:') -or $jenkinsConfig.Contains('setness-linux-agent')) {
     throw 'A persistent Jenkins agent must not be configured.'
@@ -414,6 +416,8 @@ foreach ($agentContract in @(
     'image: "jenkins-pilot-agent:node-22.14.0"',
     'labelString: "setness-node24-ephemeral"',
     'image: "jenkins-pilot-agent:node-24.21.0"',
+    'labelString: "setness-python312-ephemeral"',
+    'image: "jenkins-pilot-agent:python-3.12.14"',
     'labelString: "setness-e2e-ephemeral"',
     'image: "jenkins-pilot-agent:node-22.23.3-playwright-1.62.1"',
     'labelString: "secondary-node24-playwright-ephemeral"',
@@ -435,6 +439,13 @@ if (-not [regex]::IsMatch(
 ) -or -not $jenkinsConfig.Contains('image: "jenkins-pilot-agent:node-22.14.0"') -or
     -not $jenkinsConfig.Contains('memoryLimit: 6144')) {
     throw 'The exact Node 22.14 profile must have a dedicated one-use, resource-limited Docker agent template.'
+}
+if (-not [regex]::IsMatch(
+    $jenkinsConfig,
+    '(?m)^          - name: "setness-python312-one-build"\r?\n            labelString: "setness-python312-ephemeral"$'
+) -or -not $jenkinsConfig.Contains('image: "jenkins-pilot-agent:python-3.12.14"') -or
+    -not $jenkinsConfig.Contains('memoryLimit: 6144')) {
+    throw 'The pinned Python 3.12 profile must have a dedicated one-use, resource-limited Docker agent template.'
 }
 if (-not $plugins.Contains('docker-plugin:1327.v9524f1ee134e')) {
     throw 'The Docker cloud plugin must be explicitly version-pinned.'
@@ -462,6 +473,18 @@ if (-not $agentDockerfile.Contains('v22.23.3') -or
     -not $playwrightDockerfile.Contains('USER jenkins')) {
     throw 'The pinned Node 22, Node 22.14, Node 24, and pre-baked unprivileged Playwright agent images are incomplete.'
 }
+if (-not $python312Dockerfile.Contains('ARG PYTHON_VERSION=3.12.14') -or
+    -not $python312Dockerfile.Contains('Python-${PYTHON_VERSION}.tar.xz') -or
+    -not $python312Dockerfile.Contains('5c8462af5790baf43a321a1559dbe0db06d1be4300fb85fb53c40060668e548a') -or
+    -not $python312Dockerfile.Contains('sha256sum --check --strict') -or
+    -not $python312Dockerfile.Contains('--enable-shared --with-ensurepip=install') -or
+    -not $python312Dockerfile.Contains('Python ${PYTHON_VERSION}') -or
+    -not $python312Dockerfile.Contains('USER jenkins') -or
+    $python312Dockerfile.Contains('docker.sock') -or
+    $python312Dockerfile.Contains('JENKINS_SECRET') -or
+    $python312Dockerfile.Contains('GITHUB_APP')) {
+    throw 'The Python 3.12 agent must pin and verify the official source runtime, remain unprivileged, and contain no controller or credential access.'
+}
 if (-not $secondaryPlaywrightDockerfile.Contains('v24.21.0') -or
     -not $secondaryPlaywrightDockerfile.Contains('sha256sum --check --strict') -or
     -not $secondaryPlaywrightDockerfile.Contains('PLAYWRIGHT_VERSION=1.62.1') -or
@@ -480,8 +503,10 @@ if (-not $compose.Contains('dockerfile: agent/Node22.14.Dockerfile') -or
     -not $compose.Contains('dockerfile: agent/Node24Playwright.Dockerfile') -or
     -not $compose.Contains('jenkins-pilot-agent:node-24.21.0') -or
     -not $compose.Contains('jenkins-pilot-agent:node-22.23.3-playwright-1.62.1') -or
-    -not $compose.Contains('jenkins-pilot-agent:node-24.21.0-playwright-1.62.1')) {
-    throw 'Compose must define buildable, pinned Node 24 and both repository-specific Playwright profiles.'
+    -not $compose.Contains('jenkins-pilot-agent:node-24.21.0-playwright-1.62.1') -or
+    -not $compose.Contains('dockerfile: agent/Python312.Dockerfile') -or
+    -not $compose.Contains('jenkins-pilot-agent:python-3.12.14')) {
+    throw 'Compose must define the buildable pinned Node, Playwright, and Python agent profiles.'
 }
 if (-not $e2ePipeline.Contains('TARGET_SHA') -or
     -not $e2ePipeline.Contains("name: 'jenkins-e2e'") -or
@@ -660,13 +685,17 @@ if (-not $vmStartScript.Contains('the controller is already running') -or
     -not $vmStartScript.Contains('there is nothing to verify')) {
     throw 'Portfolio verification must state its own install/restart exit semantics and its no-loaded-job posture.'
 }
-if (-not $vmStartScript.Contains('build controller agent-image node22-14-agent-image node24-agent-image e2e-agent-image secondary-agent-image')) {
+if (-not $vmStartScript.Contains('build controller agent-image node22-14-agent-image node24-agent-image python312-agent-image e2e-agent-image secondary-agent-image')) {
     throw 'VM installation and restart must prebuild every disposable agent profile.'
+}
+if (-not $vmStartScript.Contains("docker image inspect 'jenkins-pilot-agent:python-3.12.14'")) {
+    throw 'A normal VM start must build the Python agent image if the pinned runtime is missing.'
 }
 foreach ($agentImage in @(
     'jenkins-pilot-agent:node-22.23.3',
     'jenkins-pilot-agent:node-22.14.0',
     'jenkins-pilot-agent:node-24.21.0',
+    'jenkins-pilot-agent:python-3.12.14',
     'jenkins-pilot-agent:node-22.23.3-playwright-1.62.1',
     'jenkins-pilot-agent:node-24.21.0-playwright-1.62.1'
 )) {
@@ -891,6 +920,11 @@ foreach ($portfolioGuard in @(
     "'node24-lint-typescript-test-v1'",
     "agentClass: 'setness-node24-ephemeral'",
     "nodeVersion: '24.21.0'",
+    "'python312-test-platform-v1'",
+    "agentClass: 'setness-python312-ephemeral'",
+    "pythonVersion: '3.12.14'",
+    "Object.freeze(['python', '-m', 'pip', 'install', '-e', '.[dev]'])",
+    "Object.freeze(['python', '-m', 'test_platform.verify'])",
     'commands: Object.freeze([',
     "Object.freeze(['npm', 'run', 'check'])",
     "Object.freeze(['npm', 'test'])",
@@ -901,8 +935,9 @@ foreach ($portfolioGuard in @(
     'export function resolveAuthorizedShadowPullRequest(',
     "execution.repository.toLowerCase() !== verified.repository.toLowerCase()",
     "if (!['shadow', 'qualified'].includes(profile.status))",
-    'profile.requiredNodeVersion !== implementation.nodeVersion',
-    'nodeVersion: implementation.nodeVersion',
+    'if (implementation.nodeVersion)',
+    'profile.requiredPythonVersion !== implementation.pythonVersion',
+    'pythonVersion: implementation.pythonVersion',
     "reject('runtime-mismatch'",
     'profile.repositories.length !== 1',
     'implementation.requiredCheck',
@@ -922,11 +957,13 @@ foreach ($portfolioGuard in @(
 foreach ($portfolioRuntimeGuard in @(
     'def portfolioCatalogRepository = /* JENKINS_PORTFOLIO_CATALOG_REPOSITORY */',
     "def portfolioCatalogPath = 'profiles/profiles.json'",
-    "def portfolioAdapterImplementationAllowlist = ['node22-foundation-v1', 'node22-verify-clean-checkout-v1']",
-    'resolved.nodeVersion.toString() != profile.requiredNodeVersion?.toString()',
-    'env.PORTFOLIO_NODE_VERSION = resolved.nodeVersion.toString()',
+    "def portfolioAdapterImplementationAllowlist = ['node22-foundation-v1', 'node22-verify-clean-checkout-v1', 'python312-test-platform-v1']",
+    'resolved.pythonVersion.toString() == profile.requiredPythonVersion?.toString()',
+    'env.PORTFOLIO_NODE_VERSION = resolved.nodeVersion?.toString() ?:',
+    'env.PORTFOLIO_PYTHON_VERSION = resolved.pythonVersion?.toString() ?:',
     'env.PORTFOLIO_NPM_VERSION = resolved.npmVersion?.toString() ?:',
     'test "$(node --version)" = "$EXPECTED_NODE_VERSION"',
+    'test "$(python --version)" = "Python $EXPECTED_PYTHON_VERSION"',
     'test "$(npm --version)" = "$EXPECTED_NPM_VERSION"',
     'portfolioScopedAppToken(def run, String credentialId, String repository, Map permissions)',
     'new org.jenkinsci.plugins.github_branch_source.app_credentials.AccessSpecifiedRepositories(parts[0], [parts[1]])',
@@ -1110,4 +1147,4 @@ if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
     throw 'The portfolio resolver must remain data-only and the manual controller dispatcher must preserve per-repository token, exact-SHA, no-target-Pipeline, and cleanup boundaries.'
 }
 
-Write-Output 'Compose isolation, disposable Node 22/Node 22.14/Node 24/Playwright agents, controller-before-checkout authorization, opt-in secondary-repository profile, separate verification lanes, credential boundaries, check reporting, recovery gates, trusted-pipeline contracts, Test Platform consumer contract, and disabled-by-default repository-scoped portfolio poller/dispatcher contracts passed.'
+Write-Output 'Compose isolation, disposable Node 22/Node 22.14/Node 24/Python 3.12/Playwright agents, controller-before-checkout authorization, opt-in secondary-repository profile, separate verification lanes, credential boundaries, check reporting, recovery gates, trusted-pipeline contracts, Test Platform consumer contract, and disabled-by-default repository-scoped portfolio poller/dispatcher contracts passed.'

