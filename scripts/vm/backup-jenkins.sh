@@ -12,6 +12,9 @@ virt="$(systemd-detect-virt 2>/dev/null || true)"
 [[ "$virt" == microsoft || "$virt" == hyperv ]] || fail 'backup is allowed only inside the dedicated Hyper-V guest.'
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+# This recovery helper runs as root against a checkout owned by the guest admin.
+# Prevent git's optional index refresh from changing the checkout's ownership.
+export GIT_OPTIONAL_LOCKS=0
 volume_name='setness-jenkins-vm-home'
 expected_volume_path="/var/lib/docker/volumes/${volume_name}/_data"
 backup_root='/var/backups/setness-jenkins'
