@@ -32,6 +32,17 @@ exactly match that agent. A profile pinned to a different Node patch must remain
 planned until a matching trusted agent is available or its repository's CI
 baseline is deliberately updated and verified.
 
+The `python312-test-platform-v1` implementation uses a dedicated one-build,
+unprivileged agent with Python 3.12.14 built from the official source archive
+whose SHA-256 is pinned in `agent/Python312.Dockerfile`. Its centrally-owned
+argument vectors install the repository's development extra and run
+`python -m test_platform.verify`. The private profile records the descriptive
+`requiredPythonVersion` pin; it cannot provide a Python command, image, label,
+or environment value. This implementation matches only the single Linux
+verification job in `project-test-platform`; it does not cover unrelated
+repositories or workflows that use another Python version, operating system,
+matrix, or additional verification jobs.
+
 The `node22-verify-clean-checkout-v1` implementation uses a separate one-use
 agent pinned to Node 22.14.0/npm 10.9.2 and the static argument vectors
 `npm ci`, `npm run verify`, and `npm run verify:clean-checkout`. It exists for

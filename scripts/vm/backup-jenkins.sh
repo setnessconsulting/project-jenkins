@@ -21,6 +21,7 @@ agent_images=(
   'jenkins-pilot-agent:node-22.23.3'
   'jenkins-pilot-agent:node-22.14.0'
   'jenkins-pilot-agent:node-24.21.0'
+  'jenkins-pilot-agent:python-3.12.14'
   'jenkins-pilot-agent:node-22.23.3-playwright-1.62.1'
   'jenkins-pilot-agent:node-24.21.0-playwright-1.62.1'
 )

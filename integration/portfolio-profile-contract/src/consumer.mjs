@@ -14,6 +14,7 @@ const PROFILE_KEYS = new Set([
   'repositories',
   'checkNames',
   'requiredNodeVersion',
+  'requiredPythonVersion',
   'qualification',
   'forkSandboxQualification',
 ]);
@@ -79,6 +80,15 @@ export const IMPLEMENTATIONS = Object.freeze({
       Object.freeze(['npm', 'run', 'lint']),
       Object.freeze(['node_modules/.bin/tsc', '--noEmit']),
       Object.freeze(['npm', 'test']),
+    ]),
+  }),
+  'python312-test-platform-v1': Object.freeze({
+    agentClass: 'setness-python312-ephemeral',
+    pythonVersion: '3.12.14',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['python', '-m', 'pip', 'install', '-e', '.[dev]']),
+      Object.freeze(['python', '-m', 'test_platform.verify']),
     ]),
   }),
 });
@@ -206,6 +216,11 @@ export function validateProfileCatalog(catalog) {
           || !/^\d+\.\d+\.\d+$/.test(profile.requiredNodeVersion))) {
       reject('invalid-toolchain', `profile ${profile.id} has an invalid required Node.js version`);
     }
+    if (Object.hasOwn(profile, 'requiredPythonVersion')
+        && (typeof profile.requiredPythonVersion !== 'string'
+          || !/^\d+\.\d+\.\d+$/.test(profile.requiredPythonVersion))) {
+      reject('invalid-toolchain', `profile ${profile.id} has an invalid required Python version`);
+    }
     validateQualification(profile.qualification, profile.id);
 
     if (profile.status === 'unmapped') {
@@ -264,8 +279,18 @@ function resolveShadowExecution(catalog, profileId, headSha) {
   if (!profile.checkNames.includes(implementation.requiredCheck)) {
     reject('required-check-missing', 'profile does not declare the centrally required gate');
   }
-  if (profile.requiredNodeVersion !== implementation.nodeVersion) {
-    reject('runtime-mismatch', 'profile Node.js version does not match the centrally pinned agent runtime');
+  if (implementation.nodeVersion) {
+    if (profile.requiredNodeVersion !== implementation.nodeVersion
+        || Object.hasOwn(profile, 'requiredPythonVersion')) {
+      reject('runtime-mismatch', 'profile Node.js version does not match the centrally pinned agent runtime');
+    }
+  } else if (implementation.pythonVersion) {
+    if (profile.requiredPythonVersion !== implementation.pythonVersion
+        || Object.hasOwn(profile, 'requiredNodeVersion')) {
+      reject('runtime-mismatch', 'profile Python version does not match the centrally pinned agent runtime');
+    }
+  } else {
+    reject('implementation-runtime-missing', 'central implementation has no pinned runtime');
   }
 
   return Object.freeze({
@@ -274,7 +299,8 @@ function resolveShadowExecution(catalog, profileId, headSha) {
     headSha: headSha.toLowerCase(),
     requiredCheck: implementation.requiredCheck,
     agentClass: implementation.agentClass,
-    nodeVersion: implementation.nodeVersion,
+    ...(implementation.nodeVersion ? { nodeVersion: implementation.nodeVersion } : {}),
+    ...(implementation.pythonVersion ? { pythonVersion: implementation.pythonVersion } : {}),
     ...(implementation.npmVersion ? { npmVersion: implementation.npmVersion } : {}),
     commands: Object.freeze(implementation.commands.map((argv) => Object.freeze([...argv]))),
   });
