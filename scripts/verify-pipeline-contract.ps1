@@ -627,6 +627,26 @@ if (-not $vmStartScript.Contains('docker image inspect ''jenkins-pilot-agent:nod
     -not $vmStartScript.Contains('build node22-14-agent-image')) {
     throw 'A normal VM start must build the new Node 22.14 agent image when it is not already present.'
 }
+if (-not $vmStartScript.Contains('portfolio_verify()') -or
+    -not $vmStartScript.Contains('  verify)') -or
+    -not $vmStartScript.Contains('PORTFOLIO_JOB') -or
+    -not $vmStartScript.Contains('isScriptApproved(script, groovyLanguage)') -or
+    -not $vmStartScript.Contains('{init-secrets|install|start|restart|stop|status|logs|verify}')) {
+    throw 'The VM start script must expose an explicit portfolio verification action that reports the approval state of every loaded job.'
+}
+if (-not $vmStartScript.Contains('This never approves anything itself') -or
+    -not $vmStartScript.Contains('the controller did not report a portfolio posture')) {
+    throw 'Portfolio verification must fail closed when the controller reports no posture and must never approve controller code itself.'
+}
+$portfolioStartArmIndex = $vmStartScript.IndexOf('start|install|restart)')
+$portfolioStopArmIndex = $vmStartScript.IndexOf('  stop)')
+if ($portfolioStartArmIndex -lt 0 -or $portfolioStopArmIndex -le $portfolioStartArmIndex) {
+    throw 'The VM start script must keep the stop action after the start/install/restart arm.'
+}
+$portfolioStartArm = $vmStartScript.Substring($portfolioStartArmIndex, $portfolioStopArmIndex - $portfolioStartArmIndex)
+if (-not $portfolioStartArm.Contains('portfolio_verify')) {
+    throw 'Provisioning and restart must run portfolio verification after the controller starts.'
+}
 if (-not $vmStartScript.Contains('build controller agent-image node22-14-agent-image node24-agent-image e2e-agent-image secondary-agent-image')) {
     throw 'VM installation and restart must prebuild every disposable agent profile.'
 }

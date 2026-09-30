@@ -56,7 +56,7 @@ The VM script sets automatic startup and clean guest shutdown for Windows restar
    ```
 
    The generated password is stored root-only at `/etc/setness-jenkins/secrets/admin-password` on the BitLocker-protected VM disk. Read it only from the VM console when the Windows-side credential provisioning script prompts. The script creates a new Docker named volume `setness-jenkins-vm-home`; it does not reference the old Docker Desktop volume.
-3. Verify the JCasC page and Jenkins system information show zero controller executors, one Docker cloud with a one-container cap, and only the intended one-use Node 22, Node 24, and Playwright labels. Confirm that only the controller has `/var/run/docker.sock` mounted. Build agents have no credential or persistent workspace mount.
+3. Verify the JCasC page and Jenkins system information show zero controller executors, one Docker cloud with a one-container cap, and only the intended one-use Node 22, Node 24, and Playwright labels. Confirm that only the controller has `/var/run/docker.sock` mounted. Build agents have no credential or persistent workspace mount. Then run `sudo bash scripts/vm/start-jenkins.sh verify` to confirm the loaded portfolio jobs are present, still disabled by default, and running approved scripts; see "Operations and rollback".
 4. Install and enable the guest service so controller recovery is automatic after a VM or Windows restart:
 
    ```bash
@@ -118,6 +118,14 @@ If a gate fails, keep Actions authoritative and Jenkins shadow-only.
 ## Operations and rollback
 
 Inside the VM, use `sudo bash scripts/vm/start-jenkins.sh status|logs|restart|stop`. `stop` preserves the fresh VM volume; never use `down -v`.
+
+Every centrally rendered job in this repository disables the Groovy sandbox because controller-side exact-SHA verification needs the run's internal SCM revision action. Jenkins therefore requires each job's rendered script to be approved in script-security before the job can run, and an unapproved script fails the build within milliseconds, which is easy to miss. `install` and `restart` run the check below automatically, and `start` prints a reminder to run it once Jenkins is ready:
+
+```bash
+sudo bash scripts/vm/start-jenkins.sh verify
+```
+
+It reports the controller executor count and, for each `portfolio-dispatch` job and the deprecated top-level gate, whether the job is enabled and whether its rendered script is approved. It fails if any loaded portfolio job script is unapproved, and it fails closed if the controller does not report a posture at all. It never approves anything itself: review the pending script bodies in Manage Jenkins -> Script Console, approve them deliberately, then rerun the check. Re-rendering a job script changes it, so re-run the check after any change to an ignored `.env` value that flows into a job script, and after any change to the checked-in job definitions.
 
 For a consistent local backup, wait until no build container remains, stop Jenkins, then run:
 
