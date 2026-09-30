@@ -60,6 +60,105 @@ cleanup() {
 }
 trap cleanup EXIT
 
+
+# Groovy handed to the controller Script Console to report the loaded
+# portfolio posture, including whether each job's rendered script is
+# approved. Approval state is asked of script-security directly: pending
+# entries persist after a script is no longer rendered, so counting them
+# would report stale failures.
+portfolio_posture_script() {
+  cat <<'PORTFOLIO_POSTURE'
+import org.jenkinsci.plugins.scriptsecurity.scripts.Language
+import org.jenkinsci.plugins.scriptsecurity.scripts.ScriptApproval
+
+def sa = ScriptApproval.get()
+def jenkins = jenkins.model.Jenkins.get()
+def groovyLanguage = jenkins.getExtensionList(Language.class).find { it.getName().equalsIgnoreCase('groovy') }
+println 'PORTFOLIO_EXECUTORS=' + jenkins.getNumExecutors()
+['portfolio-dispatch/portfolio-pr-gate',
+ 'portfolio-dispatch/portfolio-pr-poller',
+ 'portfolio-dispatch/portfolio-checkout-credential-reaper'].each { full ->
+    def job = jenkins.getItemByFullName(full)
+    if (job == null) {
+        println 'PORTFOLIO_JOB ' + full + ' state=missing script=missing'
+        return
+    }
+    def definition = job.getDefinition()
+    def script = null
+    try {
+        script = definition?.getScript()
+    } catch (Exception ignored) {
+        script = null
+    }
+    def scriptState = 'no-script'
+    if (script != null) {
+        scriptState = sa.isScriptApproved(script, groovyLanguage) ? 'approved' : 'unapproved'
+    }
+    println 'PORTFOLIO_JOB ' + full + ' state=' + (job.isDisabled() ? 'disabled' : 'enabled') + ' script=' + scriptState
+}
+PORTFOLIO_POSTURE
+}
+
+# Post-load verification of the centrally rendered portfolio jobs. Every
+# portfolio job uses sandbox(false), so its rendered script must be approved
+# in script-security before the job can run, and an unapproved script fails
+# the build within milliseconds. Provisioning and restart therefore verify it
+# explicitly. This never approves anything itself: approving privileged
+# controller code stays a deliberate operator action.
+portfolio_verify() {
+  local container ready=0 admin_password bind_ip http_port script response
+  local cookie_jar crumb_json crumb crumb_field
+  container="$("${compose[@]}" ps -q controller 2>/dev/null || true)"
+  if [[ -z "$container" ]]; then
+    printf 'Portfolio verification: the controller container is not running.\n' >&2
+    return 1
+  fi
+  for _ in $(seq 1 60); do
+    if docker exec "$container" curl --fail --silent --output /dev/null http://127.0.0.1:8080/login >/dev/null 2>&1; then
+      ready=1
+      break
+    fi
+    sleep 2
+  done
+  if [[ "$ready" != 1 ]]; then
+    printf 'Portfolio verification: Jenkins did not answer on the controller within 120 seconds.\n' >&2
+    return 1
+  fi
+  admin_password="$(<"$admin_password_file")"
+  if [[ -z "$admin_password" ]]; then
+    printf 'Portfolio verification FAILED: the protected administrator secret is empty.\n' >&2
+    return 1
+  fi
+  # The ignored .env may carry CRLF line endings when it was authored on Windows,
+  # so strip any carriage return before using a value in a URL.
+  bind_ip="$(sed -n 's/^JENKINS_HTTP_BIND_IP=//p' "$repo_root/.env" | tr -d '\r' | tail -1)"
+  http_port="$(sed -n 's/^JENKINS_HTTP_PORT=//p' "$repo_root/.env" | tr -d '\r' | tail -1)"
+  bind_ip="${bind_ip:-127.0.0.1}"
+  http_port="${http_port:-18080}"
+  cookie_jar="$(mktemp)"
+  crumb_json="$(curl --silent --user "jenkins-admin:${admin_password}" --cookie-jar "$cookie_jar" "http://${bind_ip}:${http_port}/crumbIssuer/api/json" 2>/dev/null || true)"
+  crumb="$(printf '%s' "$crumb_json" | sed -n 's/.*"crumb":"\([^"]*\)".*/\1/p')"
+  crumb_field="$(printf '%s' "$crumb_json" | sed -n 's/.*"crumbRequestField":"\([^"]*\)".*/\1/p')"
+  script="$(portfolio_posture_script)"
+  if [[ -n "$crumb" && -n "$crumb_field" ]]; then
+    response="$(curl --silent --show-error --user "jenkins-admin:${admin_password}" --cookie "$cookie_jar" --header "${crumb_field}: ${crumb}" --data-urlencode "script=${script}" "http://${bind_ip}:${http_port}/scriptText" 2>/dev/null || true)"
+  else
+    response=""
+  fi
+  rm -f "$cookie_jar"
+  unset admin_password cookie_jar crumb_json crumb crumb_field script
+  printf '%s\n' "$response" | grep '^PORTFOLIO_' || true
+  if ! printf '%s\n' "$response" | grep -q '^PORTFOLIO_'; then
+    printf 'Portfolio verification FAILED: the controller did not report a portfolio posture; treat the loaded portfolio jobs as unverified.\n' >&2
+    return 1
+  fi
+  if printf '%s\n' "$response" | grep -q 'script=unapproved'; then
+    printf 'Portfolio verification FAILED: at least one loaded portfolio job script is not approved, and such a job fails immediately at run time. Review it in Manage Jenkins -> Script Console, approve it deliberately, then rerun this check.\n' >&2
+    return 1
+  fi
+  printf 'Portfolio verification passed: every loaded portfolio job reports an approved script. Re-rendering a job script changes it, so re-run this check after any configuration change.\n'
+}
+
 case "$action" in
   start|install|restart)
     docker info --format '{{.OperatingSystem}}' >/dev/null || fail 'the guest Docker daemon is not ready.'
@@ -76,6 +175,11 @@ case "$action" in
       "${compose[@]}" up -d controller
     fi
     printf 'Jenkins controller started in the protected Hyper-V guest. The old Docker Desktop volume is not referenced.\n'
+    if [[ "$action" == start ]]; then
+      printf 'Run `bash scripts/vm/start-jenkins.sh verify` once Jenkins is ready to confirm every loaded portfolio job script is approved.\n'
+    else
+      portfolio_verify
+    fi
     ;;
   stop)
     "${compose[@]}" stop controller
@@ -87,7 +191,10 @@ case "$action" in
   logs)
     "${compose[@]}" logs --tail 100 controller
     ;;
+  verify)
+    portfolio_verify
+    ;;
   *)
-    fail 'usage: bash scripts/vm/start-jenkins.sh {init-secrets|install|start|restart|stop|status|logs}'
+    fail 'usage: bash scripts/vm/start-jenkins.sh {init-secrets|install|start|restart|stop|status|logs|verify}'
     ;;
 esac
