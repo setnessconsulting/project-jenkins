@@ -91,6 +91,26 @@ export const IMPLEMENTATIONS = Object.freeze({
       Object.freeze(['python', '-m', 'test_platform.verify']),
     ]),
   }),
+  'python312-playtest-lab-v1': Object.freeze({
+    agentClass: 'setness-python312-ephemeral',
+    pythonVersion: '3.12.14',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['python', '-m', 'pip', 'install', '--upgrade', 'pip']),
+      Object.freeze(['python', '-m', 'pip', 'install', '.[test]']),
+      Object.freeze(['mkdir', '-p', '.frameworks']),
+      Object.freeze([
+        'git', 'clone', '--filter=blob:none',
+        'https://github.com/gameworld-project/GameWorld.git',
+        '.frameworks/gameworld-upstream',
+      ]),
+      Object.freeze([
+        'git', '-C', '.frameworks/gameworld-upstream',
+        'checkout', '--detach', '3c26bdab436800fd61ef40543b64ca40d12c7e4a',
+      ]),
+      Object.freeze(['python', '-m', 'unittest', 'discover', '-s', 'tests', '-p', 'test_*.py', '-v']),
+    ]),
+  }),
 });
 
 // Only implementations explicitly admitted here may be polled automatically.

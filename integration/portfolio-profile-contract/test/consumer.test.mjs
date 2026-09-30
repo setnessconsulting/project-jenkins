@@ -6,6 +6,7 @@ import * as profileConsumer from '../src/consumer.mjs';
 const {
   IMPLEMENTATIONS,
   ProfileRejection,
+  ROUTINE_DISPATCH_IMPLEMENTATIONS,
   resolveAuthorizedShadowPullRequest,
   resolveAuthorizedShadowPullRequestForRepository,
   validateProfileCatalog,
@@ -152,6 +153,42 @@ test('resolves the Python 3.12 Test Platform workflow on its exactly pinned agen
   ]);
 
   input.profiles[0].requiredPythonVersion = '3.12.13';
+  rejectsCode(() => resolve(input), 'runtime-mismatch');
+  input.profiles[0].requiredPythonVersion = '3.12.14';
+  input.profiles[0].requiredNodeVersion = '22.23.3';
+  rejectsCode(() => resolve(input), 'runtime-mismatch');
+});
+
+test('resolves the Game AI Playtest Lab workflow to its pinned Python 3.12 command vectors', () => {
+  const input = catalog();
+  input.approvedImplementations.push('python312-playtest-lab-v1');
+  input.profiles[0].implementationId = 'python312-playtest-lab-v1';
+  delete input.profiles[0].requiredNodeVersion;
+  input.profiles[0].requiredPythonVersion = '3.12.14';
+
+  const plan = resolve(input);
+  assert.equal(plan.agentClass, 'setness-python312-ephemeral');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.equal(plan.pythonVersion, '3.12.14');
+  assert.equal(Object.hasOwn(plan, 'nodeVersion'), false);
+  assert.deepEqual(plan.commands, [
+    ['python', '-m', 'pip', 'install', '--upgrade', 'pip'],
+    ['python', '-m', 'pip', 'install', '.[test]'],
+    ['mkdir', '-p', '.frameworks'],
+    [
+      'git', 'clone', '--filter=blob:none',
+      'https://github.com/gameworld-project/GameWorld.git',
+      '.frameworks/gameworld-upstream',
+    ],
+    [
+      'git', '-C', '.frameworks/gameworld-upstream',
+      'checkout', '--detach', '3c26bdab436800fd61ef40543b64ca40d12c7e4a',
+    ],
+    ['python', '-m', 'unittest', 'discover', '-s', 'tests', '-p', 'test_*.py', '-v'],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes('python312-playtest-lab-v1'), false);
+
+  input.profiles[0].requiredPythonVersion = '3.11.15';
   rejectsCode(() => resolve(input), 'runtime-mismatch');
   input.profiles[0].requiredPythonVersion = '3.12.14';
   input.profiles[0].requiredNodeVersion = '22.23.3';
