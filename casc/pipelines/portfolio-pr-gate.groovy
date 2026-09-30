@@ -10,7 +10,8 @@ def portfolioAdapterImplementationAllowlist = [
     'python312-test-platform-v1', 'python312-playtest-lab-v1', 'python312-cloudflare-api-uv-v1',
     'python312-blender-api-v1', 'python312-fmod-api-v1', 'python312-game-maker-v1',
     'python312-context-file-maker-v1', 'python312-cpa-ai-pack-v1',
-    'node2214-vercel-api-gitleaks-v1'
+    'node2214-vercel-api-gitleaks-v1', 'node24-game-platform-sdk-v1',
+    'node24-curiouspathway-pilot-v1', 'python312-portfolio-graph-uv-v1'
 ]
 /* JENKINS_PORTFOLIO_CREDENTIAL_STORE_HELPERS */
 
@@ -481,7 +482,7 @@ pipeline {
                         hasNodeRuntime == hasPythonRuntime ||
                         !(nodeRuntimeMatches || pythonRuntimeMatches) ||
                         (resolved.npmVersion != null && !(resolved.npmVersion.toString() ==~ /\d+\.\d+\.\d+/)) ||
-                        !(resolved.agentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral']) ||
+                        !(resolved.agentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral']) ||
                         !(resolved.commands instanceof List) || resolved.commands.isEmpty()) {
                         error('The centrally trusted resolver returned a plan outside the controller contract; no checkout ran.')
                     }

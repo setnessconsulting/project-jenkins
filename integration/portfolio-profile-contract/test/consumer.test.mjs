@@ -116,6 +116,98 @@ test('resolves the centrally pinned Node 24 lint, type, and test implementation'
   rejectsCode(() => resolve(input), 'runtime-mismatch');
 });
 
+test('resolves the Game Platform SDK workflow on pinned Node 24', () => {
+  const input = catalog();
+  input.approvedImplementations.push('node24-game-platform-sdk-v1');
+  input.profiles[0].implementationId = 'node24-game-platform-sdk-v1';
+  input.profiles[0].requiredNodeVersion = '24.21.0';
+
+  const plan = resolve(input);
+  assert.equal(plan.agentClass, 'setness-node24-ephemeral');
+  assert.equal(plan.nodeVersion, '24.21.0');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['npm', 'ci'],
+    ['npm', 'run', 'verify'],
+    ['npm', 'run', 'verify:bundle'],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes('node24-game-platform-sdk-v1'), true);
+
+  input.profiles[0].requiredNodeVersion = '24.21.1';
+  rejectsCode(() => resolve(input), 'runtime-mismatch');
+});
+
+test('resolves CuriousPathway Node 24 and three centrally selected Playwright suites', () => {
+  const input = catalog();
+  input.approvedImplementations.push('node24-curiouspathway-pilot-v1');
+  input.profiles[0].implementationId = 'node24-curiouspathway-pilot-v1';
+  input.profiles[0].requiredNodeVersion = '24.21.0';
+
+  const plan = resolve(input);
+  assert.equal(plan.agentClass, 'secondary-node24-playwright-ephemeral');
+  assert.equal(plan.nodeVersion, '24.21.0');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['npm', 'ci', '--no-audit', '--no-fund'],
+    ['npm', 'run', 'typecheck'],
+    ['npm', 'run', 'lint'],
+    ['npm', 'run', 'test:math-escape-preservation'],
+    ['npm', 'test'],
+    ['npm', 'run', 'build'],
+    ['npm', 'run', 'build:e2e'],
+    [
+      'npm', 'run', 'test:e2e:run', '--', '--forbid-only',
+      '--output=test-results/pilot-core',
+      'tests/wave1/e2e/foundation.spec.ts',
+      'tests/wave1/e2e/cloudflareFoundation.spec.ts',
+      'tests/wave2/e2e/pilotEntry.spec.ts',
+      'tests/wave3/e2e/pilotAssessment.spec.ts',
+      'tests/wave4/e2e/pilotLearning.spec.ts',
+      'tests/wave5/e2e/pilotJourney.spec.ts',
+    ],
+    [
+      'npm', 'run', 'test:e2e:run', '--', '--forbid-only',
+      '--output=test-results/pilot-no-games',
+      'tests/wave6/e2e/noGames.spec.ts',
+    ],
+    [
+      'npm', 'run', 'test:e2e:run', '--', '--forbid-only',
+      '--output=test-results/pilot-a11y',
+      'tests/wave2/e2e/mobileLayout.spec.ts',
+      'tests/wave7/e2e/qualification.spec.ts',
+    ],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes('node24-curiouspathway-pilot-v1'), true);
+
+  input.profiles[0].requiredNodeVersion = '24.21.1';
+  rejectsCode(() => resolve(input), 'runtime-mismatch');
+});
+
+test('resolves Portfolio Graph Linux Python 3.12 commands and leaves its workflow matrix residual', () => {
+  const input = catalog();
+  input.approvedImplementations.push('python312-portfolio-graph-uv-v1');
+  input.profiles[0].implementationId = 'python312-portfolio-graph-uv-v1';
+  delete input.profiles[0].requiredNodeVersion;
+  input.profiles[0].requiredPythonVersion = '3.12.14';
+
+  const plan = resolve(input);
+  assert.equal(plan.agentClass, 'setness-python312-ephemeral');
+  assert.equal(plan.pythonVersion, '3.12.14');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['python', '-m', 'pip', 'install', '--disable-pip-version-check', 'uv==0.11.17'],
+    ['uv', 'sync', '--locked'],
+    ['uv', 'run', '--locked', 'python', 'scripts/verify.py'],
+    ['uv', 'run', '--locked', 'portfolio', '--help'],
+    ['uv', 'run', '--locked', 'portfolio', '--version'],
+    ['uv', 'run', '--locked', 'portfolio', 'doctor', '--json'],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes('python312-portfolio-graph-uv-v1'), true);
+
+  input.profiles[0].requiredPythonVersion = '3.12.13';
+  rejectsCode(() => resolve(input), 'runtime-mismatch');
+});
+
 test('resolves the clean-checkout workflow only on its exactly pinned Node 22.14 agent', () => {
   const input = catalog();
   input.approvedImplementations.push('node22-verify-clean-checkout-v1');

@@ -986,6 +986,15 @@ foreach ($portfolioGuard in @(
     "'node24-lint-typescript-test-v1'",
     "agentClass: 'setness-node24-ephemeral'",
     "nodeVersion: '24.21.0'",
+    "'node24-game-platform-sdk-v1'",
+    "Object.freeze(['npm', 'run', 'verify:bundle'])",
+    "'node24-curiouspathway-pilot-v1'",
+    "agentClass: 'secondary-node24-playwright-ephemeral'",
+    "Object.freeze(['npm', 'ci', '--no-audit', '--no-fund'])",
+    "Object.freeze(['npm', 'run', 'test:math-escape-preservation'])",
+    "'tests/wave1/e2e/foundation.spec.ts'",
+    "'tests/wave6/e2e/noGames.spec.ts'",
+    "'tests/wave7/e2e/qualification.spec.ts'",
     "'python312-test-platform-v1'",
     "agentClass: 'setness-python312-ephemeral'",
     "pythonVersion: '3.12.14'",
@@ -1003,6 +1012,9 @@ foreach ($portfolioGuard in @(
     "Object.freeze(['uv', 'sync', '--locked', '--extra', 'dev'])",
     "Object.freeze(['uv', 'run', 'python', 'scripts/verify.py'])",
     "Object.freeze(['uv', 'run', 'cloudflare-api', 'doctor', '--json'])",
+    "'python312-portfolio-graph-uv-v1'",
+    "Object.freeze(['uv', 'run', '--locked', 'python', 'scripts/verify.py'])",
+    "Object.freeze(['uv', 'run', '--locked', 'portfolio', 'doctor', '--json'])",
     "'python312-blender-api-v1'",
     "Object.freeze(['python', '-m', 'pip', 'install', '--require-hashes', '-r', 'requirements-lock-linux-py312.txt'])",
     "'python312-fmod-api-v1'",
@@ -1055,6 +1067,9 @@ foreach ($portfolioRuntimeGuard in @(
     "def portfolioAdapterImplementationAllowlist = [",
     "'node22-foundation-v1'",
     "'node22-verify-clean-checkout-v1'",
+    "'node24-game-platform-sdk-v1'",
+    "'node24-curiouspathway-pilot-v1'",
+    "'python312-portfolio-graph-uv-v1'",
     "'python312-test-platform-v1'",
     "'python312-playtest-lab-v1'",
     "'python312-cloudflare-api-uv-v1'",
@@ -1064,6 +1079,7 @@ foreach ($portfolioRuntimeGuard in @(
     "'python312-context-file-maker-v1'",
     "'python312-cpa-ai-pack-v1'",
     "'node2214-vercel-api-gitleaks-v1'",
+    "!(resolved.agentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral'])",
     'resolved.pythonVersion.toString() == profile.requiredPythonVersion?.toString()',
     'env.PORTFOLIO_NODE_VERSION = resolved.nodeVersion?.toString() ?:',
     'env.PORTFOLIO_PYTHON_VERSION = resolved.pythonVersion?.toString() ?:',
@@ -1196,6 +1212,11 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumer.Contains('const POLL_RETRY_AFTER_MS = 15 * 60 * 1000') -or
     -not $portfolioConsumer.Contains('const POLL_MAX_ATTEMPTS = 3') -or
     -not $portfolioConsumer.Contains("['pending', 'completed', 'stalled']") -or
+    -not $portfolioConsumer.Contains('ROUTINE_DISPATCH_REPOSITORIES.some((repository) =>') -or
+    -not $portfolioConsumer.Contains("'setnessconsulting/project-test-platform'") -or
+    -not $portfolioConsumer.Contains("'setnessconsulting/project-game-platform-sdk'") -or
+    -not $portfolioConsumer.Contains("'setnessconsulting/curiouspathway'") -or
+    -not $portfolioConsumer.Contains("'setnessconsulting/project-portfolio-graph'") -or
     -not $portfolioConsumer.Contains("['missing', 'in_progress', 'orphaned', 'untracked', 'completed']") -or
     -not $portfolioConsumer.Contains("'dispatchId'") -or
     -not $portfolioConsumer.Contains('const dispatches = dispatchCandidates.slice(0, 1)') -or
@@ -1209,6 +1230,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioPollerTests.Contains('a missing exact-SHA check is stalled after the bounded retry budget') -or
     -not $portfolioPollerTests.Contains('polling is inert until the private control plane is explicitly active') -or
     -not $portfolioPollerTests.Contains('only centrally approved implementations are polled') -or
+    -not $portfolioPollerTests.Contains('routine polling stays within the selected four-repository portfolio-dispatch focus') -or
     -not $portfolioPollerCliTests.Contains('planner fails closed on malformed input, oversized data, and caller arguments') -or
     -not $portfolioAdapterDocs.Contains('JENKINS_PORTFOLIO_PR_POLL_ENABLED=true') -or
     -not $portfolioAdapterDocs.Contains('queues one') -or

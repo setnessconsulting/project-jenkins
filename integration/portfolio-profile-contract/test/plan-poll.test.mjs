@@ -3,17 +3,18 @@ import assert from 'node:assert/strict';
 import {
   IMPLEMENTATIONS,
   ROUTINE_DISPATCH_IMPLEMENTATIONS,
+  ROUTINE_DISPATCH_REPOSITORIES,
   listRoutinePullRequestPollRepositories,
   planRoutinePullRequestPoll,
 } from '../src/consumer.mjs';
 
-const repository = 'setnessconsulting/project-jira-api';
+const repository = 'setnessconsulting/project-test-platform';
 const shaA = 'a'.repeat(40);
 const shaB = 'b'.repeat(40);
 const now = 2_000_000;
 const retryAfterMs = 15 * 60 * 1000;
 
-function makeCatalog({ controlPlaneStatus = 'active', profileStatus = 'shadow', implementationId = 'node22-verify-clean-checkout-v1' } = {}) {
+function makeCatalog({ controlPlaneStatus = 'active', profileStatus = 'shadow', implementationId = 'python312-test-platform-v1' } = {}) {
   const qualification = profileStatus === 'qualified'
     ? {
       requiredExactShaCases: 10,
@@ -31,7 +32,9 @@ function makeCatalog({ controlPlaneStatus = 'active', profileStatus = 'shadow', 
       status: profileStatus,
       repositories: [repository],
       checkNames: ['jenkins-pr-gate'],
-      requiredNodeVersion: IMPLEMENTATIONS[implementationId]?.nodeVersion ?? '22.14.0',
+      ...(IMPLEMENTATIONS[implementationId]?.nodeVersion
+        ? { requiredNodeVersion: IMPLEMENTATIONS[implementationId].nodeVersion }
+        : { requiredPythonVersion: IMPLEMENTATIONS[implementationId]?.pythonVersion ?? '3.12.14' }),
       qualification,
     }],
     controlPlane: {
@@ -220,18 +223,56 @@ test('only centrally approved implementations are polled', () => {
   });
 });
 
-test('the foundation implementation is pollable only after its repository profile is shadow-enabled', () => {
+test('the Test Platform implementation is pollable only after its repository profile is shadow-enabled', () => {
   assert.deepEqual(ROUTINE_DISPATCH_IMPLEMENTATIONS, [
-    'node22-foundation-v1',
-    'node22-verify-clean-checkout-v1',
+    'python312-test-platform-v1',
+    'node24-game-platform-sdk-v1',
+    'node24-curiouspathway-pilot-v1',
+    'python312-portfolio-graph-uv-v1',
   ]);
-  const catalog = makeCatalog({ implementationId: 'node22-foundation-v1' });
+  assert.deepEqual(ROUTINE_DISPATCH_REPOSITORIES, [
+    'setnessconsulting/project-test-platform',
+    'setnessconsulting/project-game-platform-sdk',
+    'setnessconsulting/curiouspathway',
+    'setnessconsulting/project-portfolio-graph',
+  ]);
+  const catalog = makeCatalog();
   assert.deepEqual(listRoutinePullRequestPollRepositories(catalog), [repository]);
   assert.equal(plan(catalog, [makePullRequest()]).dispatches[0].headSha, shaA);
 
   catalog.profiles[0].status = 'planned';
   assert.deepEqual(listRoutinePullRequestPollRepositories(catalog), []);
   assert.deepEqual(planRoutinePullRequestPoll(catalog, [], [], [], now).dispatches, []);
+});
+
+test('routine polling stays within the selected four-repository portfolio-dispatch focus', () => {
+  const selected = ROUTINE_DISPATCH_REPOSITORIES.map((target, index) => ({
+    id: `focus-${index}`,
+    implementationId: ROUTINE_DISPATCH_IMPLEMENTATIONS[index],
+    status: 'shadow',
+    repositories: [target],
+    checkNames: ['jenkins-pr-gate'],
+    ...(IMPLEMENTATIONS[ROUTINE_DISPATCH_IMPLEMENTATIONS[index]].nodeVersion
+      ? { requiredNodeVersion: IMPLEMENTATIONS[ROUTINE_DISPATCH_IMPLEMENTATIONS[index]].nodeVersion }
+      : { requiredPythonVersion: IMPLEMENTATIONS[ROUTINE_DISPATCH_IMPLEMENTATIONS[index]].pythonVersion }),
+    qualification: { requiredExactShaCases: 10, qualifiedExactShaCases: 0, state: 'in-progress' },
+  }));
+  const outsideFocus = {
+    id: 'outside-focus',
+    implementationId: 'node22-verify-clean-checkout-v1',
+    status: 'shadow',
+    repositories: ['setnessconsulting/project-jira-api'],
+    checkNames: ['jenkins-pr-gate'],
+    requiredNodeVersion: '22.14.0',
+    qualification: { requiredExactShaCases: 10, qualifiedExactShaCases: 0, state: 'in-progress' },
+  };
+  const catalog = {
+    ...makeCatalog(),
+    approvedImplementations: [...selected.map((profile) => profile.implementationId), outsideFocus.implementationId],
+    profiles: [...selected, outsideFocus],
+  };
+
+  assert.deepEqual(listRoutinePullRequestPollRepositories(catalog), [...ROUTINE_DISPATCH_REPOSITORIES].sort());
 });
 
 test('qualified profiles remain runnable after their evidence gate passes', () => {
