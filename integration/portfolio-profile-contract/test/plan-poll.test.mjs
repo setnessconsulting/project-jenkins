@@ -10,6 +10,7 @@ import {
 } from '../src/consumer.mjs';
 
 const repository = 'setnessconsulting/project-test-platform';
+const projectJenkinsRepository = 'setnessconsulting/project-jenkins';
 const shaA = 'a'.repeat(40);
 const shaB = 'b'.repeat(40);
 const now = 2_000_000;
@@ -57,6 +58,53 @@ function makePullRequest({ number = 7, sha = shaA, author = 'setnessconsulting',
     head: { sha, repo: { full_name: headRepository } },
     base: { repo: { full_name: repository } },
   };
+}
+
+function makeProjectJenkinsCatalog({ profileStatus = 'shadow' } = {}) {
+  const base = makeCatalog({ profileStatus, implementationId: 'jenkins-repository-contract' });
+  return {
+    ...base,
+    profiles: [{
+      ...base.profiles[0],
+      id: 'project-jenkins-self-check',
+      repositories: [projectJenkinsRepository],
+      qualification: {
+        requiredExactShaCases: 4,
+        qualifiedExactShaCases: 0,
+        state: 'in-progress',
+        evidenceReference: 'docs/risk-based-qualification-matrices-2026-09-30.md',
+      },
+    }],
+  };
+}
+
+function makeProjectJenkinsPullRequest({
+  number = 47,
+  sha = shaA,
+  author = 'setnessconsulting',
+  headRepository = projectJenkinsRepository,
+  baseRepository = projectJenkinsRepository,
+  draft = false,
+  state: pullRequestState = 'open',
+} = {}) {
+  return {
+    number,
+    state: pullRequestState,
+    draft,
+    user: { login: author },
+    head: { sha, repo: { full_name: headRepository } },
+    base: { repo: { full_name: baseRepository } },
+  };
+}
+
+function planProjectJenkinsPullRequest(pullRequest, profileStatus = 'shadow') {
+  return planRoutinePullRequestPoll(
+    makeProjectJenkinsCatalog({ profileStatus }),
+    [{ repository: projectJenkinsRepository, pullRequests: [pullRequest] }],
+    [],
+    [],
+    now,
+  );
 }
 
 function state({ number = 7, sha = shaA, attempt = 1, dispatchedAtEpochMs = now, status = 'pending', dispatchId } = {}) {
@@ -226,6 +274,44 @@ test('only centrally approved implementations are polled', () => {
   });
 });
 
+test('project Jenkins self-check dispatches only the owner same-repository shadow head', () => {
+  const catalog = makeProjectJenkinsCatalog();
+  assert.deepEqual(listRoutinePullRequestPollRepositories(catalog), [projectJenkinsRepository]);
+  assert.equal(catalog.profiles[0].id, 'project-jenkins-self-check');
+  assert.equal(catalog.profiles[0].implementationId, 'jenkins-repository-contract');
+  assert.equal(catalog.profiles[0].status, 'shadow');
+  assert.deepEqual(catalog.profiles[0].checkNames, ['jenkins-pr-gate']);
+  assert.equal(IMPLEMENTATIONS[catalog.profiles[0].implementationId].requiredCheck, 'jenkins-pr-gate');
+  assert.equal(catalog.profiles[0].qualification.requiredExactShaCases, 4);
+  assert.equal(catalog.profiles[0].qualification.qualifiedExactShaCases, 0);
+
+  const result = planProjectJenkinsPullRequest(makeProjectJenkinsPullRequest({ sha: shaB }));
+  assert.deepEqual(result.dispatches, [{
+    repository: projectJenkinsRepository,
+    pullRequestNumber: 47,
+    headSha: shaB,
+    profileId: 'project-jenkins-self-check',
+    attempt: 1,
+  }]);
+});
+
+test('project Jenkins self-check rejects fork, outside-author, draft, closed, mismatched-base, and planned cases', () => {
+  const deniedPullRequests = [
+    makeProjectJenkinsPullRequest({ number: 48, author: 'andrewsetness' }),
+    makeProjectJenkinsPullRequest({ number: 49, headRepository: 'contributor/project-jenkins' }),
+    makeProjectJenkinsPullRequest({ number: 50, draft: true }),
+    makeProjectJenkinsPullRequest({ number: 51, state: 'closed' }),
+    makeProjectJenkinsPullRequest({ number: 52, baseRepository: 'setnessconsulting/another-repository' }),
+  ];
+  for (const pullRequest of deniedPullRequests) {
+    assert.deepEqual(planProjectJenkinsPullRequest(pullRequest).dispatches, []);
+  }
+
+  const planned = makeProjectJenkinsCatalog({ profileStatus: 'planned' });
+  assert.deepEqual(listRoutinePullRequestPollRepositories(planned), []);
+  assert.deepEqual(planRoutinePullRequestPoll(planned, [], [], [], now).dispatches, []);
+});
+
 test('the Test Platform implementation is pollable only after its repository profile is shadow-enabled', () => {
   assert.deepEqual(ROUTINE_DISPATCH_IMPLEMENTATIONS, [
     'python312-test-platform-v1',
@@ -233,6 +319,7 @@ test('the Test Platform implementation is pollable only after its repository pro
     'node24-curiouspathway-pilot-v1',
     'python312-portfolio-graph-uv-v1',
     'node2214-vercel-api-gitleaks-v1',
+    'jenkins-repository-contract',
   ]);
   assert.deepEqual(ROUTINE_DISPATCH_REPOSITORIES, [
     'setnessconsulting/project-test-platform',
@@ -240,6 +327,7 @@ test('the Test Platform implementation is pollable only after its repository pro
     'setnessconsulting/curiouspathway',
     'setnessconsulting/project-portfolio-graph',
     'setnessconsulting/project-vercel-api',
+    'setnessconsulting/project-jenkins',
   ]);
   const catalog = makeCatalog();
   assert.deepEqual(listRoutinePullRequestPollRepositories(catalog), [repository]);
@@ -250,7 +338,7 @@ test('the Test Platform implementation is pollable only after its repository pro
   assert.deepEqual(planRoutinePullRequestPoll(catalog, [], [], [], now).dispatches, []);
 });
 
-test('routine polling stays within the selected five-repository portfolio-dispatch focus', () => {
+test('routine polling stays within the selected six-repository portfolio-dispatch focus', () => {
   const selected = ROUTINE_DISPATCH_PROFILE_PAIRS.map(({ repository: target, implementationId }, index) => ({
     id: `focus-${index}`,
     implementationId,
