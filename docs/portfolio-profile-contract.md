@@ -59,7 +59,7 @@ Gitleaks, path filters, and event-specific behavior remain in Actions as
 documented in `python312-first-wave-remaining-2026-09-30.md`. None is added to
 routine polling, and none permits Jenkins cutover.
 
-The next focused shadow set adds five centrally trusted lanes:
+The focused shadow set includes six centrally trusted lanes:
 
 - `python312-test-platform-v1` runs the existing single Linux verification job
   on Python 3.12.14. The dedicated Test Platform agent also exposes the Docker
@@ -83,6 +83,11 @@ The next focused shadow set adds five centrally trusted lanes:
   Node.js verification jobs under one centrally trusted PR check. It uses the
   pinned Node 22.14.0/Gitleaks agent and leaves push/manual triggers, Actions
   authority, and deployment behavior unchanged.
+- `jenkins-repository-contract` runs the centrally defined Node contract suites
+  against the current exact PR head of `project-jenkins`: the four portfolio
+  profile-contract Node test files and the Test Platform adapter test. Its
+  existing private profile is `project-jenkins-self-check`, still shadow-only
+  at 0/4; the suite does not deploy or change Actions authority.
 
 `project-setness-consulting` is already observed through its separate
 centrally-owned repository pilot; it is not sent through the portfolio
@@ -123,8 +128,11 @@ The poller is opt-in through the ignored local
 also requires the private catalog location and `controlPlane.status: active`.
 Routine dispatch is restricted in trusted code to
 `project-test-platform`, `project-game-platform-sdk`, `curiouspathway`,
-`project-portfolio-graph`, and `project-vercel-api`, with only their five exact
-implementation/repository pairs.
+`project-portfolio-graph`, `project-vercel-api`, and `project-jenkins`, with
+only their six exact implementation/repository pairs. The Jenkins repository
+pair uses the already approved `jenkins-repository-contract` implementation;
+the poller's same-repository, non-draft, owner-only and exact-live-head checks
+remain unchanged.
 `project-setness-consulting` uses its separate pilot. The poller checks only
 open, same-repository, non-draft PRs authored by `setnessconsulting`, queues
 one exact-head SHA at a time, and persists dispatch state in Jenkins home. It

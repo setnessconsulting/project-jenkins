@@ -303,6 +303,7 @@ export const ROUTINE_DISPATCH_PROFILE_PAIRS = Object.freeze([
   Object.freeze({ implementationId: 'node24-curiouspathway-pilot-v1', repository: 'setnessconsulting/curiouspathway' }),
   Object.freeze({ implementationId: 'python312-portfolio-graph-uv-v1', repository: 'setnessconsulting/project-portfolio-graph' }),
   Object.freeze({ implementationId: 'node2214-vercel-api-gitleaks-v1', repository: 'setnessconsulting/project-vercel-api' }),
+  Object.freeze({ implementationId: 'jenkins-repository-contract', repository: 'setnessconsulting/project-jenkins' }),
 ]);
 
 // A catalog can select only the centrally reviewed behavior matrix for its
