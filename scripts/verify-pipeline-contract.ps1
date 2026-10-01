@@ -526,6 +526,62 @@ if (-not $plugins.Contains('docker-plugin:1327.v9524f1ee134e')) {
 if (-not $plugins.Contains('pipeline-build-step:601.v6d4c6d1a_9dc7')) {
     throw 'The Pipeline build step plugin must be explicitly version-pinned; the portfolio poller queues the gate job with the build step.'
 }
+$portfolioRequiredCapabilities = @(
+    'pipeline-build-step', 'github-checks', 'workflow-cps', 'workflow-basic-steps',
+    'workflow-durable-task-step', 'workflow-job', 'workflow-scm-step', 'github-branch-source',
+    'docker-plugin', 'build', 'withChecks', 'publishChecks', 'checkout', 'node', 'sh',
+    'writeFile', 'readFile', 'timeout', 'echo', 'error'
+)
+$portfolioRequiredAgentClasses = @(
+    'setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral',
+    'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral',
+    'secondary-node24-playwright-ephemeral'
+)
+foreach ($requiredCapability in $portfolioRequiredCapabilities) {
+    if (-not $portfolioPollerPipeline.Contains("'$requiredCapability'") -or
+        -not $vmStartScript.Contains("'$requiredCapability'")) {
+        throw "The controller capability preflight must name '$requiredCapability' in both the trusted poller and the deploy-time verification."
+    }
+}
+foreach ($agentClass in $portfolioRequiredAgentClasses) {
+    if (-not $portfolioPollerPipeline.Contains("'$agentClass'") -or
+        -not $portfolioPipeline.Contains("'$agentClass'") -or
+        -not $vmStartScript.Contains("'$agentClass'") -or
+        -not $jenkinsConfig.Contains("labelString: `"$agentClass`"")) {
+        throw "The poller, gate, deploy-time verification, and CasC templates must keep the supported agent class '$agentClass' aligned."
+    }
+}
+if (-not $portfolioPollerPipeline.Contains('String portfolioPollControllerCapabilityGap(') -or
+    -not $portfolioPollerPipeline.Contains("stage('Assert controller capabilities')") -or
+    -not $portfolioPollerPipeline.Contains('error(capabilityGap)') -or
+    -not $portfolioPollerPipeline.Contains('jenkins.getDescriptorList(org.jenkinsci.plugins.workflow.steps.Step.class)') -or
+    -not $portfolioPollerPipeline.Contains('jenkins.getLabelAtom(agentClass.toString())') -or
+    -not $portfolioPollerPipeline.Contains('cloud instanceof com.nirima.jenkins.plugins.docker.DockerCloud') -or
+    -not $portfolioPollerPipeline.Contains('cloud.canProvision(label)') -or
+    -not $portfolioPollerPipeline.Contains('cloud.getTemplates().any { template ->') -or
+    -not $portfolioPollerPipeline.Contains('label.matches(template.getLabelSet())') -or
+    -not $portfolioPollerPipeline.Contains('!template.getDisabled().isDisabled()') -or
+    -not $portfolioPipeline.Contains('boolean portfolioHasProvisionableConfiguredAgentClass(String agentClass)') -or
+    -not $portfolioPipeline.Contains('cloud instanceof com.nirima.jenkins.plugins.docker.DockerCloud') -or
+    -not $portfolioPipeline.Contains('cloud.canProvision(label)') -or
+    -not $portfolioPipeline.Contains('cloud.getTemplates().any { template ->') -or
+    -not $portfolioPipeline.Contains('label.matches(template.getLabelSet())') -or
+    -not $portfolioPipeline.Contains('!template.getDisabled().isDisabled()') -or
+    -not $portfolioPipeline.Contains('if (!portfolioHasProvisionableConfiguredAgentClass(resolvedAgentClass))') -or
+    -not $vmStartScript.Contains('jenkins.getLabelAtom(agentClass)') -or
+    -not $vmStartScript.Contains('cloud instanceof com.nirima.jenkins.plugins.docker.DockerCloud') -or
+    -not $vmStartScript.Contains('cloud.canProvision(label)') -or
+    -not $vmStartScript.Contains('cloud.getTemplates().any { template ->') -or
+    -not $vmStartScript.Contains('label.matches(template.getLabelSet())') -or
+    -not $vmStartScript.Contains('!template.getDisabled().isDisabled()') -or
+    -not $portfolioPollerPipeline.Contains('// BEGIN JENKINS_PORTFOLIO_CAPABILITY_PREFLIGHT') -or
+    -not $portfolioPollerPipeline.Contains('// END JENKINS_PORTFOLIO_CAPABILITY_PREFLIGHT')) {
+    throw 'The portfolio poller must fail closed at startup, naming missing plugins, Pipeline steps, trusted resources, or usable agent templates before dispatch; the gate must reject a missing profile-specific template before requesting a node, and keep the delimited preflight block the read-only live probe evaluates.'
+}
+if (-not $vmStartScript.Contains("println 'PORTFOLIO_CAPABILITIES=' +") -or
+    -not $vmStartScript.Contains('grep -q ''^PORTFOLIO_CAPABILITIES=ok$''')) {
+    throw 'Deploy verification must report the portfolio dispatch capability set and fail closed when it is incomplete.'
+}
 if (-not $agentDockerfile.Contains('openssh-client') -or
     -not $agentDockerfile.Contains('agent/known_hosts') -or
     -not $knownHosts.Contains('github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl')) {
@@ -1200,7 +1256,7 @@ foreach ($portfolioRuntimeGuard in @(
     "'python312-cpa-ai-pack-v1'",
     "'node2214-vercel-api-gitleaks-v1'",
     "'node22-github-api-foundation-v1'",
-    "!(resolved.agentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral'])",
+    "!(resolvedAgentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral'])",
     'resolved.pythonVersion.toString() == profile.requiredPythonVersion?.toString()',
     'env.PORTFOLIO_NODE_VERSION = resolved.nodeVersion?.toString() ?:',
     'env.PORTFOLIO_PYTHON_VERSION = resolved.pythonVersion?.toString() ?:',

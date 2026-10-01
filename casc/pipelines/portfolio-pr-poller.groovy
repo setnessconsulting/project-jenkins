@@ -6,6 +6,73 @@ def portfolioPollCatalogRepository = /* JENKINS_PORTFOLIO_CATALOG_REPOSITORY */
 def portfolioPollNodeBinary = /* JENKINS_PORTFOLIO_NODE_BINARY */
 def portfolioPollAdapter = '/usr/share/jenkins/portfolio-profile-contract/src/plan-poll.mjs'
 
+// Controller capabilities the poller -> gate dispatch path depends on: the step
+// that queues the gate, the steps the gate needs to publish its check run, and
+// the resources and agent cloud the whole path runs on. Asserting them up front
+// turns a broken controller image into one loud, actionable failure at the
+// start of the run instead of an opaque error at the queue step, after the
+// poller has already retried on its five-minute schedule. The deploy-time
+// check in scripts/vm/start-jenkins.sh asserts the same set, and
+// scripts/verify-pipeline-contract.ps1 keeps this list in step with plugins.txt.
+def portfolioPollRequiredPlugins = ['pipeline-build-step', 'github-checks', 'workflow-cps', 'workflow-basic-steps', 'workflow-durable-task-step', 'workflow-job', 'workflow-scm-step', 'github-branch-source', 'docker-plugin']
+def portfolioPollRequiredStepSymbols = ['build', 'withChecks', 'publishChecks', 'checkout', 'node', 'sh', 'writeFile', 'readFile', 'timeout', 'echo', 'error']
+def portfolioPollRequiredAgentClasses = ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral']
+
+// Fail-closed capability preflight. Returns a loud message naming every missing
+// capability, or null when the dispatch path can run. It reads only Jenkins
+// core state and never resolves a credential. The markers below delimit the
+// exact block that the read-only console probe in
+// _evidence/jenkins-pipeline-build-step-20261001/ evaluates against a live
+// controller, so keep them in place.
+// BEGIN JENKINS_PORTFOLIO_CAPABILITY_PREFLIGHT
+@com.cloudbees.groovy.cps.NonCPS
+String portfolioPollControllerCapabilityGap(List requiredPlugins, List requiredStepSymbols, List requiredAgentClasses, String nodeBinary, String adapterPath) {
+    def jenkins = jenkins.model.Jenkins.get()
+    def pluginManager = jenkins.getPluginManager()
+    List gaps = []
+    requiredPlugins.each { name ->
+        def plugin = pluginManager.getPlugin(name.toString())
+        if (plugin == null || !plugin.isActive()) gaps.add("plugin ${name}")
+    }
+    try {
+        Set availableSymbols = jenkins.getDescriptorList(org.jenkinsci.plugins.workflow.steps.Step.class)
+            .collect { descriptor -> descriptor.functionName } as Set
+        requiredStepSymbols.each { symbol ->
+            if (!availableSymbols.contains(symbol.toString())) gaps.add("step ${symbol}")
+        }
+    } catch (Throwable failure) {
+        gaps.add("step enumeration (${failure.getClass().getSimpleName()})")
+    }
+    if (!(nodeBinary instanceof String) || !new File(nodeBinary).canExecute()) gaps.add("controller Node binary ${nodeBinary}")
+    if (!(adapterPath instanceof String) || !new File(adapterPath).isFile()) gaps.add("trusted poll adapter ${adapterPath}")
+    // Every centrally allowed class must have an enabled, persistent Docker
+    // template. canProvision confirms the cloud is enabled; getTemplates()
+    // excludes job-temporary templates, which are not a reliable dispatch path.
+    try {
+        if (!jenkins.clouds) {
+            gaps.add('agent cloud')
+        } else {
+            List missingAgentClasses = requiredAgentClasses.findAll { agentClass ->
+                def label = jenkins.getLabelAtom(agentClass.toString())
+                label == null || !jenkins.clouds.any { cloud ->
+                    cloud instanceof com.nirima.jenkins.plugins.docker.DockerCloud &&
+                        cloud.canProvision(label) &&
+                        cloud.getTemplates().any { template ->
+                            !template.getDisabled().isDisabled() && label.matches(template.getLabelSet())
+                        }
+                }
+            }
+            missingAgentClasses.each { agentClass -> gaps.add("agent template ${agentClass}") }
+        }
+    } catch (Throwable failure) {
+        gaps.add("agent template capability enumeration (${failure.getClass().getSimpleName()})")
+    }
+    if (gaps.isEmpty()) return null
+    return 'Portfolio dispatch capability preflight FAILED, so the poller to gate dispatch path cannot run: ' + gaps.join('; ') +
+        '. No PR was dispatched and no gate build was queued. Fix the controller image (plugins.txt) or its configuration, then re-run scripts/vm/start-jenkins.sh verify before expecting portfolio shadow evidence.'
+}
+// END JENKINS_PORTFOLIO_CAPABILITY_PREFLIGHT
+
 @com.cloudbees.groovy.cps.NonCPS
 String portfolioPollScopedAppToken(def run, String credentialId, String repository, Map permissions) {
     def read = org.kohsuke.github.GHPermissionType.READ
@@ -467,6 +534,24 @@ pipeline {
     }
 
     stages {
+        stage('Assert controller capabilities') {
+            steps {
+                script {
+                    String capabilityGap = portfolioPollControllerCapabilityGap(
+                        portfolioPollRequiredPlugins,
+                        portfolioPollRequiredStepSymbols,
+                        portfolioPollRequiredAgentClasses,
+                        portfolioPollNodeBinary,
+                        portfolioPollAdapter
+                    )
+                    if (capabilityGap != null) {
+                        error(capabilityGap)
+                    }
+                    echo 'Controller capability preflight passed: the gate queue step, the check-publication steps, the trusted poll adapter, and the agent cloud are all present.'
+                }
+            }
+        }
+
         stage('Discover and queue one exact-SHA PR') {
             steps {
                 script {
