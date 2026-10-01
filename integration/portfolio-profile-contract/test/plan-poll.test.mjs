@@ -316,6 +316,10 @@ test('the Test Platform implementation is pollable only after its repository pro
   assert.deepEqual(ROUTINE_DISPATCH_IMPLEMENTATIONS, [
     'node22-github-api-foundation-v1',
     'python312-test-platform-v1',
+    'python312-blender-api-v1',
+    'python312-cloudflare-api-uv-v1',
+    'python312-fmod-api-v1',
+    'python312-game-maker-v1',
     'node24-game-platform-sdk-v1',
     'node24-curiouspathway-pilot-v1',
     'python312-portfolio-graph-uv-v1',
@@ -326,6 +330,10 @@ test('the Test Platform implementation is pollable only after its repository pro
   assert.deepEqual(ROUTINE_DISPATCH_REPOSITORIES, [
     'setnessconsulting/project-github-api',
     'setnessconsulting/project-test-platform',
+    'setnessconsulting/project-blender-api',
+    'setnessconsulting/project-cloudflare-api',
+    'setnessconsulting/project-fmod-api',
+    'setnessconsulting/project-game-maker',
     'setnessconsulting/project-game-platform-sdk',
     'setnessconsulting/curiouspathway',
     'setnessconsulting/project-portfolio-graph',
@@ -342,7 +350,7 @@ test('the Test Platform implementation is pollable only after its repository pro
   assert.deepEqual(planRoutinePullRequestPoll(catalog, [], [], [], now).dispatches, []);
 });
 
-test('routine polling stays within the selected eight-repository portfolio-dispatch focus', () => {
+test('routine polling stays within the explicit twelve-repository portfolio-dispatch allowlist', () => {
   const selected = ROUTINE_DISPATCH_PROFILE_PAIRS.map(({ repository: target, implementationId }, index) => ({
     id: `focus-${index}`,
     implementationId,
