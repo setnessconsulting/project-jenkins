@@ -87,6 +87,13 @@ services:
       context: .
       dockerfile: agent/Node22.14.Dockerfile
     image: jenkins-pilot-agent:node-22.14.0
+  node22-14-disposable-agent-image:
+    profiles:
+      - build-images
+    build:
+      context: .
+      dockerfile: agent/Node22.14Disposable.Dockerfile
+    image: jenkins-pilot-agent:node-22.14.0-disposable
   setness-web-ci-agent-image:
     profiles:
       - build-images

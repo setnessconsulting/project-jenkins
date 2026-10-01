@@ -80,7 +80,7 @@ clearing configuration cannot leave an older dispatcher runnable.
 The central routine-poller allowlist is an explicit set of implementation and
 repository pairs. It includes the exact Node 22 foundation implementation
 (`node22-foundation-v1`, Node 22.23.3/npm 10.9.9), the Node 22.14
-clean-checkout implementation, and the seven focused shadow lanes documented
+clean-checkout implementation, and the nine focused shadow lanes documented
 in `portfolio-profile-contract.md`. The agent checks its pinned
 runtime after exact-SHA checkout and before running repository commands.
 Profiles remain planned until their matching runtime is loaded and ready; no

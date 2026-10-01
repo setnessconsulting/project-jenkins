@@ -59,7 +59,7 @@ Gitleaks, path filters, and event-specific behavior remain in Actions as
 documented in `python312-first-wave-remaining-2026-09-30.md`. None is added to
 routine polling, and none permits Jenkins cutover.
 
-The focused shadow set includes seven centrally trusted lanes:
+The focused shadow set includes nine centrally trusted lanes:
 
 - `python312-test-platform-v1` runs the existing single Linux verification job
   on Python 3.12.14. The dedicated Test Platform agent also exposes the Docker
@@ -81,13 +81,24 @@ The focused shadow set includes seven centrally trusted lanes:
   Actions work.
 - `node2214-vercel-api-gitleaks-v1` combines the repository's Gitleaks and
   Node.js verification jobs under one centrally trusted PR check. It uses the
-  pinned Node 22.14.0/Gitleaks agent and leaves push/manual triggers, Actions
-  authority, and deployment behavior unchanged.
+  pinned Node 22.14.0/npm 10.9.2/Gitleaks 8.24.3 disposable agent with no Docker
+  CLI, socket, or host mounts. Its commands match the live workflow order;
+  push/manual triggers, Actions authority, and deployment behavior remain
+  unchanged.
+- `node22-verify-clean-checkout-v1` uses the same no-socket Node 22.14.0/npm
+  10.9.2 image for `project-jira-api`'s `npm ci`, `npm run verify`, and
+  `npm run verify:clean-checkout` commands. Its manual exact-SHA Actions fallback
+  and required Actions `verify` check remain intact.
+- `node22-github-api-foundation-v1` runs `project-github-api`'s existing Node
+  22.23.3/npm 10.9.9 command sequence on the no-socket Setness Node/PowerShell
+  agent. Its push, pull-request, and manual Actions triggers remain intact;
+  qualification stays at 0/4.
 - `jenkins-repository-contract` runs the centrally defined Node contract suites
   against the current exact PR head of `project-jenkins`: the four portfolio
   profile-contract Node test files and the Test Platform adapter test. Its
   existing private profile is `project-jenkins-self-check`, still shadow-only
-  at 0/4; the suite does not deploy or change Actions authority.
+  at 0/4. It now uses the no-socket Setness Node/PowerShell worker; the suite
+  does not deploy or change Actions authority.
 - `setness-web-ci-node22-v1` maps only `project-setness-consulting`'s primary
   Node 22 `ci.yml` job. It runs the fallback-contract PowerShell check, exact-SHA
   fallback runtime check, `npm ci`, typecheck, lint, build, blog validation,
@@ -133,8 +144,8 @@ The poller is opt-in through the ignored local
 also requires the private catalog location and `controlPlane.status: active`.
 Routine dispatch is restricted in trusted code to
 `project-test-platform`, `project-game-platform-sdk`, `curiouspathway`,
-`project-portfolio-graph`, `project-vercel-api`, `project-jenkins`, and
-`project-setness-consulting`, with only their seven exact
+`project-portfolio-graph`, `project-vercel-api`, `project-jenkins`,
+`project-setness-consulting`, and `project-github-api`, with only their eight exact
 implementation/repository pairs. The Jenkins repository pair uses the already
 approved `jenkins-repository-contract` implementation; the poller's
 same-repository, non-draft, owner-only and exact-live-head checks remain
