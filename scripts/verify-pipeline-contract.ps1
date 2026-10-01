@@ -526,6 +526,32 @@ if (-not $plugins.Contains('docker-plugin:1327.v9524f1ee134e')) {
 if (-not $plugins.Contains('pipeline-build-step:601.v6d4c6d1a_9dc7')) {
     throw 'The Pipeline build step plugin must be explicitly version-pinned; the portfolio poller queues the gate job with the build step.'
 }
+$portfolioRequiredCapabilities = @(
+    'pipeline-build-step', 'github-checks', 'workflow-cps', 'workflow-basic-steps',
+    'workflow-durable-task-step', 'workflow-job', 'workflow-scm-step', 'github-branch-source',
+    'docker-plugin', 'build', 'withChecks', 'publishChecks', 'checkout', 'node', 'sh',
+    'writeFile', 'readFile', 'timeout', 'echo', 'error'
+)
+foreach ($requiredCapability in $portfolioRequiredCapabilities) {
+    if (-not $portfolioPollerPipeline.Contains("'$requiredCapability'") -or
+        -not $vmStartScript.Contains("'$requiredCapability'")) {
+        throw "The controller capability preflight must name '$requiredCapability' in both the trusted poller and the deploy-time verification."
+    }
+}
+if (-not $portfolioPollerPipeline.Contains('String portfolioPollControllerCapabilityGap(') -or
+    -not $portfolioPollerPipeline.Contains("stage('Assert controller capabilities')") -or
+    -not $portfolioPollerPipeline.Contains('error(capabilityGap)') -or
+    -not $portfolioPollerPipeline.Contains('jenkins.getDescriptorList(org.jenkinsci.plugins.workflow.steps.Step.class)') -or
+    -not $portfolioPollerPipeline.Contains('if (!jenkins.clouds) gaps.add(''agent cloud'')') -or
+    -not $vmStartScript.Contains('if (!jenkins.clouds) capabilityGaps.add(''agent cloud'')') -or
+    -not $portfolioPollerPipeline.Contains('// BEGIN JENKINS_PORTFOLIO_CAPABILITY_PREFLIGHT') -or
+    -not $portfolioPollerPipeline.Contains('// END JENKINS_PORTFOLIO_CAPABILITY_PREFLIGHT')) {
+    throw 'The portfolio poller must fail closed at startup, naming every missing plugin, Pipeline step, trusted adapter, or agent cloud, before it can dispatch, and keep the delimited preflight block the read-only live probe evaluates.'
+}
+if (-not $vmStartScript.Contains("println 'PORTFOLIO_CAPABILITIES=' +") -or
+    -not $vmStartScript.Contains('grep -q ''^PORTFOLIO_CAPABILITIES=ok$''')) {
+    throw 'Deploy verification must report the portfolio dispatch capability set and fail closed when it is incomplete.'
+}
 if (-not $agentDockerfile.Contains('openssh-client') -or
     -not $agentDockerfile.Contains('agent/known_hosts') -or
     -not $knownHosts.Contains('github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl')) {

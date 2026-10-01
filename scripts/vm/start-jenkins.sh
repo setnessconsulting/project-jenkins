@@ -77,6 +77,35 @@ def sa = ScriptApproval.get()
 def jenkins = jenkins.model.Jenkins.get()
 def groovyLanguage = jenkins.getExtensionList(Language.class).find { it.getName().equalsIgnoreCase('groovy') }
 println 'PORTFOLIO_EXECUTORS=' + jenkins.getNumExecutors()
+// The trusted dispatch path (poller -> gate) needs the queue step, the steps
+// the gate publishes its check run with, and an agent cloud. Report them here so
+// a controller image that silently lost a plugin fails deploy verification
+// instead of failing a poll five minutes later. The poller asserts the same set
+// at the start of every run.
+def capabilityPlugins = ['pipeline-build-step', 'github-checks', 'workflow-cps', 'workflow-basic-steps', 'workflow-durable-task-step', 'workflow-job', 'workflow-scm-step', 'github-branch-source', 'docker-plugin']
+def capabilitySymbols = ['build', 'withChecks', 'publishChecks', 'checkout', 'node', 'sh', 'writeFile', 'readFile', 'timeout', 'echo', 'error']
+def capabilityGaps = []
+def capabilityPluginManager = jenkins.getPluginManager()
+capabilityPlugins.each { name ->
+    def plugin = capabilityPluginManager.getPlugin(name)
+    if (plugin == null || !plugin.isActive()) capabilityGaps.add('plugin ' + name)
+}
+try {
+    def availableSymbols = jenkins.getDescriptorList(org.jenkinsci.plugins.workflow.steps.Step.class).collect { descriptor -> descriptor.functionName } as Set
+    capabilitySymbols.each { symbol ->
+        if (!availableSymbols.contains(symbol)) capabilityGaps.add('step ' + symbol)
+    }
+} catch (Throwable failure) {
+    capabilityGaps.add('step enumeration (' + failure.getClass().getSimpleName() + ')')
+}
+// This core exposes the configured clouds as the `clouds` property; it has no
+// getClouds() accessor.
+try {
+    if (!jenkins.clouds) capabilityGaps.add('agent cloud')
+} catch (Throwable failure) {
+    capabilityGaps.add('agent cloud enumeration (' + failure.getClass().getSimpleName() + ')')
+}
+println 'PORTFOLIO_CAPABILITIES=' + (capabilityGaps.isEmpty() ? 'ok' : 'missing: ' + capabilityGaps.join('; '))
 def loaded = 0
 def approved = 0
 def unapproved = 0
@@ -185,7 +214,11 @@ portfolio_verify() {
     printf 'Portfolio verification passed: no portfolio-dispatch job is loaded, so there is nothing to verify. The portfolio gate is created only when a catalog repository is configured, so this is the expected default posture.\n'
     return 0
   fi
-  printf 'Portfolio verification passed: every loaded portfolio job reports an approved script. Re-rendering a job script changes it, so re-run this check after any configuration change.\n'
+  if ! printf '%s\n' "$response" | grep -q '^PORTFOLIO_CAPABILITIES=ok$'; then
+    printf 'Portfolio verification FAILED: the controller did not report an intact portfolio dispatch capability set (expected PORTFOLIO_CAPABILITIES=ok). The poller refuses to dispatch and the gate cannot queue or publish checks until the missing plugin, step, or agent-cloud capability is restored in the controller image. When this ran as part of install or restart the controller is already running, so a non-zero exit means the portfolio jobs cannot dispatch shadow evidence yet, not that the controller failed to start; re-running the same action after fixing the image is idempotent.\n' >&2
+    return 1
+  fi
+  printf 'Portfolio verification passed: every loaded portfolio job reports an approved script and the controller reports the required dispatch capabilities. Re-rendering a job script changes it, so re-run this check after any configuration change.\n'
 }
 
 case "$action" in
