@@ -94,13 +94,13 @@ test('validates the closed catalog and resolves centrally-owned static commands'
   ]);
 });
 
-test('resolves the project-jenkins self-check with centrally pinned static commands', () => {
+test('resolves the project-jenkins self-check on the no-socket Node 22.23 agent', () => {
   const input = catalog();
   input.approvedImplementations.push('jenkins-repository-contract');
   input.profiles[0].implementationId = 'jenkins-repository-contract';
 
   const plan = resolve(input);
-  assert.equal(plan.agentClass, 'setness-ephemeral');
+  assert.equal(plan.agentClass, 'setness-web-ci-node22-ephemeral');
   assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
   assert.equal(plan.nodeVersion, '22.23.3');
   assert.equal(Object.hasOwn(plan, 'npmVersion'), false);
@@ -230,15 +230,16 @@ test('resolves Portfolio Graph Linux Python 3.12 commands and leaves its workflo
   rejectsCode(() => resolve(input), 'runtime-mismatch');
 });
 
-test('resolves the clean-checkout workflow only on its exactly pinned Node 22.14 agent', () => {
+test('resolves the clean-checkout workflow on the isolated Node 22.14 disposable agent', () => {
   const input = catalog();
   input.approvedImplementations.push('node22-verify-clean-checkout-v1');
   input.profiles[0].implementationId = 'node22-verify-clean-checkout-v1';
   input.profiles[0].requiredNodeVersion = '22.14.0';
 
   const plan = resolve(input);
-  assert.equal(plan.agentClass, 'setness-node22-14-ephemeral');
+  assert.equal(plan.agentClass, 'setness-node22-14-disposable-ephemeral');
   assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.equal(plan.npmVersion, '10.9.2');
   assert.deepEqual(plan.commands, [
     ['npm', 'ci'],
     ['npm', 'run', 'verify'],
@@ -249,7 +250,7 @@ test('resolves the clean-checkout workflow only on its exactly pinned Node 22.14
   rejectsCode(() => resolve(input), 'runtime-mismatch');
 });
 
-test('resolves the Vercel API secret-scan and test jobs on the pinned Node 22.14 Gitleaks agent', () => {
+test('resolves Vercel API secret-scan and tests on the isolated Node 22.14 Gitleaks agent', () => {
   const input = catalog();
   input.approvedImplementations.push('node2214-vercel-api-gitleaks-v1');
   input.profiles[0].implementationId = 'node2214-vercel-api-gitleaks-v1';
@@ -257,7 +258,7 @@ test('resolves the Vercel API secret-scan and test jobs on the pinned Node 22.14
   input.profiles[0].qualification.requiredExactShaCases = 6;
 
   const plan = resolve(input);
-  assert.equal(plan.agentClass, 'setness-node22-14-ephemeral');
+  assert.equal(plan.agentClass, 'setness-node22-14-disposable-ephemeral');
   assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
   assert.equal(plan.nodeVersion, '22.14.0');
   assert.equal(plan.npmVersion, '10.9.2');
@@ -272,6 +273,26 @@ test('resolves the Vercel API secret-scan and test jobs on the pinned Node 22.14
 
   input.profiles[0].requiredNodeVersion = '22.14.1';
   rejectsCode(() => resolve(input), 'runtime-mismatch');
+});
+
+test('resolves the GitHub API foundation on the no-socket Node 22.23 profile', () => {
+  const input = catalog();
+  input.approvedImplementations.push('node22-github-api-foundation-v1');
+  input.profiles[0].implementationId = 'node22-github-api-foundation-v1';
+  input.profiles[0].requiredNodeVersion = '22.23.3';
+
+  const plan = resolve(input);
+  assert.equal(plan.agentClass, 'setness-web-ci-node22-ephemeral');
+  assert.equal(plan.nodeVersion, '22.23.3');
+  assert.equal(plan.npmVersion, '10.9.9');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['npm', 'ci', '--ignore-scripts'],
+    ['npm', 'run', 'check'],
+    ['npm', 'test'],
+    ['npm', 'run', 'verify'],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes('node22-github-api-foundation-v1'), true);
 });
 
 test('resolves the Python 3.12 Test Platform workflow on its exactly pinned agent', () => {

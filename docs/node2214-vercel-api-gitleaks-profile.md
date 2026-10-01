@@ -4,30 +4,35 @@ The centrally trusted implementation `node2214-vercel-api-gitleaks-v1`
 combines the current `project-vercel-api` workflow's `secret-scan` and `test`
 jobs under the existing `jenkins-pr-gate` check contract.
 
-The profile pins Node.js 22.14.0 and npm 10.9.2. Its one-use Node 22.14 agent
-contains Gitleaks 8.24.3 from the official Linux x64 release archive, verified
-against its published SHA-256 checksum
-`9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c` during
-image construction. The binary is root-owned and the PR build runs as the
-unprivileged `jenkins` user.
+The profile uses a separate one-use Node 22.14 disposable agent
+(`setness-node22-14-disposable-ephemeral`) with Node.js 22.14.0 and npm 10.9.2.
+Its image has no Docker CLI, Docker socket, or host mounts. It stays on the
+existing `setness-jenkins-private` network with a one-agent cap, 4 CPU limit,
+4 GiB memory limit, and 4 GiB swap limit. Gitleaks 8.24.3 is installed from its
+official Linux x64 release archive after SHA-256 verification against the
+published release checksums file:
+`9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c`. The Node
+archive hash `69b09dba5c8dcb05c4e4273a4340db1005abeafe3927efda2bc5b249e80437ec`
+matches Node's signed v22.14.0 release checksums. Both binaries are root-owned
+and PR commands run as the unprivileged `jenkins` user.
 
 The trusted command vectors run the redacted SARIF-producing `gitleaks dir`
 scan first, then `npm ci --ignore-scripts`, `npm run check`, `npm test`, and
 `npm run verify`. These are the commands from the live default-branch workflow
-at blob `622e316f4c2d50c7a912c05a83cee17f9742df63`. The profile combines two
+at blob `87aee76d58dfa5761195a1218e7771a5fc0742db`. The profile combines two
 Actions jobs into one Jenkins result; Actions retains its parallel job shape.
 
-This is a partial, manual PR shadow. Jenkins does not reproduce the workflow's
-push or manual-dispatch triggers, and it does not cover outside contributors.
-The repository's existing Actions workflow remains authoritative for every
-trigger. Fork builds remain disabled, the author allowlist is unchanged, and
-the poller does not include this implementation.
+This is a partial exact-head PR shadow. Jenkins does not replace the workflow's
+push or owner-dispatched exact-SHA fallback, and it does not cover outside
+contributors. The repository's existing Actions workflow remains authoritative
+for every trigger. Fork builds remain disabled, the author allowlist is
+unchanged, and the centrally trusted resolver rejects non-owner, fork, stale,
+and mismatched-base PRs before checkout.
 
-The fixed ten-observation quota is waived. The live catalog records six
-distinct exact-SHA outcomes for this profile: exact-head success, stale-head
-rejection, visible command failure, recovery success, cancellation, and
-published cancellation/cleanup. The duplicate third H3 run is excluded.
-Qualification remains incomplete until the owner-controlled Actions fallback
-is exercised on a real exact-SHA PR, Jenkins isolation and recovery evidence is
-read back from the live controller, and the owner-approved GitHub protection
-readback is recorded. Actions remains authoritative until then.
+The prior six exact-SHA observations were run through the older Node 22.14 image
+with Docker socket access. They remain historical evidence for that worker
+class and do not qualify this disposable no-socket image. The private catalog
+resets qualification to 0/6 while the new worker is qualified. Exact-head
+success/failure, stale-head rejection, cancellation and cleanup, recovery,
+controller-published attribution, and the owner-controlled Actions fallback
+must be re-established for this worker class. Actions remains authoritative.

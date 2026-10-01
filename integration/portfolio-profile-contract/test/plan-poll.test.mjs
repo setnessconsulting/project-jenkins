@@ -314,6 +314,7 @@ test('project Jenkins self-check rejects fork, outside-author, draft, closed, mi
 
 test('the Test Platform implementation is pollable only after its repository profile is shadow-enabled', () => {
   assert.deepEqual(ROUTINE_DISPATCH_IMPLEMENTATIONS, [
+    'node22-github-api-foundation-v1',
     'python312-test-platform-v1',
     'node24-game-platform-sdk-v1',
     'node24-curiouspathway-pilot-v1',
@@ -323,6 +324,7 @@ test('the Test Platform implementation is pollable only after its repository pro
     'setness-web-ci-node22-v1',
   ]);
   assert.deepEqual(ROUTINE_DISPATCH_REPOSITORIES, [
+    'setnessconsulting/project-github-api',
     'setnessconsulting/project-test-platform',
     'setnessconsulting/project-game-platform-sdk',
     'setnessconsulting/curiouspathway',
@@ -340,7 +342,7 @@ test('the Test Platform implementation is pollable only after its repository pro
   assert.deepEqual(planRoutinePullRequestPoll(catalog, [], [], [], now).dispatches, []);
 });
 
-test('routine polling stays within the selected seven-repository portfolio-dispatch focus', () => {
+test('routine polling stays within the selected eight-repository portfolio-dispatch focus', () => {
   const selected = ROUTINE_DISPATCH_PROFILE_PAIRS.map(({ repository: target, implementationId }, index) => ({
     id: `focus-${index}`,
     implementationId,

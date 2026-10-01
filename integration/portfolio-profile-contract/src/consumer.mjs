@@ -78,8 +78,20 @@ export const IMPLEMENTATIONS = Object.freeze({
       Object.freeze(['npm', 'run', 'verify']),
     ]),
   }),
+  'node22-github-api-foundation-v1': Object.freeze({
+    agentClass: 'setness-web-ci-node22-ephemeral',
+    nodeVersion: '22.23.3',
+    npmVersion: '10.9.9',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['npm', 'ci', '--ignore-scripts']),
+      Object.freeze(['npm', 'run', 'check']),
+      Object.freeze(['npm', 'test']),
+      Object.freeze(['npm', 'run', 'verify']),
+    ]),
+  }),
   'jenkins-repository-contract': Object.freeze({
-    agentClass: 'setness-ephemeral',
+    agentClass: 'setness-web-ci-node22-ephemeral',
     nodeVersion: '22.23.3',
     requiredCheck: 'jenkins-pr-gate',
     commands: Object.freeze([
@@ -94,8 +106,9 @@ export const IMPLEMENTATIONS = Object.freeze({
     ]),
   }),
   'node22-verify-clean-checkout-v1': Object.freeze({
-    agentClass: 'setness-node22-14-ephemeral',
+    agentClass: 'setness-node22-14-disposable-ephemeral',
     nodeVersion: '22.14.0',
+    npmVersion: '10.9.2',
     requiredCheck: 'jenkins-pr-gate',
     commands: Object.freeze([
       Object.freeze(['npm', 'ci']),
@@ -104,7 +117,7 @@ export const IMPLEMENTATIONS = Object.freeze({
     ]),
   }),
   'node2214-vercel-api-gitleaks-v1': Object.freeze({
-    agentClass: 'setness-node22-14-ephemeral',
+    agentClass: 'setness-node22-14-disposable-ephemeral',
     nodeVersion: '22.14.0',
     npmVersion: '10.9.2',
     requiredCheck: 'jenkins-pr-gate',
@@ -315,6 +328,7 @@ export const IMPLEMENTATIONS = Object.freeze({
 // implementation bound to its repository so catalog data cannot cross-pair
 // two otherwise approved entries.
 export const ROUTINE_DISPATCH_PROFILE_PAIRS = Object.freeze([
+  Object.freeze({ implementationId: 'node22-github-api-foundation-v1', repository: 'setnessconsulting/project-github-api' }),
   Object.freeze({ implementationId: 'python312-test-platform-v1', repository: 'setnessconsulting/project-test-platform' }),
   Object.freeze({ implementationId: 'node24-game-platform-sdk-v1', repository: 'setnessconsulting/project-game-platform-sdk' }),
   Object.freeze({ implementationId: 'node24-curiouspathway-pilot-v1', repository: 'setnessconsulting/curiouspathway' }),
@@ -329,6 +343,7 @@ export const ROUTINE_DISPATCH_PROFILE_PAIRS = Object.freeze([
 // standard cases, five Game AI cases, and six Vercel API cases. The count is
 // not itself evidence; every distinct case still needs exact-SHA evidence.
 const QUALIFICATION_CASES_BY_IMPLEMENTATION = Object.freeze({
+  'node22-github-api-foundation-v1': 4,
   'setness-web-ci-node22-v1': 4,
   'jenkins-repository-contract': 4,
   'setness-repository-pilot': 4,

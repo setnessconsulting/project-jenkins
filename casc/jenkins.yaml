@@ -98,6 +98,29 @@ jenkins:
                 - "type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock"
               environment:
                 - "JENKINS_WEB_SOCKET=true"
+          - name: "setness-node22-14-disposable-one-build"
+            labelString: "setness-node22-14-disposable-ephemeral"
+            mode: EXCLUSIVE
+            instanceCapStr: "1"
+            retentionStrategy:
+              idleMinutes: 0
+            remoteFs: "/home/jenkins/agent"
+            pullStrategy: PULL_NEVER
+            removeVolumes: true
+            stopTimeout: 10
+            connector:
+              jnlp:
+                jenkinsUrl: "http://controller:8080/"
+                user: "1000"
+            dockerTemplateBase:
+              image: "jenkins-pilot-agent:node-22.14.0-disposable"
+              network: "setness-jenkins-private"
+              cpus: "4.0"
+              memoryLimit: 4096
+              memorySwap: 4096
+              privileged: false
+              environment:
+                - "JENKINS_WEB_SOCKET=true"
           - name: "setness-web-ci-node22-one-build"
             labelString: "setness-web-ci-node22-ephemeral"
             mode: EXCLUSIVE
