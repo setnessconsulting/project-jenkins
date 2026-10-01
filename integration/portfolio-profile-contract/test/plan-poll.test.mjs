@@ -320,6 +320,7 @@ test('the Test Platform implementation is pollable only after its repository pro
     'python312-portfolio-graph-uv-v1',
     'node2214-vercel-api-gitleaks-v1',
     'jenkins-repository-contract',
+    'setness-web-ci-node22-v1',
   ]);
   assert.deepEqual(ROUTINE_DISPATCH_REPOSITORIES, [
     'setnessconsulting/project-test-platform',
@@ -328,6 +329,7 @@ test('the Test Platform implementation is pollable only after its repository pro
     'setnessconsulting/project-portfolio-graph',
     'setnessconsulting/project-vercel-api',
     'setnessconsulting/project-jenkins',
+    'setnessconsulting/project-setness-consulting',
   ]);
   const catalog = makeCatalog();
   assert.deepEqual(listRoutinePullRequestPollRepositories(catalog), [repository]);
@@ -338,7 +340,7 @@ test('the Test Platform implementation is pollable only after its repository pro
   assert.deepEqual(planRoutinePullRequestPoll(catalog, [], [], [], now).dispatches, []);
 });
 
-test('routine polling stays within the selected six-repository portfolio-dispatch focus', () => {
+test('routine polling stays within the selected seven-repository portfolio-dispatch focus', () => {
   const selected = ROUTINE_DISPATCH_PROFILE_PAIRS.map(({ repository: target, implementationId }, index) => ({
     id: `focus-${index}`,
     implementationId,

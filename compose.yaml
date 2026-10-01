@@ -87,6 +87,13 @@ services:
       context: .
       dockerfile: agent/Node22.14.Dockerfile
     image: jenkins-pilot-agent:node-22.14.0
+  setness-web-ci-agent-image:
+    profiles:
+      - build-images
+    build:
+      context: .
+      dockerfile: agent/SetnessWebCI.Dockerfile
+    image: jenkins-pilot-agent:setness-web-ci-node22-pwsh-7.6.6
   node24-agent-image:
     profiles:
       - build-images

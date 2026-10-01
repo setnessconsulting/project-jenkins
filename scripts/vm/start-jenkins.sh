@@ -195,11 +195,14 @@ case "$action" in
     if [[ "$action" == start ]] && ! docker image inspect 'jenkins-pilot-agent:node-22.14.0' >/dev/null 2>&1; then
       "${compose[@]}" build node22-14-agent-image
     fi
+    if [[ "$action" == start ]] && ! docker image inspect 'jenkins-pilot-agent:setness-web-ci-node22-pwsh-7.6.6' >/dev/null 2>&1; then
+      "${compose[@]}" build setness-web-ci-agent-image
+    fi
     if [[ "$action" == start ]] && ! docker image inspect 'jenkins-pilot-agent:python-3.12.14' >/dev/null 2>&1; then
       "${compose[@]}" build python312-agent-image
     fi
     if [[ "$action" == install || "$action" == restart ]]; then
-      "${compose[@]}" build controller agent-image node22-14-agent-image node24-agent-image python312-agent-image e2e-agent-image secondary-agent-image
+      "${compose[@]}" build controller agent-image node22-14-agent-image setness-web-ci-agent-image node24-agent-image python312-agent-image e2e-agent-image secondary-agent-image
     fi
     if [[ "$action" == restart ]]; then
       "${compose[@]}" up -d --force-recreate controller

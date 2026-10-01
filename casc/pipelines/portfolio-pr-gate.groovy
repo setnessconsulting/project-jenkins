@@ -6,6 +6,7 @@ def portfolioCatalogPath = 'profiles/profiles.json'
 def portfolioNodeBinary = '/opt/setness-jenkins/tools/node-v22.23.3-linux-x64/bin/node'
 def portfolioResolver = '/usr/share/jenkins/portfolio-profile-contract/src/resolve-pr.mjs'
 def portfolioAdapterImplementationAllowlist = [
+    'setness-web-ci-node22-v1',
     'node22-foundation-v1', 'node22-verify-clean-checkout-v1',
     'jenkins-repository-contract',
     'python312-test-platform-v1', 'python312-playtest-lab-v1', 'python312-cloudflare-api-uv-v1',
@@ -483,7 +484,7 @@ pipeline {
                         hasNodeRuntime == hasPythonRuntime ||
                         !(nodeRuntimeMatches || pythonRuntimeMatches) ||
                         (resolved.npmVersion != null && !(resolved.npmVersion.toString() ==~ /\d+\.\d+\.\d+/)) ||
-                        !(resolved.agentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral']) ||
+                        !(resolved.agentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral']) ||
                         !(resolved.commands instanceof List) || resolved.commands.isEmpty()) {
                         error('The centrally trusted resolver returned a plan outside the controller contract; no checkout ran.')
                     }

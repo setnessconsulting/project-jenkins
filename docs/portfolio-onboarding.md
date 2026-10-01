@@ -40,3 +40,10 @@ Jenkins documents that credentials can be exposed to malicious pull-request code
 ## Current boundary
 
 The existing first and optional second profiles remain separate shadow definitions. Their current owner/author restrictions and repository-specific SSH checkout credentials are not broadened by this document. No fork PR is newly enabled, no credential is rotated, and no branch protection or GitHub Actions workflow is changed by adding this architecture guidance.
+
+For `project-setness-consulting`, the centrally dispatched shadow profile is
+limited to the primary Node 22 `ci.yml` job. Actions `build-test` remains the
+required, authoritative check; Cloudflare Candidate, Tutor Web Node 24,
+scheduled E2E, and deployment remain Actions work. The Jenkins dispatcher
+continues to accept only open, non-draft, same-repository PRs authored by
+`setnessconsulting`; fork and outside-author execution remains disabled.
