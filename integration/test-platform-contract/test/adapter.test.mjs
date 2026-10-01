@@ -60,7 +60,7 @@ test('a valid deterministic request resolves to the approved executor', () => {
   assert.equal(resolution.accepted, true);
   assert.equal(resolution.repository, 'setnessconsulting/project-test-platform');
   assert.equal(resolution.resolved.length, 1);
-  assert.equal(resolution.resolved[0].executor_id, 'container-infrastructure');
+  assert.equal(resolution.resolved[0].executor_id, 'node-22-deterministic');
   assert.equal(resolution.resolved[0].agent_class, 'setness-ephemeral');
   assert.equal(resolution.execution_mode, 'synthetic-qualification');
 });
@@ -383,14 +383,16 @@ test('an incomplete execution cannot silently drop a planned suite', () => {
   const input = request();
   input.plan.suites.push({
     ...input.plan.suites[0],
-    suite_id: 'standard',
-    entrypoint: 'standard',
+    suite_id: 'typecheck',
+    entrypoint: 'typecheck',
+    timeout_seconds: 900,
   });
   input.suites.push({
     ...input.suites[0],
-    suite_id: 'standard',
-    entrypoint: 'standard',
+    suite_id: 'typecheck',
+    entrypoint: 'typecheck',
     executor_id: 'node-22-deterministic',
+    timeout_seconds: 900,
   });
   assert.equal(
     rejectionCode(() =>
@@ -490,7 +492,7 @@ test('the receipt identity is re-derived, so a forged receipt cannot pass', () =
     tool_versions: receipt.tool_versions,
   });
   assert.notEqual(recomputed, receipt.receipt_id);
-  assert.equal(receipt.receipt_id, 'receipt:ad55bf417688cb817208199a');
+  assert.equal(receipt.receipt_id, 'receipt:bdc774f1a74deb953029e91a');
 });
 
 test('the canonical receipt payload is stable and sorted', () => {

@@ -495,30 +495,53 @@ if (-not [regex]::IsMatch(
     throw 'The pinned Python 3.12 profile must have a dedicated one-use, resource-limited Docker agent template.'
 }
 
-# Node 22 / Node 22.14 agents that run Test Platform docker-backed suites mount
-# the guest Docker socket through the docker-plugin CasC mounts field (not
-# Compose). Compose still mounts the socket only on the controller.
-if (-not $jenkinsConfig.Contains('type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock')) {
-    throw 'CasC must bind-mount the guest Docker socket into docker-backed agent templates via dockerTemplateBase.mounts.'
-}
+# The guest Docker socket belongs to the controller alone (Compose) because the
+# Docker cloud needs it to create one-use agents. It must never reach an agent:
+# docker-plugin reads these CasC mounts when it creates each container, and a
+# socket bind hands daemon access (effectively host root) to whatever code the
+# agent runs. The controller-side API endpoint is asserted separately below.
 $dockerSockMountCount = [regex]::Matches(
     $jenkinsConfig,
     [regex]::Escape('type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock')
 ).Count
-if ($dockerSockMountCount -lt 2) {
-    throw 'At least the Node 22 and Node 22.14 one-build templates must mount the guest Docker socket.'
+if ($dockerSockMountCount -ne 0 -or
+    -not $jenkinsConfig.Contains('uri: "unix:///var/run/docker.sock"')) {
+    throw 'No Jenkins agent template may mount the guest Docker socket, and the Docker cloud must keep reaching it on the controller.'
 }
-if (-not $agentDockerfile.Contains('docker-29.8.1.tgz') -or
-    -not $agentDockerfile.Contains('d8db66739d2e28d4933786d73e918d9be643a67fbd835db1bf740d650a259e70') -or
-    -not $agentDockerfile.Contains('/usr/local/bin/docker') -or
-    -not $agentDockerfile.Contains('groupadd --gid 988 docker') -or
-    -not $agentDockerfile.Contains('usermod --append --groups docker jenkins') -or
-    -not $node2214Dockerfile.Contains('docker-29.8.1.tgz') -or
-    -not $node2214Dockerfile.Contains('d8db66739d2e28d4933786d73e918d9be643a67fbd835db1bf740d650a259e70') -or
-    -not $node2214Dockerfile.Contains('/usr/local/bin/docker') -or
-    -not $node2214Dockerfile.Contains('groupadd --gid 988 docker') -or
-    -not $node2214Dockerfile.Contains('usermod --append --groups docker jenkins')) {
-    throw 'The Node 22 and Node 22.14 agent images must ship a pinned Docker CLI and docker group GID 988 matching the Hyper-V guest.'
+foreach ($socketFreeAgentTemplate in @(
+    'setness-node22-one-build',
+    'setness-node22-14-one-build'
+)) {
+    $socketFreeTemplateMatch = [regex]::Match(
+        $jenkinsConfig,
+        '(?ms)^          - name: "' + [regex]::Escape($socketFreeAgentTemplate) + '"\r?\n(?<body>.*?)(?=^          - name: |^  [A-Za-z])'
+    )
+    if (-not $socketFreeTemplateMatch.Success -or
+        $socketFreeTemplateMatch.Groups['body'].Value.Contains('mounts:') -or
+        $socketFreeTemplateMatch.Groups['body'].Value.Contains('docker.sock')) {
+        throw "The one-use agent template $socketFreeAgentTemplate must stay free of host mounts and the Docker socket."
+    }
+}
+if (-not $vmStartScript.Contains('PORTFOLIO_AGENT_SOCKET_MOUNTS=') -or
+    -not $vmStartScript.Contains('grep -q ''^PORTFOLIO_AGENT_SOCKET_MOUNTS=0$''')) {
+    throw 'Deploy verification must read back that no agent template receives the Docker socket and fail closed when one does.'
+}
+# The Node 22 and Node 22.14 images used to ship a pinned Docker CLI and join
+# docker GID 988 so they could use the socket that dockerTemplateBase.mounts
+# bound into them. Both are gone: the guest socket stays on the controller, no
+# template mounts it back in, and a client on an agent could only widen the
+# boundary, so the images must stay free of the CLI and the group.
+if ($agentDockerfile.Contains('docker-29.8.1') -or
+    $agentDockerfile.Contains('download.docker.com') -or
+    $agentDockerfile.Contains('/usr/local/bin/docker') -or
+    $agentDockerfile.Contains('groupadd --gid 988 docker') -or
+    $agentDockerfile.Contains('usermod --append --groups docker jenkins') -or
+    $node2214Dockerfile.Contains('docker-29.8.1') -or
+    $node2214Dockerfile.Contains('download.docker.com') -or
+    $node2214Dockerfile.Contains('/usr/local/bin/docker') -or
+    $node2214Dockerfile.Contains('groupadd --gid 988 docker') -or
+    $node2214Dockerfile.Contains('usermod --append --groups docker jenkins')) {
+    throw 'No Node agent image may ship a Docker CLI or join a docker group; the guest Docker socket stays on the controller and no template mounts it.'
 }
 if (-not $plugins.Contains('docker-plugin:1327.v9524f1ee134e')) {
     throw 'The Docker cloud plugin must be explicitly version-pinned.'
@@ -588,6 +611,7 @@ if (-not $agentDockerfile.Contains('openssh-client') -or
     throw 'The SSH checkout agent must include the pinned GitHub host key and SSH client.'
 }
 if (-not $agentDockerfile.Contains('v22.23.3') -or
+    $agentDockerfile.Contains('docker.sock') -or
     -not $node2214Dockerfile.Contains('v22.14.0') -or
     -not $node2214Dockerfile.Contains('npm --version') -or
     -not $node2214Dockerfile.Contains('10.9.2') -or
@@ -1073,12 +1097,18 @@ foreach ($limitName in @('max_suites', 'max_artifacts_per_suite', 'max_artifact_
         throw "The approved Test Platform catalog is missing the bounded limit: $limitName."
     }
 }
-foreach ($executorId in @('node-22-deterministic', 'node-24-deterministic', 'browser-e2e', 'container-infrastructure')) {
+foreach ($executorId in @('node-22-deterministic', 'node-24-deterministic', 'browser-e2e')) {
     if ($null -eq $testPlatformCatalog.executors.$executorId) {
         throw "The approved Test Platform catalog is missing the approved executor: $executorId."
     }
 }
-foreach ($suiteId in @('verify', 'standard', 'typecheck', 'tutor-web', 'e2e', 'qualify', 'qualify:live')) {
+foreach ($socketFreeExecutorId in @('node-22-deterministic', 'node-24-deterministic', 'browser-e2e')) {
+    if ($testPlatformCatalog.executors.$socketFreeExecutorId.capabilities -contains 'docker' -or
+        $testPlatformCatalog.executor_profiles.$socketFreeExecutorId.argv -contains 'docker') {
+        throw "No approved Test Platform executor may claim Docker capability: $socketFreeExecutorId."
+    }
+}
+foreach ($suiteId in @('standard', 'typecheck', 'tutor-web', 'e2e')) {
     if ($null -eq $testPlatformCatalog.suites.$suiteId) {
         throw "The approved Test Platform catalog is missing the approved suite: $suiteId."
     }

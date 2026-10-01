@@ -62,9 +62,9 @@ routine polling, and none permits Jenkins cutover.
 The focused shadow set includes nine centrally trusted lanes:
 
 - `python312-test-platform-v1` runs the existing single Linux verification job
-  on Python 3.12.14. The dedicated Test Platform agent also exposes the Docker
-  socket for that repository's Docker-backed verification; this is limited to
-  the protected pilot VM and remains an owner-only shadow boundary.
+  on Python 3.12.14. That lane is Python-only: no agent receives the guest
+  Docker socket, so the repository's Docker-backed verification stays in
+  Actions rather than pretending to run here.
 - `node24-game-platform-sdk-v1` runs `npm ci`, `npm run verify`, and
   `npm run verify:bundle` on Node 24.21.0. It covers the repository's PR
   verification workflow; artifact upload remains an Actions-only reporting

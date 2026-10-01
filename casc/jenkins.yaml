@@ -63,11 +63,13 @@ jenkins:
               memoryLimit: 4096
               memorySwap: 4096
               privileged: false
-              # Host Docker socket for Test Platform docker-backed suites on
-              # this dedicated pilot VM only. Agent image docker group GID 988
-              # matches the guest docker group so jenkins can use the socket.
-              mounts:
-                - "type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock"
+              # No bind mount reaches a build agent. The guest Docker socket
+              # stays on the controller, the only holder the Docker cloud needs
+              # it in; docker-plugin takes agent mounts from this CasC field, so
+              # leaving it empty is what keeps daemon access (effectively host
+              # root) out of repository-controlled code. Neither agent
+              # Dockerfile installs a Docker CLI or adds jenkins to the docker
+              # group, keeping the images aligned with this socket-free boundary.
               environment:
                 - "JENKINS_WEB_SOCKET=true"
           - name: "setness-node22-14-one-build"
@@ -91,11 +93,13 @@ jenkins:
               memoryLimit: 4096
               memorySwap: 4096
               privileged: false
-              # Host Docker socket for Test Platform docker-backed suites on
-              # this dedicated pilot VM only. Agent image docker group GID 988
-              # matches the guest docker group so jenkins can use the socket.
-              mounts:
-                - "type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock"
+              # No bind mount reaches a build agent. The guest Docker socket
+              # stays on the controller, the only holder the Docker cloud needs
+              # it in; docker-plugin takes agent mounts from this CasC field, so
+              # leaving it empty is what keeps daemon access (effectively host
+              # root) out of repository-controlled code. Neither agent
+              # Dockerfile installs a Docker CLI or adds jenkins to the docker
+              # group, keeping the images aligned with this socket-free boundary.
               environment:
                 - "JENKINS_WEB_SOCKET=true"
           - name: "setness-node22-14-disposable-one-build"

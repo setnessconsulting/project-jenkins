@@ -12,8 +12,8 @@
   "outcomes": [
     {
       "schema_version": "1",
-      "suite_id": "verify",
-      "executor_id": "container-infrastructure",
+      "suite_id": "standard",
+      "executor_id": "node-22-deterministic",
       "status": "passed",
       "observed_head": {
         "repository": "setnessconsulting/project-test-platform",
@@ -29,8 +29,8 @@
           "profile_id": "infrastructure-tool-v1",
           "version": "1.0.0"
         },
-        "suite_id": "verify",
-        "executor": "container-infrastructure",
+        "suite_id": "standard",
+        "executor": "node-22-deterministic",
         "trust": "pr-untrusted",
         "result": "pass",
         "passed_tests": 412,
@@ -39,18 +39,18 @@
         "duration_seconds": 12.5,
         "evidence": [
           {
-            "evidence_id": "verify.verify-log",
+            "evidence_id": "standard.standard-log",
             "evidence_class": "static",
             "live": false,
             "source": "jenkins",
-            "reference": "verify/verify.log"
+            "reference": "standard/standard.log"
           },
           {
-            "evidence_id": "verify.verify-results",
+            "evidence_id": "standard.standard-results",
             "evidence_class": "static",
             "live": false,
             "source": "jenkins",
-            "reference": "verify/results.json"
+            "reference": "standard/results.json"
           }
         ],
         "tool_versions": [
