@@ -61,6 +61,21 @@ export const IMPLEMENTATIONS = Object.freeze({
       Object.freeze(['npm', 'run', 'verify']),
     ]),
   }),
+  'jenkins-repository-contract': Object.freeze({
+    agentClass: 'setness-ephemeral',
+    nodeVersion: '22.23.3',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze([
+        'node', '--test',
+        'integration/portfolio-profile-contract/test/consumer.test.mjs',
+        'integration/portfolio-profile-contract/test/plan-poll-cli.test.mjs',
+        'integration/portfolio-profile-contract/test/plan-poll.test.mjs',
+        'integration/portfolio-profile-contract/test/resolve-pr.test.mjs',
+      ]),
+      Object.freeze(['node', '--test', 'integration/test-platform-contract/test/adapter.test.mjs']),
+    ]),
+  }),
   'node22-verify-clean-checkout-v1': Object.freeze({
     agentClass: 'setness-node22-14-ephemeral',
     nodeVersion: '22.14.0',
