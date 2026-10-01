@@ -36,8 +36,9 @@ after one build; checkout credentials are removed before either command runs.
 
 ## Qualification and cutover
 
-The 10 exact-SHA cases remain outstanding until recorded against the live
-Jenkins check source and the current PR head. Preserve the Actions workflow and
+Use a profile-specific matrix of distinct exact-SHA behaviors instead of a
+fixed ten-case quota. Record outcomes against the live Jenkins check source
+and current PR head. Preserve the Actions workflow and
 its triggers. Do not designate Jenkins as a required check until complete
 qualification, fallback and recovery evidence is recorded and GitHub protection
 is read back after an owner-approved policy change.

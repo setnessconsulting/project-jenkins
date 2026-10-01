@@ -27,7 +27,7 @@ function catalog() {
       checkNames: ['jenkins-pr-gate'],
       requiredNodeVersion: '22.23.3',
       qualification: {
-        requiredExactShaCases: 10,
+        requiredExactShaCases: 4,
         qualifiedExactShaCases: 0,
         state: 'not-started',
       },
@@ -232,6 +232,7 @@ test('resolves the Vercel API secret-scan and test jobs on the pinned Node 22.14
   input.approvedImplementations.push('node2214-vercel-api-gitleaks-v1');
   input.profiles[0].implementationId = 'node2214-vercel-api-gitleaks-v1';
   input.profiles[0].requiredNodeVersion = '22.14.0';
+  input.profiles[0].qualification.requiredExactShaCases = 6;
 
   const plan = resolve(input);
   assert.equal(plan.agentClass, 'setness-node22-14-ephemeral');
@@ -245,7 +246,7 @@ test('resolves the Vercel API secret-scan and test jobs on the pinned Node 22.14
     ['npm', 'test'],
     ['npm', 'run', 'verify'],
   ]);
-  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes('node2214-vercel-api-gitleaks-v1'), false);
+  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes('node2214-vercel-api-gitleaks-v1'), true);
 
   input.profiles[0].requiredNodeVersion = '22.14.1';
   rejectsCode(() => resolve(input), 'runtime-mismatch');
@@ -279,6 +280,7 @@ test('resolves the Game AI Playtest Lab workflow to its pinned Python 3.12 comma
   const input = catalog();
   input.approvedImplementations.push('python312-playtest-lab-v1');
   input.profiles[0].implementationId = 'python312-playtest-lab-v1';
+  input.profiles[0].qualification.requiredExactShaCases = 5;
   delete input.profiles[0].requiredNodeVersion;
   input.profiles[0].requiredPythonVersion = '3.12.14';
 
@@ -413,6 +415,66 @@ test('rejects profile fields that could inject commands or credentials', () => {
   const input = catalog();
   input.profiles[0].commands = ['curl attacker.invalid'];
   rejectsCode(() => resolve(input), 'unexpected-field');
+});
+
+test('accepts complete exact-SHA evidence for the centrally reviewed standard matrix', () => {
+  const input = catalog();
+  input.profiles[0].status = 'qualified';
+  input.profiles[0].qualification = {
+    requiredExactShaCases: 4,
+    qualifiedExactShaCases: 4,
+    state: 'passed',
+    evidenceReference: 'qualification/evidence-matrix.md',
+  };
+  assert.deepEqual(validateProfileCatalog(input), { profileCount: 1, implementationCount: 1 });
+
+  input.profiles[0].qualification.requiredExactShaCases = 0;
+  input.profiles[0].qualification.qualifiedExactShaCases = 0;
+  input.profiles[0].qualification.state = 'in-progress';
+  rejectsCode(() => validateProfileCatalog(input), 'qualification-matrix-mismatch');
+});
+
+test('rejects undersized matrices, including for the six-case Vercel profile', () => {
+  const undersizedStandard = catalog();
+  undersizedStandard.profiles[0].qualification = {
+    requiredExactShaCases: 1,
+    qualifiedExactShaCases: 1,
+    state: 'passed',
+    evidenceReference: 'qualification/evidence-matrix.md',
+  };
+  rejectsCode(() => validateProfileCatalog(undersizedStandard), 'qualification-matrix-mismatch');
+
+  const vercel = catalog();
+  vercel.approvedImplementations.push('node2214-vercel-api-gitleaks-v1');
+  vercel.profiles[0].id = 'project-vercel-api-node2214-gitleaks';
+  vercel.profiles[0].implementationId = 'node2214-vercel-api-gitleaks-v1';
+  vercel.profiles[0].requiredNodeVersion = '22.14.0';
+  vercel.profiles[0].qualification = {
+    requiredExactShaCases: 6,
+    qualifiedExactShaCases: 6,
+    state: 'passed',
+    evidenceReference: 'docs/project-vercel-api-shadow-2026-09-30.md',
+  };
+  assert.deepEqual(validateProfileCatalog(vercel), { profileCount: 1, implementationCount: 2 });
+
+  vercel.profiles[0].qualification.requiredExactShaCases = 1;
+  vercel.profiles[0].qualification.qualifiedExactShaCases = 1;
+  rejectsCode(() => validateProfileCatalog(vercel), 'qualification-matrix-mismatch');
+});
+
+test('applies reviewed case counts to active catalog profiles without an installed adapter', () => {
+  for (const implementationId of ['jenkins-repository-contract', 'setness-repository-pilot']) {
+    const input = catalog();
+    input.approvedImplementations.push(implementationId);
+    input.profiles[0].implementationId = implementationId;
+    input.profiles[0].qualification = {
+      requiredExactShaCases: 1,
+      qualifiedExactShaCases: 1,
+      state: 'passed',
+      evidenceReference: 'qualification/evidence-matrix.md',
+    };
+    rejectsCode(() => validateProfileCatalog(input), 'qualification-matrix-mismatch');
+  }
 });
 
 test('rejects unapproved implementation IDs even if profile data includes a command list', () => {

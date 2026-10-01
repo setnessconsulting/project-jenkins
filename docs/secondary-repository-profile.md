@@ -27,7 +27,7 @@ The Jenkins image/profile code is not live qualification. The current checked-in
 
 ## Qualification and cutover
 
-Keep GitHub Actions authoritative. For this repository independently, record at least ten exact PR-head SHA comparisons across code, lockfile, docs-only, pipeline/config, browser-test, and deliberate-failure cases. Include unauthorized PR denial before checkout, stale heads, cancellation, workspace/container cleanup, check-App attribution, reviewer-readable summaries, and main-push behavior. Reuse fresh exact-SHA Actions results; label missing comparisons inconclusive rather than launching unnecessary hosted runs.
+Keep GitHub Actions authoritative. For this repository independently, record the exact PR-head SHA comparisons needed to cover its distinct risk-relevant behaviors, including code and configuration changes, deliberate failure, unauthorized PR denial before checkout, stale heads, cancellation, workspace/container cleanup, check-App attribution, reviewer-readable summaries, and main-push behavior where applicable. Do not repeat equivalent observations to reach a fixed quota. Reuse fresh exact-SHA Actions results; label missing comparisons inconclusive rather than launching unnecessary hosted runs.
 
 Then test host restart/reconnection, backup/restore, and a same-SHA owner-controlled Actions fallback. Read back branch protection before any transition. During a transition require both checks, then remove only the migrated Actions requirement after Jenkins alone has passed and branch protection is read back. Do not alter Vercel or deploy.
 

@@ -70,12 +70,20 @@ The dispatcher is always declared but disabled unless the private catalog
 repository is provided through ignored local runtime configuration. The old
 root-level job name is explicitly replaced by a disabled deprecation stub, so
 clearing configuration cannot leave an older dispatcher runnable.
-The central routine-poller allowlist currently supports the exact Node 22
-foundation implementation (`node22-foundation-v1`, Node 22.23.3/npm 10.9.9)
-and the Node 22.14 clean-checkout implementation. The agent checks its pinned
+The central routine-poller allowlist is an explicit set of implementation and
+repository pairs. It includes the exact Node 22 foundation implementation
+(`node22-foundation-v1`, Node 22.23.3/npm 10.9.9), the Node 22.14
+clean-checkout implementation, and the five focused shadow lanes documented
+in `portfolio-profile-contract.md`. The agent checks its pinned
 runtime after exact-SHA checkout and before running repository commands.
 Profiles remain planned until their matching runtime is loaded and ready; no
 repository is enabled merely by adding the dispatcher. Existing pilot jobs are
 not routed through it, avoiding duplicate check publishers. Actions remains authoritative.
 Jenkins must still prove the live controller configuration, agent availability,
 exact-SHA results, cleanup, recovery, and fallback before any cutover.
+
+Qualification records the exact-SHA cases needed by a profile-specific evidence
+matrix rather than requiring a fixed count. Every case must cover a distinct
+required behavior, and all recorded cases must pass. Isolation, cleanup and
+recovery, owner-controlled fallback, and owner-approved protection readback
+remain separate requirements.

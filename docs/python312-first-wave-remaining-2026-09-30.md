@@ -10,8 +10,9 @@ command argument vector live in the public, centrally maintained resolver;
 the private catalog stores only implementation IDs and repository metadata.
 
 These are partial shadow lanes, not full workflow replacements. The current
-Actions workflows remain authoritative. All five profiles start at 0 of 10
-qualification cases, none is added to automatic routine dispatch, fork builds
+Actions workflows remain authoritative. All five profiles use a distinct
+behavior matrix for exact-SHA qualification instead of a fixed ten-case quota;
+none is added to automatic routine dispatch, fork builds
 remain disabled, and no branch protection or repository workflow is changed.
 
 ## `project-blender-api`

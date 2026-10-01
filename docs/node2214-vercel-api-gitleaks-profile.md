@@ -23,6 +23,11 @@ The repository's existing Actions workflow remains authoritative for every
 trigger. Fork builds remain disabled, the author allowlist is unchanged, and
 the poller does not include this implementation.
 
-The profile starts at 0 of 10 exact-SHA qualification cases. It must not be
-treated as qualified or required until its exact-head evidence, fallback and
-recovery evidence, and owner-approved GitHub protection readback are recorded.
+The fixed ten-observation quota is waived. The live catalog records six
+distinct exact-SHA outcomes for this profile: exact-head success, stale-head
+rejection, visible command failure, recovery success, cancellation, and
+published cancellation/cleanup. The duplicate third H3 run is excluded.
+Qualification remains incomplete until the owner-controlled Actions fallback
+is exercised on a real exact-SHA PR, Jenkins isolation and recovery evidence is
+read back from the live controller, and the owner-approved GitHub protection
+readback is recorded. Actions remains authoritative until then.

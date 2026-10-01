@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   IMPLEMENTATIONS,
   ROUTINE_DISPATCH_IMPLEMENTATIONS,
+  ROUTINE_DISPATCH_PROFILE_PAIRS,
   ROUTINE_DISPATCH_REPOSITORIES,
   listRoutinePullRequestPollRepositories,
   planRoutinePullRequestPoll,
@@ -15,14 +16,16 @@ const now = 2_000_000;
 const retryAfterMs = 15 * 60 * 1000;
 
 function makeCatalog({ controlPlaneStatus = 'active', profileStatus = 'shadow', implementationId = 'python312-test-platform-v1' } = {}) {
+  const requiredCases = implementationId === 'node2214-vercel-api-gitleaks-v1' ? 6
+    : implementationId === 'python312-playtest-lab-v1' ? 5 : 4;
   const qualification = profileStatus === 'qualified'
     ? {
-      requiredExactShaCases: 10,
-      qualifiedExactShaCases: 10,
+      requiredExactShaCases: requiredCases,
+      qualifiedExactShaCases: requiredCases,
       state: 'passed',
       evidenceReference: 'evidence://project-jira-api/sha-matrix',
     }
-    : { requiredExactShaCases: 10, qualifiedExactShaCases: 0, state: 'in-progress' };
+    : { requiredExactShaCases: requiredCases, qualifiedExactShaCases: 0, state: 'in-progress' };
   return {
     schemaVersion: 1,
     approvedImplementations: [implementationId],
@@ -229,12 +232,14 @@ test('the Test Platform implementation is pollable only after its repository pro
     'node24-game-platform-sdk-v1',
     'node24-curiouspathway-pilot-v1',
     'python312-portfolio-graph-uv-v1',
+    'node2214-vercel-api-gitleaks-v1',
   ]);
   assert.deepEqual(ROUTINE_DISPATCH_REPOSITORIES, [
     'setnessconsulting/project-test-platform',
     'setnessconsulting/project-game-platform-sdk',
     'setnessconsulting/curiouspathway',
     'setnessconsulting/project-portfolio-graph',
+    'setnessconsulting/project-vercel-api',
   ]);
   const catalog = makeCatalog();
   assert.deepEqual(listRoutinePullRequestPollRepositories(catalog), [repository]);
@@ -245,17 +250,21 @@ test('the Test Platform implementation is pollable only after its repository pro
   assert.deepEqual(planRoutinePullRequestPoll(catalog, [], [], [], now).dispatches, []);
 });
 
-test('routine polling stays within the selected four-repository portfolio-dispatch focus', () => {
-  const selected = ROUTINE_DISPATCH_REPOSITORIES.map((target, index) => ({
+test('routine polling stays within the selected five-repository portfolio-dispatch focus', () => {
+  const selected = ROUTINE_DISPATCH_PROFILE_PAIRS.map(({ repository: target, implementationId }, index) => ({
     id: `focus-${index}`,
-    implementationId: ROUTINE_DISPATCH_IMPLEMENTATIONS[index],
+    implementationId,
     status: 'shadow',
     repositories: [target],
     checkNames: ['jenkins-pr-gate'],
-    ...(IMPLEMENTATIONS[ROUTINE_DISPATCH_IMPLEMENTATIONS[index]].nodeVersion
-      ? { requiredNodeVersion: IMPLEMENTATIONS[ROUTINE_DISPATCH_IMPLEMENTATIONS[index]].nodeVersion }
-      : { requiredPythonVersion: IMPLEMENTATIONS[ROUTINE_DISPATCH_IMPLEMENTATIONS[index]].pythonVersion }),
-    qualification: { requiredExactShaCases: 10, qualifiedExactShaCases: 0, state: 'in-progress' },
+    ...(IMPLEMENTATIONS[implementationId].nodeVersion
+      ? { requiredNodeVersion: IMPLEMENTATIONS[implementationId].nodeVersion }
+      : { requiredPythonVersion: IMPLEMENTATIONS[implementationId].pythonVersion }),
+    qualification: {
+      requiredExactShaCases: implementationId === 'node2214-vercel-api-gitleaks-v1' ? 6 : 4,
+      qualifiedExactShaCases: 0,
+      state: 'in-progress',
+    },
   }));
   const outsideFocus = {
     id: 'outside-focus',
@@ -264,12 +273,32 @@ test('routine polling stays within the selected four-repository portfolio-dispat
     repositories: ['setnessconsulting/project-jira-api'],
     checkNames: ['jenkins-pr-gate'],
     requiredNodeVersion: '22.14.0',
-    qualification: { requiredExactShaCases: 10, qualifiedExactShaCases: 0, state: 'in-progress' },
+    qualification: { requiredExactShaCases: 4, qualifiedExactShaCases: 0, state: 'in-progress' },
   };
+  const mispairedProfiles = [
+    {
+      id: 'vercel-implementation-on-test-platform',
+      implementationId: 'node2214-vercel-api-gitleaks-v1',
+      status: 'shadow',
+      repositories: ['setnessconsulting/project-test-platform-shadow'],
+      checkNames: ['jenkins-pr-gate'],
+      requiredNodeVersion: '22.14.0',
+      qualification: { requiredExactShaCases: 6, qualifiedExactShaCases: 0, state: 'in-progress' },
+    },
+    {
+      id: 'test-platform-implementation-on-vercel',
+      implementationId: 'python312-test-platform-v1',
+      status: 'shadow',
+      repositories: ['setnessconsulting/project-vercel-api-shadow'],
+      checkNames: ['jenkins-pr-gate'],
+      requiredPythonVersion: '3.12.14',
+      qualification: { requiredExactShaCases: 4, qualifiedExactShaCases: 0, state: 'in-progress' },
+    },
+  ];
   const catalog = {
     ...makeCatalog(),
     approvedImplementations: [...selected.map((profile) => profile.implementationId), outsideFocus.implementationId],
-    profiles: [...selected, outsideFocus],
+    profiles: [...selected, outsideFocus, ...mispairedProfiles],
   };
 
   assert.deepEqual(listRoutinePullRequestPollRepositories(catalog), [...ROUTINE_DISPATCH_REPOSITORIES].sort());

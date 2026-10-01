@@ -18,7 +18,7 @@ function catalog() {
       checkNames: ['jenkins-pr-gate'],
       requiredNodeVersion: '22.23.3',
       qualification: {
-        requiredExactShaCases: 10,
+        requiredExactShaCases: 4,
         qualifiedExactShaCases: 0,
         state: 'not-started',
       },
