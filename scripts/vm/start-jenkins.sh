@@ -106,6 +106,33 @@ try {
     capabilityGaps.add('agent cloud enumeration (' + failure.getClass().getSimpleName() + ')')
 }
 println 'PORTFOLIO_CAPABILITIES=' + (capabilityGaps.isEmpty() ? 'ok' : 'missing: ' + capabilityGaps.join('; '))
+// No build agent may reach the guest Docker socket. docker-plugin reads these
+// CasC mounts when it creates each one-use container, so a template that gains
+// a socket bind silently hands daemon access (effectively host root) to
+// repository-controlled code. Report the count instead of trusting the file.
+def socketMountingTemplates = []
+jenkins.clouds.each { cloud ->
+    def agentTemplates = null
+    try {
+        agentTemplates = cloud.getTemplates()
+    } catch (Throwable failure) {
+        socketMountingTemplates.add('enumeration(' + failure.getClass().getSimpleName() + ')')
+        return
+    }
+    (agentTemplates ?: []).each { agentTemplate ->
+        def agentMounts = []
+        try {
+            agentMounts = (agentTemplate.getDockerTemplateBase()?.getMounts() ?: [])
+        } catch (Throwable failure) {
+            socketMountingTemplates.add(agentTemplate.name.toString() + '(mounts-unreadable)')
+            return
+        }
+        if (agentMounts.any { it.toString().contains('docker.sock') }) {
+            socketMountingTemplates.add(agentTemplate.name.toString())
+        }
+    }
+}
+println 'PORTFOLIO_AGENT_SOCKET_MOUNTS=' + (socketMountingTemplates.isEmpty() ? '0' : socketMountingTemplates.size() + ' ' + socketMountingTemplates.join(','))
 def loaded = 0
 def approved = 0
 def unapproved = 0
@@ -204,6 +231,10 @@ portfolio_verify() {
   printf '%s\n' "$response" | grep '^PORTFOLIO_' || true
   if ! printf '%s\n' "$response" | grep -q '^PORTFOLIO_'; then
     printf 'Portfolio verification FAILED: the controller did not report a portfolio posture; treat the loaded portfolio jobs as unverified.\n' >&2
+    return 1
+  fi
+  if ! printf '%s\n' "$response" | grep -q '^PORTFOLIO_AGENT_SOCKET_MOUNTS=0$'; then
+    printf 'Portfolio verification FAILED: at least one Jenkins agent template still receives the guest Docker socket, or the controller could not read the agent templates at all (expected PORTFOLIO_AGENT_SOCKET_MOUNTS=0). A socket bind gives repository-controlled code daemon access that is effectively host root, so this is a security boundary, not a convenience setting. When this ran as part of install or restart the controller is already running, so a non-zero exit means the fleet is not at its intended boundary yet, not that the controller failed to start.\n' >&2
     return 1
   fi
   if printf '%s\n' "$response" | grep -q 'script=unapproved'; then

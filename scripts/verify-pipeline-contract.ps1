@@ -495,18 +495,36 @@ if (-not [regex]::IsMatch(
     throw 'The pinned Python 3.12 profile must have a dedicated one-use, resource-limited Docker agent template.'
 }
 
-# Node 22 / Node 22.14 agents that run Test Platform docker-backed suites mount
-# the guest Docker socket through the docker-plugin CasC mounts field (not
-# Compose). Compose still mounts the socket only on the controller.
-if (-not $jenkinsConfig.Contains('type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock')) {
-    throw 'CasC must bind-mount the guest Docker socket into docker-backed agent templates via dockerTemplateBase.mounts.'
-}
+# The guest Docker socket belongs to the controller alone (Compose) because the
+# Docker cloud needs it to create one-use agents. It must never reach an agent:
+# docker-plugin reads these CasC mounts when it creates each container, and a
+# socket bind hands daemon access (effectively host root) to whatever code the
+# agent runs. The controller-side API endpoint is asserted separately below.
 $dockerSockMountCount = [regex]::Matches(
     $jenkinsConfig,
     [regex]::Escape('type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock')
 ).Count
-if ($dockerSockMountCount -lt 2) {
-    throw 'At least the Node 22 and Node 22.14 one-build templates must mount the guest Docker socket.'
+if ($dockerSockMountCount -ne 0 -or
+    -not $jenkinsConfig.Contains('uri: "unix:///var/run/docker.sock"')) {
+    throw 'No Jenkins agent template may mount the guest Docker socket, and the Docker cloud must keep reaching it on the controller.'
+}
+foreach ($socketFreeAgentTemplate in @(
+    'setness-node22-one-build',
+    'setness-node22-14-one-build'
+)) {
+    $socketFreeTemplateMatch = [regex]::Match(
+        $jenkinsConfig,
+        '(?ms)^          - name: "' + [regex]::Escape($socketFreeAgentTemplate) + '"\r?\n(?<body>.*?)(?=^          - name: |^  [A-Za-z])'
+    )
+    if (-not $socketFreeTemplateMatch.Success -or
+        $socketFreeTemplateMatch.Groups['body'].Value.Contains('mounts:') -or
+        $socketFreeTemplateMatch.Groups['body'].Value.Contains('docker.sock')) {
+        throw "The one-use agent template $socketFreeAgentTemplate must stay free of host mounts and the Docker socket."
+    }
+}
+if (-not $vmStartScript.Contains('PORTFOLIO_AGENT_SOCKET_MOUNTS=') -or
+    -not $vmStartScript.Contains('grep -q ''^PORTFOLIO_AGENT_SOCKET_MOUNTS=0$''')) {
+    throw 'Deploy verification must read back that no agent template receives the Docker socket and fail closed when one does.'
 }
 if (-not $agentDockerfile.Contains('docker-29.8.1.tgz') -or
     -not $agentDockerfile.Contains('d8db66739d2e28d4933786d73e918d9be643a67fbd835db1bf740d650a259e70') -or
