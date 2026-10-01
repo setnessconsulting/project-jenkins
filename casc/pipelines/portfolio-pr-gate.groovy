@@ -6,6 +6,7 @@ def portfolioCatalogPath = 'profiles/profiles.json'
 def portfolioNodeBinary = '/opt/setness-jenkins/tools/node-v22.23.3-linux-x64/bin/node'
 def portfolioResolver = '/usr/share/jenkins/portfolio-profile-contract/src/resolve-pr.mjs'
 def portfolioAdapterImplementationAllowlist = [
+    'setness-web-ci-node22-v1',
     'node22-foundation-v1', 'node22-verify-clean-checkout-v1',
     'jenkins-repository-contract',
     'python312-test-platform-v1', 'python312-playtest-lab-v1', 'python312-cloudflare-api-uv-v1',
@@ -397,6 +398,38 @@ pipeline {
                     }
                     int pullRequestNumber = Integer.parseInt(pullRequestNumberText)
 
+                    Map pullRequest = portfolioRepoApiRequest(
+                        currentBuild.rawBuild,
+                        portfolioAppCredentialId,
+                        repository,
+                        [pull_requests: org.kohsuke.github.GHPermissionType.READ],
+                        'GET',
+                        "/repos/${repository}/pulls/${pullRequestNumber}",
+                        null,
+                        200
+                    )
+                    String currentHeadSha = pullRequest?.head?.sha?.toString()?.toLowerCase()
+                    String headRepository = pullRequest?.head?.repo?.full_name?.toString()
+                    String baseRepository = pullRequest?.base?.repo?.full_name?.toString()
+                    if (pullRequest.number != pullRequestNumber || pullRequest.state != 'open' || pullRequest.draft != false ||
+                        !headRepository?.equalsIgnoreCase(repository) || !baseRepository?.equalsIgnoreCase(repository)) {
+                        error('The live PR is draft, closed, or not same-repository; no checkout or repository command ran.')
+                    }
+
+                    Map check = portfolioCreateCheck(currentBuild.rawBuild, portfolioAppCredentialId, repository, expectedSha)
+                    env.PORTFOLIO_CHECK_RUN_ID = check.id
+                    env.PORTFOLIO_HEAD_SHA = expectedSha
+                    env.PORTFOLIO_REPOSITORY = repository
+                    env.PORTFOLIO_STATE = 'CHECK_PENDING'
+
+                    if (!currentHeadSha || currentHeadSha != expectedSha) {
+                        error('The live PR head changed after dispatch; no checkout or repository command ran. Jenkins will finalize the exact requested SHA check as failed.')
+                    }
+
+                    if (!pullRequest.user?.login?.toString()?.equalsIgnoreCase('setnessconsulting')) {
+                        error('The current owner-only shadow policy blocked this author before checkout; Jenkins will finalize the exact-SHA check as failed.')
+                    }
+
                     Map catalogRef = portfolioRepoApiRequest(
                         currentBuild.rawBuild,
                         portfolioAppCredentialId,
@@ -427,38 +460,6 @@ pipeline {
                         error('This repository does not yet have an enabled profile in the manual portfolio shadow allowlist; no checkout or repository command ran.')
                     }
 
-                    Map pullRequest = portfolioRepoApiRequest(
-                        currentBuild.rawBuild,
-                        portfolioAppCredentialId,
-                        repository,
-                        [pull_requests: org.kohsuke.github.GHPermissionType.READ],
-                        'GET',
-                        "/repos/${repository}/pulls/${pullRequestNumber}",
-                        null,
-                        200
-                    )
-                    String currentHeadSha = pullRequest?.head?.sha?.toString()?.toLowerCase()
-                    String headRepository = pullRequest?.head?.repo?.full_name?.toString()
-                    String baseRepository = pullRequest?.base?.repo?.full_name?.toString()
-                    if (pullRequest.number != pullRequestNumber || pullRequest.state != 'open' || pullRequest.draft != false ||
-                        !currentHeadSha || currentHeadSha != expectedSha ||
-                        !headRepository?.equalsIgnoreCase(repository) || !baseRepository?.equalsIgnoreCase(repository)) {
-                        error('The live PR is stale, draft, closed, or not same-repository; no checkout or repository command ran.')
-                    }
-
-                    if (!pullRequest.user?.login?.toString()?.equalsIgnoreCase('setnessconsulting')) {
-                        Map blockedCheck = portfolioCreateCheck(currentBuild.rawBuild, portfolioAppCredentialId, repository, expectedSha)
-                        portfolioCompleteCheck(
-                            currentBuild.rawBuild,
-                            portfolioAppCredentialId,
-                            repository,
-                            blockedCheck.id,
-                            expectedSha,
-                            'failure'
-                        )
-                        error('The current owner-only shadow policy blocked this author before checkout; a failed exact-SHA Jenkins check was published.')
-                    }
-
                     Map resolved = portfolioResolveProfile(portfolioNodeBinary, portfolioResolver, [
                         catalog: catalog,
                         pr: pullRequest,
@@ -483,15 +484,11 @@ pipeline {
                         hasNodeRuntime == hasPythonRuntime ||
                         !(nodeRuntimeMatches || pythonRuntimeMatches) ||
                         (resolved.npmVersion != null && !(resolved.npmVersion.toString() ==~ /\d+\.\d+\.\d+/)) ||
-                        !(resolved.agentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral']) ||
+                        !(resolved.agentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral']) ||
                         !(resolved.commands instanceof List) || resolved.commands.isEmpty()) {
                         error('The centrally trusted resolver returned a plan outside the controller contract; no checkout ran.')
                     }
 
-                    Map check = portfolioCreateCheck(currentBuild.rawBuild, portfolioAppCredentialId, repository, expectedSha)
-                    env.PORTFOLIO_CHECK_RUN_ID = check.id
-                    env.PORTFOLIO_HEAD_SHA = expectedSha
-                    env.PORTFOLIO_REPOSITORY = repository
                     env.PORTFOLIO_PROFILE_ID = profile.id.toString()
                     env.PORTFOLIO_AGENT_CLASS = resolved.agentClass.toString()
                     env.PORTFOLIO_NODE_VERSION = resolved.nodeVersion?.toString() ?: ''
@@ -609,7 +606,7 @@ fi
         always {
             script {
                 def checkId = env.PORTFOLIO_CHECK_RUN_ID?.trim()
-                if (checkId && env.PORTFOLIO_STATE == 'AUTHORIZED') {
+                if (checkId) {
                     String conclusion = currentBuild.currentResult == 'SUCCESS'
                         ? 'success'
                         : currentBuild.currentResult == 'ABORTED' ? 'cancelled' : 'failure'

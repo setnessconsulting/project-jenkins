@@ -14,6 +14,7 @@ $gitIgnorePath = Join-Path $repositoryRoot '.gitignore'
 $pluginsPath = Join-Path $repositoryRoot 'plugins.txt'
 $agentDockerfilePath = Join-Path $repositoryRoot 'agent/Dockerfile'
 $node2214DockerfilePath = Join-Path $repositoryRoot 'agent/Node22.14.Dockerfile'
+$setnessWebCIDockerfilePath = Join-Path $repositoryRoot 'agent/SetnessWebCI.Dockerfile'
 $node24DockerfilePath = Join-Path $repositoryRoot 'agent/Node24.Dockerfile'
 $python312DockerfilePath = Join-Path $repositoryRoot 'agent/Python312.Dockerfile'
 $playwrightDockerfilePath = Join-Path $repositoryRoot 'agent/Playwright.Dockerfile'
@@ -73,6 +74,7 @@ $gitIgnore = Get-Content -LiteralPath $gitIgnorePath -Raw
 $plugins = Get-Content -LiteralPath $pluginsPath -Raw
 $agentDockerfile = Get-Content -LiteralPath $agentDockerfilePath -Raw
 $node2214Dockerfile = Get-Content -LiteralPath $node2214DockerfilePath -Raw
+$setnessWebCIDockerfile = Get-Content -LiteralPath $setnessWebCIDockerfilePath -Raw
 $node24Dockerfile = Get-Content -LiteralPath $node24DockerfilePath -Raw
 $python312Dockerfile = Get-Content -LiteralPath $python312DockerfilePath -Raw
 $playwrightDockerfile = Get-Content -LiteralPath $playwrightDockerfilePath -Raw
@@ -402,8 +404,8 @@ $oneBuildTemplateCapCount = [regex]::Matches(
     '(?m)^[ \t]+instanceCapStr: "1"$'
 ).Count
 if (-not $jenkinsConfig.Contains('containerCap: 1') -or
-    $oneBuildTemplateCapCount -ne 6 -or
-    $oneBuildRetentionStrategyCount -ne 6 -or
+    $oneBuildTemplateCapCount -ne 7 -or
+    $oneBuildRetentionStrategyCount -ne 7 -or
     $jenkinsConfig.Contains('$class: com.nirima.jenkins.plugins.docker.strategy.DockerOnceRetentionStrategy') -or
     $jenkinsConfig.Contains('dockerOnce:') -or
     -not $jenkinsConfig.Contains('idleMinutes: 0') -or
@@ -414,12 +416,14 @@ if (-not $jenkinsConfig.Contains('containerCap: 1') -or
     -not $jenkinsConfig.Contains('cpus: "4.0"') -or
     -not $jenkinsConfig.Contains('privileged: false') -or
     -not $jenkinsConfig.Contains('network: "setness-jenkins-private"')) {
-    throw 'The Docker cloud must configure six correctly bounded one-build templates through the plugin CasC schema and provision resource-limited, unprivileged containers on its private network.'
+    throw 'The Docker cloud must configure seven correctly bounded one-build templates through the plugin CasC schema and provision resource-limited, unprivileged containers on its private network.'
 }
 if ($jenkinsConfig.Contains('permanent:') -or $jenkinsConfig.Contains('setness-linux-agent')) {
     throw 'A persistent Jenkins agent must not be configured.'
 }
 foreach ($agentContract in @(
+    'labelString: "setness-web-ci-node22-ephemeral"',
+    'image: "jenkins-pilot-agent:setness-web-ci-node22-pwsh-7.6.6"',
     'labelString: "setness-node22-14-ephemeral"',
     'image: "jenkins-pilot-agent:node-22.14.0"',
     'labelString: "setness-node24-ephemeral"',
@@ -434,6 +438,22 @@ foreach ($agentContract in @(
     if (-not $jenkinsConfig.Contains($agentContract)) {
         throw "A required one-use verification agent is missing: $agentContract."
     }
+}
+if (-not [regex]::IsMatch(
+    $jenkinsConfig,
+    '(?m)^          - name: "setness-web-ci-node22-one-build"\r?\n            labelString: "setness-web-ci-node22-ephemeral"$'
+) -or -not $jenkinsConfig.Contains('image: "jenkins-pilot-agent:setness-web-ci-node22-pwsh-7.6.6"') -or
+    -not $jenkinsConfig.Contains('memoryLimit: 4096')) {
+    throw 'Setness primary CI must use a dedicated one-use, resource-limited Docker agent template.'
+}
+$setnessWebCITemplateMatch = [regex]::Match(
+    $jenkinsConfig,
+    '(?ms)^          - name: "setness-web-ci-node22-one-build"\r?\n(?<body>.*?)(?=^          - name: |^  [A-Za-z])'
+)
+if (-not $setnessWebCITemplateMatch.Success -or
+    $setnessWebCITemplateMatch.Groups['body'].Value.Contains('mounts:') -or
+    $setnessWebCITemplateMatch.Groups['body'].Value.Contains('docker.sock')) {
+    throw 'The Setness primary CI agent must not mount the Docker socket or any host volume.'
 }
 if (-not [regex]::IsMatch(
     $jenkinsConfig,
@@ -510,6 +530,21 @@ if (-not $agentDockerfile.Contains('v22.23.3') -or
     -not $playwrightDockerfile.Contains('USER jenkins')) {
     throw 'The pinned Node 22, Node 22.14/Gitleaks, Node 24, and pre-baked unprivileged Playwright agent images are incomplete.'
 }
+if (-not $setnessWebCIDockerfile.Contains('v22.23.3') -or
+    -not $setnessWebCIDockerfile.Contains('df450af89261115ef9f9e3830c3eeb2cc9213b63c720b1af623cb5dcbe2e02de') -or
+    -not $setnessWebCIDockerfile.Contains('powershell-lts_7.6.6-1.deb_amd64.deb') -or
+    -not $setnessWebCIDockerfile.Contains('40445854085082B23624D7E437EF17D89DD9C67A72895843297EEAFD5D0163DE') -or
+    -not $setnessWebCIDockerfile.Contains('npm --version') -or
+    -not $setnessWebCIDockerfile.Contains('10.9.9') -or
+    -not $setnessWebCIDockerfile.Contains('pwsh --version') -or
+    -not $setnessWebCIDockerfile.Contains('PowerShell 7.6.6') -or
+    -not $setnessWebCIDockerfile.Contains('USER jenkins') -or
+    $setnessWebCIDockerfile.Contains('docker.sock') -or
+    $setnessWebCIDockerfile.Contains('/usr/local/bin/docker') -or
+    $setnessWebCIDockerfile.Contains('JENKINS_SECRET') -or
+    $setnessWebCIDockerfile.Contains('GITHUB_APP')) {
+    throw 'The Setness primary CI image must pin Node/npm and PowerShell, remain unprivileged, and contain no Docker or controller credentials.'
+}
 if (-not $python312Dockerfile.Contains('ARG PYTHON_VERSION=3.12.14') -or
     -not $python312Dockerfile.Contains('Python-${PYTHON_VERSION}.tar.xz') -or
     -not $python312Dockerfile.Contains('5c8462af5790baf43a321a1559dbe0db06d1be4300fb85fb53c40060668e548a') -or
@@ -534,6 +569,8 @@ if (-not $secondaryPlaywrightDockerfile.Contains('v24.21.0') -or
     throw 'The secondary Node 24/Playwright image must pin Node and Playwright, preinstall all three browsers, and contain no controller or credential access.'
 }
 if (-not $compose.Contains('dockerfile: agent/Node22.14.Dockerfile') -or
+    -not $compose.Contains('dockerfile: agent/SetnessWebCI.Dockerfile') -or
+    -not $compose.Contains('jenkins-pilot-agent:setness-web-ci-node22-pwsh-7.6.6') -or
     -not $compose.Contains('jenkins-pilot-agent:node-22.14.0') -or
     -not $compose.Contains('dockerfile: agent/Node24.Dockerfile') -or
     -not $compose.Contains('dockerfile: agent/Playwright.Dockerfile') -or
@@ -689,6 +726,10 @@ if (-not $vmStartScript.Contains('docker image inspect ''jenkins-pilot-agent:nod
     -not $vmStartScript.Contains('build node22-14-agent-image')) {
     throw 'A normal VM start must build the new Node 22.14 agent image when it is not already present.'
 }
+if (-not $vmStartScript.Contains('docker image inspect ''jenkins-pilot-agent:setness-web-ci-node22-pwsh-7.6.6''') -or
+    -not $vmStartScript.Contains('build setness-web-ci-agent-image')) {
+    throw 'A normal VM start must build the Setness primary CI agent when its pinned image is not present.'
+}
 if (-not $vmStartScript.Contains('portfolio_verify()') -or
     -not $vmStartScript.Contains('  verify)') -or
     -not $vmStartScript.Contains('PORTFOLIO_JOB') -or
@@ -722,7 +763,7 @@ if (-not $vmStartScript.Contains('the controller is already running') -or
     -not $vmStartScript.Contains('there is nothing to verify')) {
     throw 'Portfolio verification must state its own install/restart exit semantics and its no-loaded-job posture.'
 }
-if (-not $vmStartScript.Contains('build controller agent-image node22-14-agent-image node24-agent-image python312-agent-image e2e-agent-image secondary-agent-image')) {
+if (-not $vmStartScript.Contains('build controller agent-image node22-14-agent-image setness-web-ci-agent-image node24-agent-image python312-agent-image e2e-agent-image secondary-agent-image')) {
     throw 'VM installation and restart must prebuild every disposable agent profile.'
 }
 if (-not $vmStartScript.Contains("docker image inspect 'jenkins-pilot-agent:python-3.12.14'")) {
@@ -731,6 +772,7 @@ if (-not $vmStartScript.Contains("docker image inspect 'jenkins-pilot-agent:pyth
 foreach ($agentImage in @(
     'jenkins-pilot-agent:node-22.23.3',
     'jenkins-pilot-agent:node-22.14.0',
+    'jenkins-pilot-agent:setness-web-ci-node22-pwsh-7.6.6',
     'jenkins-pilot-agent:node-24.21.0',
     'jenkins-pilot-agent:python-3.12.14',
     'jenkins-pilot-agent:node-22.23.3-playwright-1.62.1',
@@ -946,6 +988,18 @@ if (-not $jobs.Contains("pipelineJob('portfolio-dispatch/portfolio-pr-gate')") -
 if (-not $portfolioPipeline.Contains("profile.status in ['shadow', 'qualified']")) {
     throw 'The portfolio PR gate must accept both shadow and already-qualified profiles selected by the controller poller.'
 }
+$portfolioPullRequestIdentityIndex = $portfolioPipeline.IndexOf('if (pullRequest.number != pullRequestNumber')
+$portfolioCheckCreationIndex = $portfolioPipeline.IndexOf('Map check = portfolioCreateCheck(currentBuild.rawBuild, portfolioAppCredentialId, repository, expectedSha)')
+$portfolioCatalogReadIndex = $portfolioPipeline.IndexOf('Map catalogRef = portfolioRepoApiRequest(')
+$portfolioResolverIndex = $portfolioPipeline.IndexOf('Map resolved = portfolioResolveProfile(')
+if ($portfolioPullRequestIdentityIndex -lt 0 -or
+    $portfolioCheckCreationIndex -le $portfolioPullRequestIdentityIndex -or
+    $portfolioCatalogReadIndex -le $portfolioCheckCreationIndex -or
+    $portfolioResolverIndex -le $portfolioCheckCreationIndex -or
+    -not $portfolioPipeline.Contains("env.PORTFOLIO_STATE = 'CHECK_PENDING'") -or
+    -not $portfolioPipeline.Contains('if (checkId) {')) {
+    throw 'After live same-repository PR identity is confirmed, the exact-SHA Jenkins check must be created before profile resolution and finalized visibly even when authorization fails.'
+}
 if (-not $controllerDockerfile.Contains('integration/test-platform-contract') -or -not $controllerDockerfile.Contains('nodejs.org')) {
     throw 'The controller image must provision the pinned Node runtime and the trusted Test Platform adapter.'
 }
@@ -980,6 +1034,17 @@ if ($testPlatformFixture.contract_id -ne $testPlatformCatalog.contract.contract_
 
 foreach ($portfolioGuard in @(
     'export const IMPLEMENTATIONS = Object.freeze({',
+    "'setness-web-ci-node22-v1'",
+    "agentClass: 'setness-web-ci-node22-ephemeral'",
+    "Object.freeze(['env', 'NEXT_PUBLIC_SITE_URL=https://setnessconsulting.com', 'pwsh', '-File', 'scripts/verify-jenkins-fallback-contract.ps1'])",
+    "Object.freeze(['env', 'NEXT_PUBLIC_SITE_URL=https://setnessconsulting.com', 'node', 'scripts/test-jenkins-fallback-runtime.mjs'])",
+    "Object.freeze(['env', 'NEXT_PUBLIC_SITE_URL=https://setnessconsulting.com', 'npm', '--prefix', 'web', 'ci'])",
+    "Object.freeze(['env', 'NEXT_PUBLIC_SITE_URL=https://setnessconsulting.com', 'npm', '--prefix', 'web', 'run', 'typecheck'])",
+    "Object.freeze(['env', 'NEXT_PUBLIC_SITE_URL=https://setnessconsulting.com', 'npm', '--prefix', 'web', 'run', 'lint'])",
+    "Object.freeze(['env', 'NEXT_PUBLIC_SITE_URL=https://setnessconsulting.com', 'npm', '--prefix', 'web', 'run', 'build'])",
+    "Object.freeze(['env', 'NEXT_PUBLIC_SITE_URL=https://setnessconsulting.com', 'npm', '--prefix', 'web', 'run', 'blog:validate'])",
+    "Object.freeze(['env', 'NEXT_PUBLIC_SITE_URL=https://setnessconsulting.com', 'npm', '--prefix', 'web', 'run', 'seo:baseline'])",
+    "Object.freeze(['env', 'NEXT_PUBLIC_SITE_URL=https://setnessconsulting.com', 'npm', '--prefix', 'web', 'run', 'test'])",
     "'node22-foundation-v1'",
     "nodeVersion: '22.23.3'",
     "npmVersion: '10.9.9'",
@@ -1068,6 +1133,7 @@ foreach ($portfolioRuntimeGuard in @(
     'def portfolioCatalogRepository = /* JENKINS_PORTFOLIO_CATALOG_REPOSITORY */',
     "def portfolioCatalogPath = 'profiles/profiles.json'",
     "def portfolioAdapterImplementationAllowlist = [",
+    "'setness-web-ci-node22-v1'",
     "'node22-foundation-v1'",
     "'node22-verify-clean-checkout-v1'",
     "'jenkins-repository-contract'",
@@ -1083,7 +1149,7 @@ foreach ($portfolioRuntimeGuard in @(
     "'python312-context-file-maker-v1'",
     "'python312-cpa-ai-pack-v1'",
     "'node2214-vercel-api-gitleaks-v1'",
-    "!(resolved.agentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral'])",
+    "!(resolved.agentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral'])",
     'resolved.pythonVersion.toString() == profile.requiredPythonVersion?.toString()',
     'env.PORTFOLIO_NODE_VERSION = resolved.nodeVersion?.toString() ?:',
     'env.PORTFOLIO_PYTHON_VERSION = resolved.pythonVersion?.toString() ?:',
@@ -1223,6 +1289,8 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumer.Contains("'setnessconsulting/project-portfolio-graph'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-vercel-api'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-jenkins'") -or
+    -not $portfolioConsumer.Contains("'setnessconsulting/project-setness-consulting'") -or
+    -not $portfolioConsumer.Contains("'setness-web-ci-node22-v1'") -or
     -not $portfolioConsumer.Contains("'jenkins-repository-contract'") -or
     -not $portfolioConsumer.Contains("'node2214-vercel-api-gitleaks-v1'") -or
     -not $portfolioConsumer.Contains("['missing', 'in_progress', 'orphaned', 'untracked', 'completed']") -or
@@ -1240,7 +1308,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioPollerTests.Contains('only centrally approved implementations are polled') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check dispatches only the owner same-repository shadow head') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check rejects fork, outside-author, draft, closed, mismatched-base, and planned cases') -or
-    -not $portfolioPollerTests.Contains('routine polling stays within the selected six-repository portfolio-dispatch focus') -or
+    -not $portfolioPollerTests.Contains('routine polling stays within the selected seven-repository portfolio-dispatch focus') -or
     -not $portfolioPollerCliTests.Contains('planner fails closed on malformed input, oversized data, and caller arguments') -or
     -not $portfolioAdapterDocs.Contains('JENKINS_PORTFOLIO_PR_POLL_ENABLED=true') -or
     -not $portfolioAdapterDocs.Contains('queues one') -or

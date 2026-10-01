@@ -49,6 +49,23 @@ const QUALIFICATION_STATES = new Set([
 // profile data. The package-specific implementation is added to the private
 // catalog only after this contract is reviewed and merged.
 export const IMPLEMENTATIONS = Object.freeze({
+  'setness-web-ci-node22-v1': Object.freeze({
+    agentClass: 'setness-web-ci-node22-ephemeral',
+    nodeVersion: '22.23.3',
+    npmVersion: '10.9.9',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['env', 'NEXT_PUBLIC_SITE_URL=https://setnessconsulting.com', 'pwsh', '-File', 'scripts/verify-jenkins-fallback-contract.ps1']),
+      Object.freeze(['env', 'NEXT_PUBLIC_SITE_URL=https://setnessconsulting.com', 'node', 'scripts/test-jenkins-fallback-runtime.mjs']),
+      Object.freeze(['env', 'NEXT_PUBLIC_SITE_URL=https://setnessconsulting.com', 'npm', '--prefix', 'web', 'ci']),
+      Object.freeze(['env', 'NEXT_PUBLIC_SITE_URL=https://setnessconsulting.com', 'npm', '--prefix', 'web', 'run', 'typecheck']),
+      Object.freeze(['env', 'NEXT_PUBLIC_SITE_URL=https://setnessconsulting.com', 'npm', '--prefix', 'web', 'run', 'lint']),
+      Object.freeze(['env', 'NEXT_PUBLIC_SITE_URL=https://setnessconsulting.com', 'npm', '--prefix', 'web', 'run', 'build']),
+      Object.freeze(['env', 'NEXT_PUBLIC_SITE_URL=https://setnessconsulting.com', 'npm', '--prefix', 'web', 'run', 'blog:validate']),
+      Object.freeze(['env', 'NEXT_PUBLIC_SITE_URL=https://setnessconsulting.com', 'npm', '--prefix', 'web', 'run', 'seo:baseline']),
+      Object.freeze(['env', 'NEXT_PUBLIC_SITE_URL=https://setnessconsulting.com', 'npm', '--prefix', 'web', 'run', 'test']),
+    ]),
+  }),
   'node22-foundation-v1': Object.freeze({
     agentClass: 'setness-ephemeral',
     nodeVersion: '22.23.3',
@@ -304,6 +321,7 @@ export const ROUTINE_DISPATCH_PROFILE_PAIRS = Object.freeze([
   Object.freeze({ implementationId: 'python312-portfolio-graph-uv-v1', repository: 'setnessconsulting/project-portfolio-graph' }),
   Object.freeze({ implementationId: 'node2214-vercel-api-gitleaks-v1', repository: 'setnessconsulting/project-vercel-api' }),
   Object.freeze({ implementationId: 'jenkins-repository-contract', repository: 'setnessconsulting/project-jenkins' }),
+  Object.freeze({ implementationId: 'setness-web-ci-node22-v1', repository: 'setnessconsulting/project-setness-consulting' }),
 ]);
 
 // A catalog can select only the centrally reviewed behavior matrix for its
@@ -311,6 +329,7 @@ export const ROUTINE_DISPATCH_PROFILE_PAIRS = Object.freeze([
 // standard cases, five Game AI cases, and six Vercel API cases. The count is
 // not itself evidence; every distinct case still needs exact-SHA evidence.
 const QUALIFICATION_CASES_BY_IMPLEMENTATION = Object.freeze({
+  'setness-web-ci-node22-v1': 4,
   'jenkins-repository-contract': 4,
   'setness-repository-pilot': 4,
   'curiouspathway-pilot': 4,

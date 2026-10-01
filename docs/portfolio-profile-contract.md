@@ -59,7 +59,7 @@ Gitleaks, path filters, and event-specific behavior remain in Actions as
 documented in `python312-first-wave-remaining-2026-09-30.md`. None is added to
 routine polling, and none permits Jenkins cutover.
 
-The focused shadow set includes six centrally trusted lanes:
+The focused shadow set includes seven centrally trusted lanes:
 
 - `python312-test-platform-v1` runs the existing single Linux verification job
   on Python 3.12.14. The dedicated Test Platform agent also exposes the Docker
@@ -88,12 +88,17 @@ The focused shadow set includes six centrally trusted lanes:
   profile-contract Node test files and the Test Platform adapter test. Its
   existing private profile is `project-jenkins-self-check`, still shadow-only
   at 0/4; the suite does not deploy or change Actions authority.
-
-`project-setness-consulting` is already observed through its separate
-centrally-owned repository pilot; it is not sent through the portfolio
-dispatcher and its Actions checks remain authoritative. Its candidate,
-Tutor Web, scheduled E2E, and deployment/release workflows remain separate
-coverage and must be mapped before any cutover.
+- `setness-web-ci-node22-v1` maps only `project-setness-consulting`'s primary
+  Node 22 `ci.yml` job. It runs the fallback-contract PowerShell check, exact-SHA
+  fallback runtime check, `npm ci`, typecheck, lint, build, blog validation,
+  SEO baseline, and unit tests using fixed commands on a dedicated Node 22.23.3
+  plus PowerShell 7.6.6 one-build agent. That agent has no Docker socket or host
+  mounts. Cloudflare Candidate, Tutor Web Node 24, scheduled E2E, and deployment
+  remain Actions lanes; Actions `build-test` remains authoritative. The private
+  profile stays at 0/4 while its exact-head success, visible failure,
+  stale-head, and cleanup/recovery cases are collected. Same-repository PRs
+  authored by `setnessconsulting` only are eligible; forks and outside authors
+  remain rejected.
 
 The `node22-verify-clean-checkout-v1` implementation uses a separate one-use
 agent pinned to Node 22.14.0/npm 10.9.2 and the static argument vectors
@@ -128,12 +133,12 @@ The poller is opt-in through the ignored local
 also requires the private catalog location and `controlPlane.status: active`.
 Routine dispatch is restricted in trusted code to
 `project-test-platform`, `project-game-platform-sdk`, `curiouspathway`,
-`project-portfolio-graph`, `project-vercel-api`, and `project-jenkins`, with
-only their six exact implementation/repository pairs. The Jenkins repository
-pair uses the already approved `jenkins-repository-contract` implementation;
-the poller's same-repository, non-draft, owner-only and exact-live-head checks
-remain unchanged.
-`project-setness-consulting` uses its separate pilot. The poller checks only
+`project-portfolio-graph`, `project-vercel-api`, `project-jenkins`, and
+`project-setness-consulting`, with only their seven exact
+implementation/repository pairs. The Jenkins repository pair uses the already
+approved `jenkins-repository-contract` implementation; the poller's
+same-repository, non-draft, owner-only and exact-live-head checks remain
+unchanged. It checks only
 open, same-repository, non-draft PRs authored by `setnessconsulting`, queues
 one exact-head SHA at a time, and persists dispatch state in Jenkins home. It
 does not schedule main-branch, fork, or outside-author verification. The

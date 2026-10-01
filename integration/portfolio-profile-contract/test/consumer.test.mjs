@@ -661,6 +661,31 @@ test('returns executable commands only after PR identity and profile repository 
   }), 'stale-or-untrusted-pr');
 });
 
+test('Setness primary CI profile maps only its centrally defined Node 22 commands', () => {
+  const input = catalog();
+  input.approvedImplementations = ['setness-web-ci-node22-v1'];
+  input.profiles[0].implementationId = 'setness-web-ci-node22-v1';
+  input.profiles[0].repositories = ['setnessconsulting/project-setness-consulting'];
+  input.profiles[0].requiredNodeVersion = '22.23.3';
+  input.profiles[0].qualification = {
+    requiredExactShaCases: 4,
+    qualifiedExactShaCases: 0,
+    state: 'in-progress',
+  };
+  const pullRequest = pr();
+  pullRequest.head.repo.full_name = 'setnessconsulting/project-setness-consulting';
+  pullRequest.base.repo.full_name = 'setnessconsulting/project-setness-consulting';
+  const execution = resolveAuthorizedShadowPullRequest(input, 'example-foundation', pullRequest, {
+    repository: 'setnessconsulting/project-setness-consulting',
+    pullRequestNumber: 17,
+    headSha: sha,
+    allowedAuthors: ['setnessconsulting'],
+  });
+  assert.equal(execution.requiredCheck, 'jenkins-pr-gate');
+  assert.equal(execution.nodeVersion, '22.23.3');
+  assert.deepEqual(execution.commands, IMPLEMENTATIONS['setness-web-ci-node22-v1'].commands);
+});
+
 test('selects the profile from repository identity before authorizing the PR', () => {
   const execution = resolveAuthorizedShadowPullRequestForRepository(catalog(), pr(), {
     repository: 'setnessconsulting/EXAMPLE-REPOSITORY',

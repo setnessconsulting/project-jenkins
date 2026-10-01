@@ -12,6 +12,13 @@ The manual `portfolio-dispatch/portfolio-pr-gate` job now assembles the catalog 
 on the controller. It pins the private catalog file to a resolved `main` commit,
 uses one-repository App tokens for catalog read, PR read, checkout, and Checks
 publication, and refreshes the PR again after an agent becomes available.
+After the live same-repository PR identity is confirmed and a full requested
+SHA is supplied, the controller opens the exact-SHA check before reading the
+private catalog or resolving a profile. Pipeline finalization publishes a
+failure if those authorization steps reject the request, so a safe-target
+resolution failure does not leave the check absent or pending. Requests without
+a verifiable same-repository PR identity are rejected before a check is
+targeted.
 Checkout uses a temporary contents-read credential for only that repository;
 it is stored in the dedicated folder credentials store (not the controller-
 wide System store). The controller removes it immediately after checkout and
@@ -73,7 +80,7 @@ clearing configuration cannot leave an older dispatcher runnable.
 The central routine-poller allowlist is an explicit set of implementation and
 repository pairs. It includes the exact Node 22 foundation implementation
 (`node22-foundation-v1`, Node 22.23.3/npm 10.9.9), the Node 22.14
-clean-checkout implementation, and the six focused shadow lanes documented
+clean-checkout implementation, and the seven focused shadow lanes documented
 in `portfolio-profile-contract.md`. The agent checks its pinned
 runtime after exact-SHA checkout and before running repository commands.
 Profiles remain planned until their matching runtime is loaded and ready; no
