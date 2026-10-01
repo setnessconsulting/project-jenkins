@@ -59,7 +59,7 @@ Gitleaks, path filters, and event-specific behavior remain in Actions as
 documented in `python312-first-wave-remaining-2026-09-30.md`. None is added to
 routine polling, and none permits Jenkins cutover.
 
-The next focused shadow set adds four centrally trusted lanes:
+The next focused shadow set adds five centrally trusted lanes:
 
 - `python312-test-platform-v1` runs the existing single Linux verification job
   on Python 3.12.14. The dedicated Test Platform agent also exposes the Docker
@@ -79,6 +79,10 @@ The next focused shadow set adds four centrally trusted lanes:
   target lockfile and replacing the workflow's browser-install step. The
   production smoke workflow and owner-only Windows local verification remain
   Actions work.
+- `node2214-vercel-api-gitleaks-v1` combines the repository's Gitleaks and
+  Node.js verification jobs under one centrally trusted PR check. It uses the
+  pinned Node 22.14.0/Gitleaks agent and leaves push/manual triggers, Actions
+  authority, and deployment behavior unchanged.
 
 `project-setness-consulting` is already observed through its separate
 centrally-owned repository pilot; it is not sent through the portfolio
@@ -118,8 +122,9 @@ The poller is opt-in through the ignored local
 `JENKINS_PORTFOLIO_PR_POLL_ENABLED` setting, which defaults to `false`, and
 also requires the private catalog location and `controlPlane.status: active`.
 Routine dispatch is restricted in trusted code to
-`project-test-platform`, `project-game-platform-sdk`, `curiouspathway`, and
-`project-portfolio-graph`, with only their four matching implementation IDs.
+`project-test-platform`, `project-game-platform-sdk`, `curiouspathway`,
+`project-portfolio-graph`, and `project-vercel-api`, with only their five exact
+implementation/repository pairs.
 `project-setness-consulting` uses its separate pilot. The poller checks only
 open, same-repository, non-draft PRs authored by `setnessconsulting`, queues
 one exact-head SHA at a time, and persists dispatch state in Jenkins home. It
@@ -127,6 +132,13 @@ does not schedule main-branch, fork, or outside-author verification. The
 reaper schedule remains maintenance-only. Enabling this poller does not make
 a repository Jenkins-authoritative; Actions, protection, and deployment
 settings remain unchanged until separately qualified and approved.
+
+Exact-SHA qualification uses a profile-specific evidence matrix instead of a
+fixed observation quota. Each case must exercise a distinct required behavior
+for that repository and lane; counts alone are not evidence. A profile cannot
+claim qualification until every case in its recorded matrix passes and its
+separate isolation, cleanup/recovery, fallback, and owner-approved protection
+requirements are met.
 
 Fork PRs are rejected. An owner allowlist is a bounded shadow policy, not a
 sandbox. Do not broaden access or make this check required until the runtime

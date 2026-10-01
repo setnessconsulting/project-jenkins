@@ -1212,11 +1212,13 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumer.Contains('const POLL_RETRY_AFTER_MS = 15 * 60 * 1000') -or
     -not $portfolioConsumer.Contains('const POLL_MAX_ATTEMPTS = 3') -or
     -not $portfolioConsumer.Contains("['pending', 'completed', 'stalled']") -or
-    -not $portfolioConsumer.Contains('ROUTINE_DISPATCH_REPOSITORIES.some((repository) =>') -or
+    -not $portfolioConsumer.Contains('ROUTINE_DISPATCH_PROFILE_PAIRS.some((pair) =>') -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-test-platform'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-game-platform-sdk'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/curiouspathway'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-portfolio-graph'") -or
+    -not $portfolioConsumer.Contains("'setnessconsulting/project-vercel-api'") -or
+    -not $portfolioConsumer.Contains("'node2214-vercel-api-gitleaks-v1'") -or
     -not $portfolioConsumer.Contains("['missing', 'in_progress', 'orphaned', 'untracked', 'completed']") -or
     -not $portfolioConsumer.Contains("'dispatchId'") -or
     -not $portfolioConsumer.Contains('const dispatches = dispatchCandidates.slice(0, 1)') -or
@@ -1230,7 +1232,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioPollerTests.Contains('a missing exact-SHA check is stalled after the bounded retry budget') -or
     -not $portfolioPollerTests.Contains('polling is inert until the private control plane is explicitly active') -or
     -not $portfolioPollerTests.Contains('only centrally approved implementations are polled') -or
-    -not $portfolioPollerTests.Contains('routine polling stays within the selected four-repository portfolio-dispatch focus') -or
+    -not $portfolioPollerTests.Contains('routine polling stays within the selected five-repository portfolio-dispatch focus') -or
     -not $portfolioPollerCliTests.Contains('planner fails closed on malformed input, oversized data, and caller arguments') -or
     -not $portfolioAdapterDocs.Contains('JENKINS_PORTFOLIO_PR_POLL_ENABLED=true') -or
     -not $portfolioAdapterDocs.Contains('queues one') -or

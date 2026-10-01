@@ -277,22 +277,26 @@ export const IMPLEMENTATIONS = Object.freeze({
 // Only implementations explicitly admitted here may be polled automatically.
 // Adding an implementation requires a reviewed trusted runtime and profile
 // contract; catalog data cannot expand this set.
-export const ROUTINE_DISPATCH_IMPLEMENTATIONS = Object.freeze([
-  'python312-test-platform-v1',
-  'node24-game-platform-sdk-v1',
-  'node24-curiouspathway-pilot-v1',
-  'python312-portfolio-graph-uv-v1',
-]);
-
 // The portfolio poller is deliberately scoped to this user-selected focus set.
 // Repository profiles outside this set remain eligible for explicit dispatch,
-// but cannot start recurring shadow builds through the poller.
-export const ROUTINE_DISPATCH_REPOSITORIES = Object.freeze([
-  'setnessconsulting/project-test-platform',
-  'setnessconsulting/project-game-platform-sdk',
-  'setnessconsulting/curiouspathway',
-  'setnessconsulting/project-portfolio-graph',
+// but cannot start recurring shadow builds through the poller. Keep each
+// implementation bound to its repository so catalog data cannot cross-pair
+// two otherwise approved entries.
+export const ROUTINE_DISPATCH_PROFILE_PAIRS = Object.freeze([
+  Object.freeze({ implementationId: 'python312-test-platform-v1', repository: 'setnessconsulting/project-test-platform' }),
+  Object.freeze({ implementationId: 'node24-game-platform-sdk-v1', repository: 'setnessconsulting/project-game-platform-sdk' }),
+  Object.freeze({ implementationId: 'node24-curiouspathway-pilot-v1', repository: 'setnessconsulting/curiouspathway' }),
+  Object.freeze({ implementationId: 'python312-portfolio-graph-uv-v1', repository: 'setnessconsulting/project-portfolio-graph' }),
+  Object.freeze({ implementationId: 'node2214-vercel-api-gitleaks-v1', repository: 'setnessconsulting/project-vercel-api' }),
 ]);
+
+export const ROUTINE_DISPATCH_IMPLEMENTATIONS = Object.freeze(
+  ROUTINE_DISPATCH_PROFILE_PAIRS.map(({ implementationId }) => implementationId),
+);
+
+export const ROUTINE_DISPATCH_REPOSITORIES = Object.freeze(
+  ROUTINE_DISPATCH_PROFILE_PAIRS.map(({ repository }) => repository),
+);
 
 export class ProfileRejection extends Error {
   constructor(code, message) {
@@ -348,7 +352,7 @@ function validateQualification(qualification, profileId) {
       || !QUALIFICATION_STATES.has(state)) {
     reject('invalid-qualification', `profile ${profileId} has invalid qualification evidence`);
   }
-  if (state === 'passed' && (requiredExactShaCases < 10
+  if (state === 'passed' && (requiredExactShaCases < 1
       || qualifiedExactShaCases < requiredExactShaCases
       || typeof evidenceReference !== 'string' || !evidenceReference.trim())) {
     reject('qualification-overclaim', `profile ${profileId} claims a pass without complete evidence`);
@@ -427,8 +431,8 @@ export function validateProfileCatalog(catalog) {
     } else {
       if (!validId(profile.implementationId)
           || !catalog.approvedImplementations.includes(profile.implementationId)
-          || profile.qualification.requiredExactShaCases < 10) {
-        reject('unapproved-profile', `profile ${profile.id} must select an approved implementation and require ten cases`);
+          || profile.qualification.requiredExactShaCases < 1) {
+        reject('unapproved-profile', `profile ${profile.id} must select an approved implementation and require exact-SHA evidence`);
       }
     }
     if (profile.status === 'qualified'
@@ -642,10 +646,10 @@ export function listRoutinePullRequestPollRepositories(catalog) {
   if (catalog.controlPlane.status !== 'active') return Object.freeze([]);
   return Object.freeze(catalog.profiles
     .filter((profile) => ['shadow', 'qualified'].includes(profile.status)
-      && ROUTINE_DISPATCH_IMPLEMENTATIONS.includes(profile.implementationId)
       && profile.repositories.length === 1
-      && ROUTINE_DISPATCH_REPOSITORIES.some((repository) =>
-        repository.toLowerCase() === profile.repositories[0].toLowerCase()))
+      && ROUTINE_DISPATCH_PROFILE_PAIRS.some((pair) =>
+        pair.implementationId === profile.implementationId
+        && pair.repository.toLowerCase() === profile.repositories[0].toLowerCase()))
     .flatMap((profile) => {
       if (profile.repositories.length !== 1) {
         reject('ambiguous-profile', 'a polled profile must identify exactly one repository');

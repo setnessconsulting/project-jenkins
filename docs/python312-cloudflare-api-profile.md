@@ -30,7 +30,7 @@ the observed main SHA from the GitHub Actions App (ID `15368`, run
 `verify` context from App `15368`; the active ruleset is
 `setness-main-protection`. No Jenkins requirement or protection setting was
 changed. Actions remains authoritative. No open pull request was available for
-exact-SHA shadow runs, so qualification remains 0 of 10.
+exact-SHA shadow runs, so its behavior matrix remains incomplete.
 
 The repository also has `ci-local.yml`, `ci-shadow.yml`, and
 `ci-hosted-fallback.yml`. Their reusable self-hosted lanes, release event,
