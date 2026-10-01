@@ -526,17 +526,22 @@ if (-not $vmStartScript.Contains('PORTFOLIO_AGENT_SOCKET_MOUNTS=') -or
     -not $vmStartScript.Contains('grep -q ''^PORTFOLIO_AGENT_SOCKET_MOUNTS=0$''')) {
     throw 'Deploy verification must read back that no agent template receives the Docker socket and fail closed when one does.'
 }
-if (-not $agentDockerfile.Contains('docker-29.8.1.tgz') -or
-    -not $agentDockerfile.Contains('d8db66739d2e28d4933786d73e918d9be643a67fbd835db1bf740d650a259e70') -or
-    -not $agentDockerfile.Contains('/usr/local/bin/docker') -or
-    -not $agentDockerfile.Contains('groupadd --gid 988 docker') -or
-    -not $agentDockerfile.Contains('usermod --append --groups docker jenkins') -or
-    -not $node2214Dockerfile.Contains('docker-29.8.1.tgz') -or
-    -not $node2214Dockerfile.Contains('d8db66739d2e28d4933786d73e918d9be643a67fbd835db1bf740d650a259e70') -or
-    -not $node2214Dockerfile.Contains('/usr/local/bin/docker') -or
-    -not $node2214Dockerfile.Contains('groupadd --gid 988 docker') -or
-    -not $node2214Dockerfile.Contains('usermod --append --groups docker jenkins')) {
-    throw 'The Node 22 and Node 22.14 agent images must ship a pinned Docker CLI and docker group GID 988 matching the Hyper-V guest.'
+# The Node 22 and Node 22.14 images used to ship a pinned Docker CLI and join
+# docker GID 988 so they could use the socket that dockerTemplateBase.mounts
+# bound into them. Both are gone: the guest socket stays on the controller, no
+# template mounts it back in, and a client on an agent could only widen the
+# boundary, so the images must stay free of the CLI and the group.
+if ($agentDockerfile.Contains('docker-29.8.1') -or
+    $agentDockerfile.Contains('download.docker.com') -or
+    $agentDockerfile.Contains('/usr/local/bin/docker') -or
+    $agentDockerfile.Contains('groupadd --gid 988 docker') -or
+    $agentDockerfile.Contains('usermod --append --groups docker jenkins') -or
+    $node2214Dockerfile.Contains('docker-29.8.1') -or
+    $node2214Dockerfile.Contains('download.docker.com') -or
+    $node2214Dockerfile.Contains('/usr/local/bin/docker') -or
+    $node2214Dockerfile.Contains('groupadd --gid 988 docker') -or
+    $node2214Dockerfile.Contains('usermod --append --groups docker jenkins')) {
+    throw 'No Node agent image may ship a Docker CLI or join a docker group; the guest Docker socket stays on the controller and no template mounts it.'
 }
 if (-not $plugins.Contains('docker-plugin:1327.v9524f1ee134e')) {
     throw 'The Docker cloud plugin must be explicitly version-pinned.'
@@ -576,6 +581,7 @@ if (-not $agentDockerfile.Contains('openssh-client') -or
     throw 'The SSH checkout agent must include the pinned GitHub host key and SSH client.'
 }
 if (-not $agentDockerfile.Contains('v22.23.3') -or
+    $agentDockerfile.Contains('docker.sock') -or
     -not $node2214Dockerfile.Contains('v22.14.0') -or
     -not $node2214Dockerfile.Contains('npm --version') -or
     -not $node2214Dockerfile.Contains('10.9.2') -or
@@ -1037,12 +1043,18 @@ foreach ($limitName in @('max_suites', 'max_artifacts_per_suite', 'max_artifact_
         throw "The approved Test Platform catalog is missing the bounded limit: $limitName."
     }
 }
-foreach ($executorId in @('node-22-deterministic', 'node-24-deterministic', 'browser-e2e', 'container-infrastructure')) {
+foreach ($executorId in @('node-22-deterministic', 'node-24-deterministic', 'browser-e2e')) {
     if ($null -eq $testPlatformCatalog.executors.$executorId) {
         throw "The approved Test Platform catalog is missing the approved executor: $executorId."
     }
 }
-foreach ($suiteId in @('verify', 'standard', 'typecheck', 'tutor-web', 'e2e', 'qualify', 'qualify:live')) {
+foreach ($socketFreeExecutorId in @('node-22-deterministic', 'node-24-deterministic', 'browser-e2e')) {
+    if ($testPlatformCatalog.executors.$socketFreeExecutorId.capabilities -contains 'docker' -or
+        $testPlatformCatalog.executor_profiles.$socketFreeExecutorId.argv -contains 'docker') {
+        throw "No approved Test Platform executor may claim Docker capability: $socketFreeExecutorId."
+    }
+}
+foreach ($suiteId in @('standard', 'typecheck', 'tutor-web', 'e2e')) {
     if ($null -eq $testPlatformCatalog.suites.$suiteId) {
         throw "The approved Test Platform catalog is missing the approved suite: $suiteId."
     }

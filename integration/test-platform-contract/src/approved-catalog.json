@@ -1,5 +1,5 @@
 {
-  "catalog_version": "1.0.0",
+  "catalog_version": "1.1.0",
   "description": "Jenkins-owned approved consumer allowlist for the Test Platform Jenkins execution contract. Maintained centrally in project-jenkins. It mirrors approved identities only; it is not a copy of the canonical Test Platform models, and it never carries a command that originates in a target repository.",
   "contract": {
     "contract_id": "jenkins-execution-contract",
@@ -87,24 +87,9 @@
         "network-isolated",
         "private-evidence-store"
       ]
-    },
-    "container-infrastructure": {
-      "agent_class": "setness-ephemeral",
-      "max_trust": "live-qualification",
-      "capabilities": [
-        "docker",
-        "network-isolated",
-        "private-evidence-store"
-      ]
     }
   },
   "suites": {
-    "verify": {
-      "entrypoint": "verify",
-      "executor_id": "container-infrastructure",
-      "required_capabilities": ["docker", "network-isolated"],
-      "timeout_seconds": 1800
-    },
     "standard": {
       "entrypoint": "standard",
       "executor_id": "node-22-deterministic",
@@ -132,26 +117,6 @@
         "network-isolated"
       ],
       "timeout_seconds": 3600
-    },
-    "qualify": {
-      "entrypoint": "qualify",
-      "executor_id": "container-infrastructure",
-      "required_capabilities": [
-        "docker",
-        "network-isolated",
-        "private-evidence-store"
-      ],
-      "timeout_seconds": 3600
-    },
-    "qualify:live": {
-      "entrypoint": "qualify:live",
-      "executor_id": "container-infrastructure",
-      "required_capabilities": [
-        "docker",
-        "network-isolated",
-        "private-evidence-store"
-      ],
-      "timeout_seconds": 3600
     }
   },
   "executor_profiles": {
@@ -166,10 +131,6 @@
     "browser-e2e": {
       "argv": ["npx", "playwright", "--version"],
       "workspace": "app"
-    },
-    "container-infrastructure": {
-      "argv": ["docker", "version", "--format", "{{.Server.Version}}"],
-      "workspace": "."
     }
   }
 }

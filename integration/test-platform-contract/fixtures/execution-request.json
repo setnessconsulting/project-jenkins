@@ -22,8 +22,8 @@
     "policy_version": "1",
     "suites": [
       {
-        "suite_id": "verify",
-        "entrypoint": "verify",
+        "suite_id": "standard",
+        "entrypoint": "standard",
         "trust": "pr-untrusted",
         "timeout_seconds": 1800,
         "evidence_classes": [
@@ -45,11 +45,11 @@
   },
   "suites": [
     {
-      "suite_id": "verify",
-      "entrypoint": "verify",
-      "executor_id": "container-infrastructure",
+      "suite_id": "standard",
+      "entrypoint": "standard",
+      "executor_id": "node-22-deterministic",
       "required_capabilities": [
-        "docker",
+        "node-22",
         "network-isolated"
       ],
       "evidence_classes": [
@@ -62,17 +62,17 @@
       "timeout_seconds": 1800,
       "artifacts": [
         {
-          "artifact_id": "verify-log",
+          "artifact_id": "standard-log",
           "kind": "log",
-          "path": "verify/verify.log",
+          "path": "standard/standard.log",
           "max_bytes": 4194304,
           "live": false,
           "evidence_class": "static"
         },
         {
-          "artifact_id": "verify-results",
+          "artifact_id": "standard-results",
           "kind": "result-json",
-          "path": "verify/results.json",
+          "path": "standard/results.json",
           "max_bytes": 4194304,
           "live": false,
           "evidence_class": "static"
@@ -81,7 +81,7 @@
     }
   ],
   "required_capabilities": [
-    "docker",
+    "node-22",
     "network-isolated"
   ],
   "result_mapping": [

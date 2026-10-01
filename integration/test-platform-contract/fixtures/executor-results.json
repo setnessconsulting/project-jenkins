@@ -1,7 +1,7 @@
 [
   {
-    "suite_id": "verify",
-    "executor_id": "container-infrastructure",
+    "suite_id": "standard",
+    "executor_id": "node-22-deterministic",
     "status": "passed",
     "observed_repository": "setnessconsulting/project-test-platform",
     "observed_sha": "000000000000000000000000000000000000000a",
@@ -10,8 +10,8 @@
     "skipped_tests": 3,
     "duration_seconds": 12.5,
     "artifacts": [
-      "verify/verify.log",
-      "verify/results.json"
+      "standard/standard.log",
+      "standard/results.json"
     ],
     "tool_versions": [
       {
