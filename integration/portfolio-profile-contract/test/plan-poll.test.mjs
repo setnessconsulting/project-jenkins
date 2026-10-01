@@ -16,14 +16,16 @@ const now = 2_000_000;
 const retryAfterMs = 15 * 60 * 1000;
 
 function makeCatalog({ controlPlaneStatus = 'active', profileStatus = 'shadow', implementationId = 'python312-test-platform-v1' } = {}) {
+  const requiredCases = implementationId === 'node2214-vercel-api-gitleaks-v1' ? 6
+    : implementationId === 'python312-playtest-lab-v1' ? 5 : 4;
   const qualification = profileStatus === 'qualified'
     ? {
-      requiredExactShaCases: 10,
-      qualifiedExactShaCases: 10,
+      requiredExactShaCases: requiredCases,
+      qualifiedExactShaCases: requiredCases,
       state: 'passed',
       evidenceReference: 'evidence://project-jira-api/sha-matrix',
     }
-    : { requiredExactShaCases: 10, qualifiedExactShaCases: 0, state: 'in-progress' };
+    : { requiredExactShaCases: requiredCases, qualifiedExactShaCases: 0, state: 'in-progress' };
   return {
     schemaVersion: 1,
     approvedImplementations: [implementationId],
@@ -258,7 +260,11 @@ test('routine polling stays within the selected five-repository portfolio-dispat
     ...(IMPLEMENTATIONS[implementationId].nodeVersion
       ? { requiredNodeVersion: IMPLEMENTATIONS[implementationId].nodeVersion }
       : { requiredPythonVersion: IMPLEMENTATIONS[implementationId].pythonVersion }),
-    qualification: { requiredExactShaCases: 10, qualifiedExactShaCases: 0, state: 'in-progress' },
+    qualification: {
+      requiredExactShaCases: implementationId === 'node2214-vercel-api-gitleaks-v1' ? 6 : 4,
+      qualifiedExactShaCases: 0,
+      state: 'in-progress',
+    },
   }));
   const outsideFocus = {
     id: 'outside-focus',
@@ -267,7 +273,7 @@ test('routine polling stays within the selected five-repository portfolio-dispat
     repositories: ['setnessconsulting/project-jira-api'],
     checkNames: ['jenkins-pr-gate'],
     requiredNodeVersion: '22.14.0',
-    qualification: { requiredExactShaCases: 10, qualifiedExactShaCases: 0, state: 'in-progress' },
+    qualification: { requiredExactShaCases: 4, qualifiedExactShaCases: 0, state: 'in-progress' },
   };
   const mispairedProfiles = [
     {
@@ -277,7 +283,7 @@ test('routine polling stays within the selected five-repository portfolio-dispat
       repositories: ['setnessconsulting/project-test-platform-shadow'],
       checkNames: ['jenkins-pr-gate'],
       requiredNodeVersion: '22.14.0',
-      qualification: { requiredExactShaCases: 10, qualifiedExactShaCases: 0, state: 'in-progress' },
+      qualification: { requiredExactShaCases: 6, qualifiedExactShaCases: 0, state: 'in-progress' },
     },
     {
       id: 'test-platform-implementation-on-vercel',
@@ -286,7 +292,7 @@ test('routine polling stays within the selected five-repository portfolio-dispat
       repositories: ['setnessconsulting/project-vercel-api-shadow'],
       checkNames: ['jenkins-pr-gate'],
       requiredPythonVersion: '3.12.14',
-      qualification: { requiredExactShaCases: 10, qualifiedExactShaCases: 0, state: 'in-progress' },
+      qualification: { requiredExactShaCases: 4, qualifiedExactShaCases: 0, state: 'in-progress' },
     },
   ];
   const catalog = {

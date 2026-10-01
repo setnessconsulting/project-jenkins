@@ -290,6 +290,28 @@ export const ROUTINE_DISPATCH_PROFILE_PAIRS = Object.freeze([
   Object.freeze({ implementationId: 'node2214-vercel-api-gitleaks-v1', repository: 'setnessconsulting/project-vercel-api' }),
 ]);
 
+// A catalog can select only the centrally reviewed behavior matrix for its
+// implementation. These counts mirror the private profile matrix: four
+// standard cases, five Game AI cases, and six Vercel API cases. The count is
+// not itself evidence; every distinct case still needs exact-SHA evidence.
+const QUALIFICATION_CASES_BY_IMPLEMENTATION = Object.freeze({
+  'node22-foundation-v1': 4,
+  'node22-verify-clean-checkout-v1': 4,
+  'node2214-vercel-api-gitleaks-v1': 6,
+  'node24-lint-typescript-test-v1': 4,
+  'node24-game-platform-sdk-v1': 4,
+  'node24-curiouspathway-pilot-v1': 4,
+  'python312-test-platform-v1': 4,
+  'python312-playtest-lab-v1': 5,
+  'python312-cloudflare-api-uv-v1': 4,
+  'python312-portfolio-graph-uv-v1': 4,
+  'python312-blender-api-v1': 4,
+  'python312-fmod-api-v1': 4,
+  'python312-game-maker-v1': 4,
+  'python312-context-file-maker-v1': 4,
+  'python312-cpa-ai-pack-v1': 4,
+});
+
 export const ROUTINE_DISPATCH_IMPLEMENTATIONS = Object.freeze(
   ROUTINE_DISPATCH_PROFILE_PAIRS.map(({ implementationId }) => implementationId),
 );
@@ -338,7 +360,7 @@ function validCheckName(value) {
     && /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,99}$/.test(value);
 }
 
-function validateQualification(qualification, profileId) {
+function validateQualification(qualification, profileId, implementationId) {
   exactKeys(
     qualification,
     QUALIFICATION_KEYS,
@@ -351,6 +373,13 @@ function validateQualification(qualification, profileId) {
       || qualifiedExactShaCases > requiredExactShaCases
       || !QUALIFICATION_STATES.has(state)) {
     reject('invalid-qualification', `profile ${profileId} has invalid qualification evidence`);
+  }
+  const expectedCases = QUALIFICATION_CASES_BY_IMPLEMENTATION[implementationId];
+  if (expectedCases !== undefined && requiredExactShaCases !== expectedCases) {
+    reject(
+      'qualification-matrix-mismatch',
+      `profile ${profileId} must use its centrally reviewed ${expectedCases}-case matrix`,
+    );
   }
   if (state === 'passed' && (requiredExactShaCases < 1
       || qualifiedExactShaCases < requiredExactShaCases
@@ -418,7 +447,7 @@ export function validateProfileCatalog(catalog) {
           || !/^\d+\.\d+\.\d+$/.test(profile.requiredPythonVersion))) {
       reject('invalid-toolchain', `profile ${profile.id} has an invalid required Python version`);
     }
-    validateQualification(profile.qualification, profile.id);
+    validateQualification(profile.qualification, profile.id, profile.implementationId);
 
     if (profile.status === 'unmapped') {
       if (Object.hasOwn(profile, 'implementationId') || Object.hasOwn(profile, 'forkSandboxQualification')
@@ -473,6 +502,10 @@ function resolveShadowExecution(catalog, profileId, headSha) {
   if (profile.repositories.length !== 1) reject('ambiguous-profile', 'an executable profile must identify exactly one repository');
   const implementation = IMPLEMENTATIONS[profile.implementationId];
   if (!implementation) reject('implementation-not-installed', 'no centrally trusted adapter is installed for this profile');
+  const expectedCases = QUALIFICATION_CASES_BY_IMPLEMENTATION[profile.implementationId];
+  if (expectedCases === undefined || profile.qualification.requiredExactShaCases !== expectedCases) {
+    reject('qualification-matrix-mismatch', `profile ${profile.id} does not match its centrally reviewed qualification matrix`);
+  }
   if (!profile.checkNames.includes(implementation.requiredCheck)) {
     reject('required-check-missing', 'profile does not declare the centrally required gate');
   }

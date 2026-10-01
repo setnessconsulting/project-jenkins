@@ -19,7 +19,7 @@ function catalog(status = 'active') {
       checkNames: ['jenkins-pr-gate'],
       requiredPythonVersion: '3.12.14',
       qualification: {
-        requiredExactShaCases: 10,
+        requiredExactShaCases: 4,
         qualifiedExactShaCases: 0,
         state: 'in-progress',
       },

@@ -139,6 +139,10 @@ for that repository and lane; counts alone are not evidence. A profile cannot
 claim qualification until every case in its recorded matrix passes and its
 separate isolation, cleanup/recovery, fallback, and owner-approved protection
 requirements are met.
+The trusted resolver also pins the required case count to the centrally
+reviewed implementation matrix (four standard cases, five Game AI cases, or
+six Vercel API cases), so catalog data cannot shrink a profile to a one-run
+qualification.
 
 Fork PRs are rejected. An owner allowlist is a bounded shadow policy, not a
 sandbox. Do not broaden access or make this check required until the runtime
