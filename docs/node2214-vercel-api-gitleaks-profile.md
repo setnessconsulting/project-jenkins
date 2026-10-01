@@ -13,8 +13,10 @@ official Linux x64 release archive after SHA-256 verification against the
 published release checksums file:
 `9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c`. The Node
 archive hash `69b09dba5c8dcb05c4e4273a4340db1005abeafe3927efda2bc5b249e80437ec`
-matches Node's signed v22.14.0 release checksums. Both binaries are root-owned
-and PR commands run as the unprivileged `jenkins` user.
+matches Node's signed v22.14.0 release checksums. The Gitleaks binary at
+`/usr/local/bin/gitleaks` remains root-owned; the Node runtime tree under
+`/opt/setness-jenkins/tools/node-v22.14.0-linux-x64` is owned by `jenkins`.
+PR commands run as the unprivileged `jenkins` user.
 
 The trusted command vectors run the redacted SARIF-producing `gitleaks dir`
 scan first, then `npm ci --ignore-scripts`, `npm run check`, `npm test`, and
