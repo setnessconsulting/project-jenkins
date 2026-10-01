@@ -555,21 +555,51 @@ $portfolioRequiredCapabilities = @(
     'docker-plugin', 'build', 'withChecks', 'publishChecks', 'checkout', 'node', 'sh',
     'writeFile', 'readFile', 'timeout', 'echo', 'error'
 )
+$portfolioRequiredAgentClasses = @(
+    'setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral',
+    'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral',
+    'secondary-node24-playwright-ephemeral'
+)
 foreach ($requiredCapability in $portfolioRequiredCapabilities) {
     if (-not $portfolioPollerPipeline.Contains("'$requiredCapability'") -or
         -not $vmStartScript.Contains("'$requiredCapability'")) {
         throw "The controller capability preflight must name '$requiredCapability' in both the trusted poller and the deploy-time verification."
     }
 }
+foreach ($agentClass in $portfolioRequiredAgentClasses) {
+    if (-not $portfolioPollerPipeline.Contains("'$agentClass'") -or
+        -not $portfolioPipeline.Contains("'$agentClass'") -or
+        -not $vmStartScript.Contains("'$agentClass'") -or
+        -not $jenkinsConfig.Contains("labelString: `"$agentClass`"")) {
+        throw "The poller, gate, deploy-time verification, and CasC templates must keep the supported agent class '$agentClass' aligned."
+    }
+}
 if (-not $portfolioPollerPipeline.Contains('String portfolioPollControllerCapabilityGap(') -or
     -not $portfolioPollerPipeline.Contains("stage('Assert controller capabilities')") -or
     -not $portfolioPollerPipeline.Contains('error(capabilityGap)') -or
     -not $portfolioPollerPipeline.Contains('jenkins.getDescriptorList(org.jenkinsci.plugins.workflow.steps.Step.class)') -or
-    -not $portfolioPollerPipeline.Contains('if (!jenkins.clouds) gaps.add(''agent cloud'')') -or
-    -not $vmStartScript.Contains('if (!jenkins.clouds) capabilityGaps.add(''agent cloud'')') -or
+    -not $portfolioPollerPipeline.Contains('jenkins.getLabelAtom(agentClass.toString())') -or
+    -not $portfolioPollerPipeline.Contains('cloud instanceof com.nirima.jenkins.plugins.docker.DockerCloud') -or
+    -not $portfolioPollerPipeline.Contains('cloud.canProvision(label)') -or
+    -not $portfolioPollerPipeline.Contains('cloud.getTemplates().any { template ->') -or
+    -not $portfolioPollerPipeline.Contains('label.matches(template.getLabelSet())') -or
+    -not $portfolioPollerPipeline.Contains('!template.getDisabled().isDisabled()') -or
+    -not $portfolioPipeline.Contains('boolean portfolioHasProvisionableConfiguredAgentClass(String agentClass)') -or
+    -not $portfolioPipeline.Contains('cloud instanceof com.nirima.jenkins.plugins.docker.DockerCloud') -or
+    -not $portfolioPipeline.Contains('cloud.canProvision(label)') -or
+    -not $portfolioPipeline.Contains('cloud.getTemplates().any { template ->') -or
+    -not $portfolioPipeline.Contains('label.matches(template.getLabelSet())') -or
+    -not $portfolioPipeline.Contains('!template.getDisabled().isDisabled()') -or
+    -not $portfolioPipeline.Contains('if (!portfolioHasProvisionableConfiguredAgentClass(resolvedAgentClass))') -or
+    -not $vmStartScript.Contains('jenkins.getLabelAtom(agentClass)') -or
+    -not $vmStartScript.Contains('cloud instanceof com.nirima.jenkins.plugins.docker.DockerCloud') -or
+    -not $vmStartScript.Contains('cloud.canProvision(label)') -or
+    -not $vmStartScript.Contains('cloud.getTemplates().any { template ->') -or
+    -not $vmStartScript.Contains('label.matches(template.getLabelSet())') -or
+    -not $vmStartScript.Contains('!template.getDisabled().isDisabled()') -or
     -not $portfolioPollerPipeline.Contains('// BEGIN JENKINS_PORTFOLIO_CAPABILITY_PREFLIGHT') -or
     -not $portfolioPollerPipeline.Contains('// END JENKINS_PORTFOLIO_CAPABILITY_PREFLIGHT')) {
-    throw 'The portfolio poller must fail closed at startup, naming every missing plugin, Pipeline step, trusted adapter, or agent cloud, before it can dispatch, and keep the delimited preflight block the read-only live probe evaluates.'
+    throw 'The portfolio poller must fail closed at startup, naming missing plugins, Pipeline steps, trusted resources, or usable agent templates before dispatch; the gate must reject a missing profile-specific template before requesting a node, and keep the delimited preflight block the read-only live probe evaluates.'
 }
 if (-not $vmStartScript.Contains("println 'PORTFOLIO_CAPABILITIES=' +") -or
     -not $vmStartScript.Contains('grep -q ''^PORTFOLIO_CAPABILITIES=ok$''')) {
@@ -855,6 +885,30 @@ if (-not $vmStartScript.Contains('--netrc-file "$netrc_file"') -or
 if (-not $vmStartScript.Contains('PORTFOLIO_SUMMARY loaded=') -or
     -not $vmStartScript.Contains('^PORTFOLIO_SUMMARY loaded=0 ')) {
     throw 'Portfolio verification must report a loaded/approved summary and give an explicit pass for a controller with no loaded portfolio job.'
+}
+# The dispatch trio is not the whole fleet. CasC also loads the multibranch
+# projects with one branch job per branch, the E2E and Test Platform pipelines,
+# and the retired root-level gate; a deploy that reports green while one of those
+# waits for script approval hides a trusted job that cannot build at all.
+if (-not $vmStartScript.Contains('FLEET_JOB ') -or
+    -not $vmStartScript.Contains('FLEET_PROJECT ') -or
+    -not $vmStartScript.Contains('FLEET_PENDING_SCRIPT index=') -or
+    -not $vmStartScript.Contains('FLEET_SUMMARY jobs=') -or
+    -not $vmStartScript.Contains('grep -E ''^(PORTFOLIO_|FLEET_)''')) {
+    throw 'Portfolio verification must report a fleet-wide inventory (every CasC-managed job, each multibranch branch job and the pending script-security queue) and print it next to the dispatch trio lines.'
+}
+if (-not $vmStartScript.Contains("getDeclaredField('script')")) {
+    throw 'The fleet inventory must read inline branch scripts through the private script field, otherwise every multibranch branch job would report no-script and the inventory would hide exactly the jobs it exists to expose.'
+}
+# The inventory is report-only by operator decision: a legitimate render change
+# leaves jobs waiting for approval, and gating a deploy on that would wedge it,
+# while the affected job already fails closed at run time. The dispatch gate
+# stays anchored to its own PORTFOLIO_JOB lines so the inventory can never become
+# an accidental deploy gate.
+if (-not $vmStartScript.Contains('Fleet posture above is informational') -or
+    -not $vmStartScript.Contains('grep -q ''^PORTFOLIO_JOB .* script=unapproved$''') -or
+    $vmStartScript.Contains("grep -q 'script=unapproved'")) {
+    throw 'The fleet inventory must stay report-only, and the portfolio approval gate must read PORTFOLIO_JOB lines only so a report-only inventory can never fail a deployment.'
 }
 if (-not $vmStartScript.Contains('the controller is already running') -or
     -not $vmStartScript.Contains('there is nothing to verify')) {
@@ -1256,7 +1310,7 @@ foreach ($portfolioRuntimeGuard in @(
     "'python312-cpa-ai-pack-v1'",
     "'node2214-vercel-api-gitleaks-v1'",
     "'node22-github-api-foundation-v1'",
-    "!(resolved.agentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral'])",
+    "!(resolvedAgentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral'])",
     'resolved.pythonVersion.toString() == profile.requiredPythonVersion?.toString()',
     'env.PORTFOLIO_NODE_VERSION = resolved.nodeVersion?.toString() ?:',
     'env.PORTFOLIO_PYTHON_VERSION = resolved.pythonVersion?.toString() ?:',
@@ -1371,6 +1425,11 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioPollerPipeline.Contains('[contents: org.kohsuke.github.GHPermissionType.READ]') -or
     -not $portfolioPollerPipeline.Contains('targetPlan.repositories.size() > 40') -or
     -not $portfolioPollerPipeline.Contains('portfolioPollGateBusy()') -or
+    # Queue items are not all Jobs: a Pipeline node step waiting for an executor is a
+    # PlaceholderTask with no getFullName(), and asking it unguarded fails the whole poll
+    # whenever any other build waits for an agent.
+    $portfolioPollerPipeline.Contains('item.task?.getFullName()') -or
+    -not $portfolioPollerPipeline.Contains('item.task instanceof hudson.model.Job') -or
     -not $portfolioPollerPipeline.Contains("job: 'portfolio-dispatch/portfolio-pr-gate'") -or
     -not $portfolioPollerPipeline.Contains('wait: false') -or
     -not $portfolioPollerPipeline.Contains('portfolioPollWriteState(state)') -or

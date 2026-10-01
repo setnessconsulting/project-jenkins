@@ -68,6 +68,16 @@ trap cleanup EXIT
 # would report stale failures. The trailing summary exists so an operator can
 # tell "no portfolio job is loaded" apart from "loaded and approved" without
 # reading every job line.
+#
+# The FLEET_ lines after that summary inventory every job CasC loads: the
+# multibranch projects and each of their branch jobs, the E2E and Test Platform
+# pipelines and the retired root-level gate. A deployment used to report green
+# while an enabled trusted job outside the dispatch trio waited for script
+# approval and could not build at all. Those lines are report-only by operator
+# decision: no check in portfolio_verify reads them, because gating on them
+# would make a legitimate pipeline change impossible to deploy until a human
+# had approved the new script, while an unapproved job already fails closed at
+# run time in the job itself.
 portfolio_posture_script() {
   cat <<'PORTFOLIO_POSTURE'
 import org.jenkinsci.plugins.scriptsecurity.scripts.Language
@@ -84,6 +94,7 @@ println 'PORTFOLIO_EXECUTORS=' + jenkins.getNumExecutors()
 // at the start of every run.
 def capabilityPlugins = ['pipeline-build-step', 'github-checks', 'workflow-cps', 'workflow-basic-steps', 'workflow-durable-task-step', 'workflow-job', 'workflow-scm-step', 'github-branch-source', 'docker-plugin']
 def capabilitySymbols = ['build', 'withChecks', 'publishChecks', 'checkout', 'node', 'sh', 'writeFile', 'readFile', 'timeout', 'echo', 'error']
+def capabilityAgentClasses = ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral']
 def capabilityGaps = []
 def capabilityPluginManager = jenkins.getPluginManager()
 capabilityPlugins.each { name ->
@@ -98,12 +109,24 @@ try {
 } catch (Throwable failure) {
     capabilityGaps.add('step enumeration (' + failure.getClass().getSimpleName() + ')')
 }
-// This core exposes the configured clouds as the `clouds` property; it has no
-// getClouds() accessor.
 try {
-    if (!jenkins.clouds) capabilityGaps.add('agent cloud')
+    if (!jenkins.clouds) {
+        capabilityGaps.add('agent cloud')
+    } else {
+        def missingAgentClasses = capabilityAgentClasses.findAll { agentClass ->
+            def label = jenkins.getLabelAtom(agentClass)
+            label == null || !jenkins.clouds.any { cloud ->
+                cloud instanceof com.nirima.jenkins.plugins.docker.DockerCloud &&
+                    cloud.canProvision(label) &&
+                    cloud.getTemplates().any { template ->
+                        !template.getDisabled().isDisabled() && label.matches(template.getLabelSet())
+                    }
+            }
+        }
+        missingAgentClasses.each { agentClass -> capabilityGaps.add('agent template ' + agentClass) }
+    }
 } catch (Throwable failure) {
-    capabilityGaps.add('agent cloud enumeration (' + failure.getClass().getSimpleName() + ')')
+    capabilityGaps.add('agent template capability enumeration (' + failure.getClass().getSimpleName() + ')')
 }
 println 'PORTFOLIO_CAPABILITIES=' + (capabilityGaps.isEmpty() ? 'ok' : 'missing: ' + capabilityGaps.join('; '))
 // No build agent may reach the guest Docker socket. docker-plugin reads these
@@ -169,6 +192,136 @@ def missing = 0
     println 'PORTFOLIO_JOB ' + full + ' state=' + (job.isDisabled() ? 'disabled' : 'enabled') + ' script=' + scriptState
 }
 println 'PORTFOLIO_SUMMARY loaded=' + loaded + ' approved=' + approved + ' unapproved=' + unapproved + ' no-script=' + withoutScript + ' missing=' + missing
+// Fleet inventory. The dispatch trio above is what the poller needs, but CasC
+// also loads the multibranch projects with one branch job per branch, the E2E
+// and Test Platform pipelines and the retired root-level gate, and a trusted
+// job whose script is waiting in script-security cannot build at all.
+def inventoryNames = []
+['JENKINS_MULTIBRANCH_JOB_NAME', 'JENKINS_SECONDARY_JOB_NAME', 'JENKINS_E2E_JOB_NAME', 'JENKINS_TEST_PLATFORM_JOB_NAME'].each { name ->
+    def value = (System.getenv(name) ?: '').trim()
+    if (!value.isEmpty() && !inventoryNames.contains(value)) {
+        inventoryNames.add(value)
+    }
+}
+inventoryNames.add('portfolio-pr-gate')
+// A CPS definition exposes getScript(); an inline branch definition keeps the
+// same value in a private field with no accessor, so read that field rather
+// than reporting every branch job as scriptless.
+def readJobScript = { job ->
+    def definition = null
+    try {
+        definition = job.getDefinition()
+    } catch (Throwable ignored) {
+        return null
+    }
+    if (definition == null) {
+        return null
+    }
+    def script = null
+    try {
+        script = definition.getScript()
+    } catch (Throwable ignored) {
+        script = null
+    }
+    if (script == null) {
+        try {
+            def field = definition.getClass().getDeclaredField('script')
+            field.setAccessible(true)
+            script = field.get(definition)?.toString()
+        } catch (Throwable ignored) {
+            script = null
+        }
+    }
+    return script
+}
+def inventoryScripts = []
+def unapprovedNames = []
+def fleetJobs = 0
+def fleetBranches = 0
+def fleetMissing = 0
+def stateOf = { script ->
+    if (script == null) {
+        return 'no-script'
+    }
+    return sa.isScriptApproved(script, groovyLanguage) ? 'approved' : 'unapproved'
+}
+inventoryNames.each { full ->
+    def item = jenkins.getItemByFullName(full)
+    if (item == null) {
+        fleetMissing++
+        println 'FLEET_JOB ' + full + ' type=missing state=missing script=missing'
+        return
+    }
+    if (item instanceof org.jenkinsci.plugins.workflow.multibranch.WorkflowMultiBranchProject) {
+        fleetJobs++
+        def branchApproved = 0
+        def branchUnapproved = 0
+        def branchWithoutScript = 0
+        item.getItems().each { branchJob ->
+            def branchScript = readJobScript(branchJob)
+            def branchState = stateOf(branchScript)
+            if (branchScript != null) {
+                inventoryScripts.add([name: branchJob.fullName, script: branchScript])
+            }
+            if (branchState == 'unapproved') {
+                branchUnapproved++
+                unapprovedNames.add(branchJob.fullName)
+            } else if (branchState == 'approved') {
+                branchApproved++
+            } else {
+                branchWithoutScript++
+            }
+            fleetBranches++
+            println 'FLEET_JOB ' + branchJob.fullName + ' type=branch state=' + (branchJob.isDisabled() ? 'disabled' : 'enabled') + ' script=' + branchState
+        }
+        println 'FLEET_PROJECT ' + full + ' state=' + (item.isDisabled() ? 'disabled' : 'enabled') + ' branches=' + item.getItems().size() + ' approved=' + branchApproved + ' unapproved=' + branchUnapproved + ' no-script=' + branchWithoutScript
+        return
+    }
+    fleetJobs++
+    def script = readJobScript(item)
+    def scriptState = stateOf(script)
+    if (script != null) {
+        inventoryScripts.add([name: full, script: script])
+    }
+    if (scriptState == 'unapproved') {
+        unapprovedNames.add(full)
+    }
+    println 'FLEET_JOB ' + full + ' type=' + (item instanceof org.jenkinsci.plugins.workflow.job.WorkflowJob ? 'pipeline' : 'other') + ' state=' + (item.isDisabled() ? 'disabled' : 'enabled') + ' script=' + scriptState
+}
+def pendingEntries = null
+try {
+    pendingEntries = sa.pendingScripts
+} catch (Throwable ignored) {
+    pendingEntries = null
+}
+def pendingReferenced = 0
+if (pendingEntries == null) {
+    println 'FLEET_PENDING unavailable=true'
+} else {
+    pendingEntries.eachWithIndex { entry, index ->
+        def text = null
+        try {
+            def field = entry.getClass().getDeclaredField('script')
+            field.setAccessible(true)
+            text = field.get(entry)?.toString()
+        } catch (Throwable ignored) {
+            text = null
+        }
+        def owners = text == null ? [] : inventoryScripts.findAll { it.script == text }.collect { it.name }
+        def hash = 'unreadable'
+        try {
+            hash = entry.getHash().toString()
+        } catch (Throwable ignored) {
+            hash = 'unreadable'
+        }
+        println 'FLEET_PENDING_SCRIPT index=' + index + ' length=' + (text == null ? 'unreadable' : text.length()) + ' referencedBy=' + (owners.isEmpty() ? 'none' : owners.join(';')) + ' hash=' + hash
+        if (!owners.isEmpty()) {
+            pendingReferenced++
+        }
+    }
+    println 'FLEET_PENDING scripts=' + pendingEntries.size() + ' referencedByLoadedJob=' + pendingReferenced
+}
+println 'FLEET_SUMMARY jobs=' + fleetJobs + ' branches=' + fleetBranches + ' missing=' + fleetMissing + ' unapproved=' + unapprovedNames.size() + ' unapprovedJobs=' + (unapprovedNames.isEmpty() ? 'none' : unapprovedNames.join(';'))
 PORTFOLIO_POSTURE
 }
 
@@ -180,6 +333,9 @@ PORTFOLIO_POSTURE
 # controller code stays a deliberate operator action. Enabled state is
 # reported rather than asserted, because a job may be enabled deliberately for
 # a qualification run, so the operator reads the report for the default posture.
+# The FLEET_ inventory in the same response covers every other CasC-managed job
+# and the pending script-security queue. It is reported and never asserted, so a
+# pending approval elsewhere in the fleet cannot fail a deploy.
 portfolio_verify() {
   local container ready=0 admin_password bind_ip http_port response
   local cookie_jar crumb_json crumb crumb_field netrc_file script_file
@@ -228,7 +384,15 @@ portfolio_verify() {
   fi
   rm -f "$cookie_jar" "$netrc_file" "$script_file"
   unset admin_password cookie_jar crumb_json crumb crumb_field netrc_file script_file
-  printf '%s\n' "$response" | grep '^PORTFOLIO_' || true
+  printf '%s\n' "$response" | grep -E '^(PORTFOLIO_|FLEET_)' || true
+  # The fleet inventory is report-only by operator decision. Failing a deploy on
+  # it would make a legitimate render change impossible to deploy until somebody
+  # approved the new script, and the job it describes still fails closed at run
+  # time. The portfolio gate below stays anchored to PORTFOLIO_JOB lines so this
+  # report can never become an accidental deploy gate.
+  if printf '%s\n' "$response" | grep -q '^FLEET_SUMMARY '; then
+    printf 'Fleet posture above is informational: this action fails on an unapproved portfolio dispatch job, not on an unapproved job elsewhere in the fleet. Approving controller code stays a deliberate review of the exact rendered script; until then the affected job fails closed at run time, and this inventory is what makes that visible before someone triggers it.\n'
+  fi
   if ! printf '%s\n' "$response" | grep -q '^PORTFOLIO_'; then
     printf 'Portfolio verification FAILED: the controller did not report a portfolio posture; treat the loaded portfolio jobs as unverified.\n' >&2
     return 1
@@ -237,7 +401,7 @@ portfolio_verify() {
     printf 'Portfolio verification FAILED: at least one Jenkins agent template still receives the guest Docker socket, or the controller could not read the agent templates at all (expected PORTFOLIO_AGENT_SOCKET_MOUNTS=0). A socket bind gives repository-controlled code daemon access that is effectively host root, so this is a security boundary, not a convenience setting. When this ran as part of install or restart the controller is already running, so a non-zero exit means the fleet is not at its intended boundary yet, not that the controller failed to start.\n' >&2
     return 1
   fi
-  if printf '%s\n' "$response" | grep -q 'script=unapproved'; then
+  if printf '%s\n' "$response" | grep -q '^PORTFOLIO_JOB .* script=unapproved$'; then
     printf 'Portfolio verification FAILED: at least one loaded portfolio job script is not approved, and such a job fails immediately at run time. Review it in Manage Jenkins -> Script Console, approve it deliberately, then rerun this check. When this ran as part of install or restart the controller is already running, so a non-zero exit means the portfolio jobs cannot run yet, not that the controller failed to start; re-running the same action is idempotent.\n' >&2
     return 1
   fi
@@ -246,7 +410,7 @@ portfolio_verify() {
     return 0
   fi
   if ! printf '%s\n' "$response" | grep -q '^PORTFOLIO_CAPABILITIES=ok$'; then
-    printf 'Portfolio verification FAILED: the controller did not report an intact portfolio dispatch capability set (expected PORTFOLIO_CAPABILITIES=ok). The poller refuses to dispatch and the gate cannot queue or publish checks until the missing plugin, step, or agent-cloud capability is restored in the controller image. When this ran as part of install or restart the controller is already running, so a non-zero exit means the portfolio jobs cannot dispatch shadow evidence yet, not that the controller failed to start; re-running the same action after fixing the image is idempotent.\n' >&2
+    printf 'Portfolio verification FAILED: the controller did not report an intact portfolio dispatch capability set (expected PORTFOLIO_CAPABILITIES=ok). The poller refuses to dispatch and the gate cannot queue or publish checks until the missing plugin, step, trusted resource, or enabled configured agent template is restored. When this ran as part of install or restart the controller is already running, so a non-zero exit means the portfolio jobs cannot dispatch shadow evidence yet, not that the controller failed to start; re-running the same action after fixing the image or CasC is idempotent.\n' >&2
     return 1
   fi
   printf 'Portfolio verification passed: every loaded portfolio job reports an approved script and the controller reports the required dispatch capabilities. Re-rendering a job script changes it, so re-run this check after any configuration change.\n'

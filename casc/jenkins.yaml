@@ -67,9 +67,9 @@ jenkins:
               # stays on the controller, the only holder the Docker cloud needs
               # it in; docker-plugin takes agent mounts from this CasC field, so
               # leaving it empty is what keeps daemon access (effectively host
-              # root) out of repository-controlled code. The Node 22 and Node
-              # 22.14 images still ship a Docker CLI and the docker group, and
-              # both are inert without a socket bind.
+              # root) out of repository-controlled code. Neither agent
+              # Dockerfile installs a Docker CLI or adds jenkins to the docker
+              # group, keeping the images aligned with this socket-free boundary.
               environment:
                 - "JENKINS_WEB_SOCKET=true"
           - name: "setness-node22-14-one-build"
@@ -97,9 +97,9 @@ jenkins:
               # stays on the controller, the only holder the Docker cloud needs
               # it in; docker-plugin takes agent mounts from this CasC field, so
               # leaving it empty is what keeps daemon access (effectively host
-              # root) out of repository-controlled code. The Node 22 and Node
-              # 22.14 images still ship a Docker CLI and the docker group, and
-              # both are inert without a socket bind.
+              # root) out of repository-controlled code. Neither agent
+              # Dockerfile installs a Docker CLI or adds jenkins to the docker
+              # group, keeping the images aligned with this socket-free boundary.
               environment:
                 - "JENKINS_WEB_SOCKET=true"
           - name: "setness-node22-14-disposable-one-build"

@@ -16,6 +16,7 @@ def portfolioPollAdapter = '/usr/share/jenkins/portfolio-profile-contract/src/pl
 // scripts/verify-pipeline-contract.ps1 keeps this list in step with plugins.txt.
 def portfolioPollRequiredPlugins = ['pipeline-build-step', 'github-checks', 'workflow-cps', 'workflow-basic-steps', 'workflow-durable-task-step', 'workflow-job', 'workflow-scm-step', 'github-branch-source', 'docker-plugin']
 def portfolioPollRequiredStepSymbols = ['build', 'withChecks', 'publishChecks', 'checkout', 'node', 'sh', 'writeFile', 'readFile', 'timeout', 'echo', 'error']
+def portfolioPollRequiredAgentClasses = ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral']
 
 // Fail-closed capability preflight. Returns a loud message naming every missing
 // capability, or null when the dispatch path can run. It reads only Jenkins
@@ -25,7 +26,7 @@ def portfolioPollRequiredStepSymbols = ['build', 'withChecks', 'publishChecks', 
 // controller, so keep them in place.
 // BEGIN JENKINS_PORTFOLIO_CAPABILITY_PREFLIGHT
 @com.cloudbees.groovy.cps.NonCPS
-String portfolioPollControllerCapabilityGap(List requiredPlugins, List requiredStepSymbols, String nodeBinary, String adapterPath) {
+String portfolioPollControllerCapabilityGap(List requiredPlugins, List requiredStepSymbols, List requiredAgentClasses, String nodeBinary, String adapterPath) {
     def jenkins = jenkins.model.Jenkins.get()
     def pluginManager = jenkins.getPluginManager()
     List gaps = []
@@ -44,14 +45,27 @@ String portfolioPollControllerCapabilityGap(List requiredPlugins, List requiredS
     }
     if (!(nodeBinary instanceof String) || !new File(nodeBinary).canExecute()) gaps.add("controller Node binary ${nodeBinary}")
     if (!(adapterPath instanceof String) || !new File(adapterPath).isFile()) gaps.add("trusted poll adapter ${adapterPath}")
-    // This core exposes the configured clouds as the `clouds` property; it has no
-    // getClouds() accessor, and getCloud() returns a UI model rather than a
-    // collection, so the property is the only way to see whether any cloud can
-    // provision the gate's one-use agent.
+    // Every centrally allowed class must have an enabled, persistent Docker
+    // template. canProvision confirms the cloud is enabled; getTemplates()
+    // excludes job-temporary templates, which are not a reliable dispatch path.
     try {
-        if (!jenkins.clouds) gaps.add('agent cloud')
+        if (!jenkins.clouds) {
+            gaps.add('agent cloud')
+        } else {
+            List missingAgentClasses = requiredAgentClasses.findAll { agentClass ->
+                def label = jenkins.getLabelAtom(agentClass.toString())
+                label == null || !jenkins.clouds.any { cloud ->
+                    cloud instanceof com.nirima.jenkins.plugins.docker.DockerCloud &&
+                        cloud.canProvision(label) &&
+                        cloud.getTemplates().any { template ->
+                            !template.getDisabled().isDisabled() && label.matches(template.getLabelSet())
+                        }
+                }
+            }
+            missingAgentClasses.each { agentClass -> gaps.add("agent template ${agentClass}") }
+        }
     } catch (Throwable failure) {
-        gaps.add("agent cloud enumeration (${failure.getClass().getSimpleName()})")
+        gaps.add("agent template capability enumeration (${failure.getClass().getSimpleName()})")
     }
     if (gaps.isEmpty()) return null
     return 'Portfolio dispatch capability preflight FAILED, so the poller to gate dispatch path cannot run: ' + gaps.join('; ') +
@@ -502,7 +516,11 @@ boolean portfolioPollGateBusy() {
     def gate = jenkins.getItemByFullName('portfolio-dispatch/portfolio-pr-gate')
     if (gate == null) throw new IllegalStateException('The trusted portfolio PR gate job is unavailable.')
     boolean running = gate.getBuilds().any { build -> build.isBuilding() }
-    boolean queued = jenkins.getQueue().getItems().any { item -> item.task?.getFullName() == gate.getFullName() }
+    // Queue items are not all Jobs: a Pipeline node step waiting for an executor is a
+    // non-Job Queue.Task (ExecutorStepExecution.PlaceholderTask) with no getFullName(),
+    // and asking it unconditionally killed the whole poll whenever any other build was
+    // waiting for an agent. Only the gate job itself counts as queue pressure.
+    boolean queued = jenkins.getQueue().getItems().any { item -> item.task instanceof hudson.model.Job && item.task.getFullName() == gate.getFullName() }
     return running || queued
 }
 
@@ -522,6 +540,7 @@ pipeline {
                     String capabilityGap = portfolioPollControllerCapabilityGap(
                         portfolioPollRequiredPlugins,
                         portfolioPollRequiredStepSymbols,
+                        portfolioPollRequiredAgentClasses,
                         portfolioPollNodeBinary,
                         portfolioPollAdapter
                     )
