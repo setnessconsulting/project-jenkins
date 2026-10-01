@@ -523,6 +523,9 @@ if (-not $agentDockerfile.Contains('docker-29.8.1.tgz') -or
 if (-not $plugins.Contains('docker-plugin:1327.v9524f1ee134e')) {
     throw 'The Docker cloud plugin must be explicitly version-pinned.'
 }
+if (-not $plugins.Contains('pipeline-build-step:601.v6d4c6d1a_9dc7')) {
+    throw 'The Pipeline build step plugin must be explicitly version-pinned; the portfolio poller queues the gate job with the build step.'
+}
 if (-not $agentDockerfile.Contains('openssh-client') -or
     -not $agentDockerfile.Contains('agent/known_hosts') -or
     -not $knownHosts.Contains('github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl')) {

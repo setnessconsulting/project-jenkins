@@ -40,6 +40,7 @@ mailer:534.v1b_36f5864073
 mina-sshd-api-common:2.19.0-192.v2b_a_7b_2c1dc71
 mina-sshd-api-core:2.19.0-192.v2b_a_7b_2c1dc71
 okhttp-api:5.3.2-200.vedb_720a_cf1f8
+pipeline-build-step:601.v6d4c6d1a_9dc7
 pipeline-groovy-lib:806.v408277b_33d1d
 pipeline-model-definition:2.2293.v6e7193cec599
 plain-credentials:199.v9f8e1f741799
