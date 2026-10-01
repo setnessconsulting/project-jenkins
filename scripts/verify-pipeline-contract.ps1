@@ -1315,6 +1315,11 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioPollerPipeline.Contains('[contents: org.kohsuke.github.GHPermissionType.READ]') -or
     -not $portfolioPollerPipeline.Contains('targetPlan.repositories.size() > 40') -or
     -not $portfolioPollerPipeline.Contains('portfolioPollGateBusy()') -or
+    # Queue items are not all Jobs: a Pipeline node step waiting for an executor is a
+    # PlaceholderTask with no getFullName(), and asking it unguarded fails the whole poll
+    # whenever any other build waits for an agent.
+    $portfolioPollerPipeline.Contains('item.task?.getFullName()') -or
+    -not $portfolioPollerPipeline.Contains('item.task instanceof hudson.model.Job') -or
     -not $portfolioPollerPipeline.Contains("job: 'portfolio-dispatch/portfolio-pr-gate'") -or
     -not $portfolioPollerPipeline.Contains('wait: false') -or
     -not $portfolioPollerPipeline.Contains('portfolioPollWriteState(state)') -or

@@ -449,7 +449,11 @@ boolean portfolioPollGateBusy() {
     def gate = jenkins.getItemByFullName('portfolio-dispatch/portfolio-pr-gate')
     if (gate == null) throw new IllegalStateException('The trusted portfolio PR gate job is unavailable.')
     boolean running = gate.getBuilds().any { build -> build.isBuilding() }
-    boolean queued = jenkins.getQueue().getItems().any { item -> item.task?.getFullName() == gate.getFullName() }
+    // Queue items are not all Jobs: a Pipeline node step waiting for an executor is a
+    // non-Job Queue.Task (ExecutorStepExecution.PlaceholderTask) with no getFullName(),
+    // and asking it unconditionally killed the whole poll whenever any other build was
+    // waiting for an agent. Only the gate job itself counts as queue pressure.
+    boolean queued = jenkins.getQueue().getItems().any { item -> item.task instanceof hudson.model.Job && item.task.getFullName() == gate.getFullName() }
     return running || queued
 }
 
