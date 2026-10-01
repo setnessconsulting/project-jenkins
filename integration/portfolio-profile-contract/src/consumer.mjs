@@ -295,6 +295,9 @@ export const ROUTINE_DISPATCH_PROFILE_PAIRS = Object.freeze([
 // standard cases, five Game AI cases, and six Vercel API cases. The count is
 // not itself evidence; every distinct case still needs exact-SHA evidence.
 const QUALIFICATION_CASES_BY_IMPLEMENTATION = Object.freeze({
+  'jenkins-repository-contract': 4,
+  'setness-repository-pilot': 4,
+  'curiouspathway-pilot': 4,
   'node22-foundation-v1': 4,
   'node22-verify-clean-checkout-v1': 4,
   'node2214-vercel-api-gitleaks-v1': 6,

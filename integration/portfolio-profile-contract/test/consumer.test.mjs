@@ -462,6 +462,21 @@ test('rejects undersized matrices, including for the six-case Vercel profile', (
   rejectsCode(() => validateProfileCatalog(vercel), 'qualification-matrix-mismatch');
 });
 
+test('applies reviewed case counts to active catalog profiles without an installed adapter', () => {
+  for (const implementationId of ['jenkins-repository-contract', 'setness-repository-pilot']) {
+    const input = catalog();
+    input.approvedImplementations.push(implementationId);
+    input.profiles[0].implementationId = implementationId;
+    input.profiles[0].qualification = {
+      requiredExactShaCases: 1,
+      qualifiedExactShaCases: 1,
+      state: 'passed',
+      evidenceReference: 'qualification/evidence-matrix.md',
+    };
+    rejectsCode(() => validateProfileCatalog(input), 'qualification-matrix-mismatch');
+  }
+});
+
 test('rejects unapproved implementation IDs even if profile data includes a command list', () => {
   const input = catalog();
   input.profiles[0].implementationId = 'shell-from-catalog';
