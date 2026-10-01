@@ -94,6 +94,28 @@ test('validates the closed catalog and resolves centrally-owned static commands'
   ]);
 });
 
+test('resolves the project-jenkins self-check with centrally pinned static commands', () => {
+  const input = catalog();
+  input.approvedImplementations.push('jenkins-repository-contract');
+  input.profiles[0].implementationId = 'jenkins-repository-contract';
+
+  const plan = resolve(input);
+  assert.equal(plan.agentClass, 'setness-ephemeral');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.equal(plan.nodeVersion, '22.23.3');
+  assert.equal(Object.hasOwn(plan, 'npmVersion'), false);
+  assert.deepEqual(plan.commands, [
+    [
+      'node', '--test',
+      'integration/portfolio-profile-contract/test/consumer.test.mjs',
+      'integration/portfolio-profile-contract/test/plan-poll-cli.test.mjs',
+      'integration/portfolio-profile-contract/test/plan-poll.test.mjs',
+      'integration/portfolio-profile-contract/test/resolve-pr.test.mjs',
+    ],
+    ['node', '--test', 'integration/test-platform-contract/test/adapter.test.mjs'],
+  ]);
+});
+
 test('resolves the centrally pinned Node 24 lint, type, and test implementation', () => {
   const input = catalog();
   input.approvedImplementations.push('node24-lint-typescript-test-v1');
