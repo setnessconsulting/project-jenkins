@@ -988,6 +988,18 @@ if (-not $jobs.Contains("pipelineJob('portfolio-dispatch/portfolio-pr-gate')") -
 if (-not $portfolioPipeline.Contains("profile.status in ['shadow', 'qualified']")) {
     throw 'The portfolio PR gate must accept both shadow and already-qualified profiles selected by the controller poller.'
 }
+$portfolioPullRequestIdentityIndex = $portfolioPipeline.IndexOf('if (pullRequest.number != pullRequestNumber')
+$portfolioCheckCreationIndex = $portfolioPipeline.IndexOf('Map check = portfolioCreateCheck(currentBuild.rawBuild, portfolioAppCredentialId, repository, expectedSha)')
+$portfolioCatalogReadIndex = $portfolioPipeline.IndexOf('Map catalogRef = portfolioRepoApiRequest(')
+$portfolioResolverIndex = $portfolioPipeline.IndexOf('Map resolved = portfolioResolveProfile(')
+if ($portfolioPullRequestIdentityIndex -lt 0 -or
+    $portfolioCheckCreationIndex -le $portfolioPullRequestIdentityIndex -or
+    $portfolioCatalogReadIndex -le $portfolioCheckCreationIndex -or
+    $portfolioResolverIndex -le $portfolioCheckCreationIndex -or
+    -not $portfolioPipeline.Contains("env.PORTFOLIO_STATE = 'CHECK_PENDING'") -or
+    -not $portfolioPipeline.Contains('if (checkId) {')) {
+    throw 'After live same-repository PR identity is confirmed, the exact-SHA Jenkins check must be created before profile resolution and finalized visibly even when authorization fails.'
+}
 if (-not $controllerDockerfile.Contains('integration/test-platform-contract') -or -not $controllerDockerfile.Contains('nodejs.org')) {
     throw 'The controller image must provision the pinned Node runtime and the trusted Test Platform adapter.'
 }
