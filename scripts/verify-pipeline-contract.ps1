@@ -806,6 +806,30 @@ if (-not $vmStartScript.Contains('PORTFOLIO_SUMMARY loaded=') -or
     -not $vmStartScript.Contains('^PORTFOLIO_SUMMARY loaded=0 ')) {
     throw 'Portfolio verification must report a loaded/approved summary and give an explicit pass for a controller with no loaded portfolio job.'
 }
+# The dispatch trio is not the whole fleet. CasC also loads the multibranch
+# projects with one branch job per branch, the E2E and Test Platform pipelines,
+# and the retired root-level gate; a deploy that reports green while one of those
+# waits for script approval hides a trusted job that cannot build at all.
+if (-not $vmStartScript.Contains('FLEET_JOB ') -or
+    -not $vmStartScript.Contains('FLEET_PROJECT ') -or
+    -not $vmStartScript.Contains('FLEET_PENDING_SCRIPT index=') -or
+    -not $vmStartScript.Contains('FLEET_SUMMARY jobs=') -or
+    -not $vmStartScript.Contains('grep -E ''^(PORTFOLIO_|FLEET_)''')) {
+    throw 'Portfolio verification must report a fleet-wide inventory (every CasC-managed job, each multibranch branch job and the pending script-security queue) and print it next to the dispatch trio lines.'
+}
+if (-not $vmStartScript.Contains("getDeclaredField('script')")) {
+    throw 'The fleet inventory must read inline branch scripts through the private script field, otherwise every multibranch branch job would report no-script and the inventory would hide exactly the jobs it exists to expose.'
+}
+# The inventory is report-only by operator decision: a legitimate render change
+# leaves jobs waiting for approval, and gating a deploy on that would wedge it,
+# while the affected job already fails closed at run time. The dispatch gate
+# stays anchored to its own PORTFOLIO_JOB lines so the inventory can never become
+# an accidental deploy gate.
+if (-not $vmStartScript.Contains('Fleet posture above is informational') -or
+    -not $vmStartScript.Contains('grep -q ''^PORTFOLIO_JOB .* script=unapproved$''') -or
+    $vmStartScript.Contains("grep -q 'script=unapproved'")) {
+    throw 'The fleet inventory must stay report-only, and the portfolio approval gate must read PORTFOLIO_JOB lines only so a report-only inventory can never fail a deployment.'
+}
 if (-not $vmStartScript.Contains('the controller is already running') -or
     -not $vmStartScript.Contains('there is nothing to verify')) {
     throw 'Portfolio verification must state its own install/restart exit semantics and its no-loaded-job posture.'
