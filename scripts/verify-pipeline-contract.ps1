@@ -1450,6 +1450,10 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumer.Contains("['pending', 'completed', 'stalled']") -or
     -not $portfolioConsumer.Contains('ROUTINE_DISPATCH_PROFILE_PAIRS.some((pair) =>') -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-test-platform'") -or
+    -not $portfolioConsumer.Contains("'setnessconsulting/project-blender-api'") -or
+    -not $portfolioConsumer.Contains("'setnessconsulting/project-cloudflare-api'") -or
+    -not $portfolioConsumer.Contains("'setnessconsulting/project-fmod-api'") -or
+    -not $portfolioConsumer.Contains("'setnessconsulting/project-game-maker'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-github-api'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-game-platform-sdk'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/curiouspathway'") -or
@@ -1458,6 +1462,10 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumer.Contains("'setnessconsulting/project-jenkins'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-setness-consulting'") -or
     -not $portfolioConsumer.Contains("'setness-web-ci-node22-v1'") -or
+    -not $portfolioConsumer.Contains("'python312-blender-api-v1'") -or
+    -not $portfolioConsumer.Contains("'python312-cloudflare-api-uv-v1'") -or
+    -not $portfolioConsumer.Contains("'python312-fmod-api-v1'") -or
+    -not $portfolioConsumer.Contains("'python312-game-maker-v1'") -or
     -not $portfolioConsumer.Contains("'jenkins-repository-contract'") -or
     -not $portfolioConsumer.Contains("'node2214-vercel-api-gitleaks-v1'") -or
     -not $portfolioConsumer.Contains("['missing', 'in_progress', 'orphaned', 'untracked', 'completed']") -or
@@ -1475,7 +1483,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioPollerTests.Contains('only centrally approved implementations are polled') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check dispatches only the owner same-repository shadow head') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check rejects fork, outside-author, draft, closed, mismatched-base, and planned cases') -or
-    -not $portfolioPollerTests.Contains('routine polling stays within the selected eight-repository portfolio-dispatch focus') -or
+    -not $portfolioPollerTests.Contains('routine polling stays within the explicit twelve-repository portfolio-dispatch allowlist') -or
     -not $portfolioPollerCliTests.Contains('planner fails closed on malformed input, oversized data, and caller arguments') -or
     -not $portfolioAdapterDocs.Contains('JENKINS_PORTFOLIO_PR_POLL_ENABLED=true') -or
     -not $portfolioAdapterDocs.Contains('queues one') -or
