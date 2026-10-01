@@ -84,6 +84,7 @@ println 'PORTFOLIO_EXECUTORS=' + jenkins.getNumExecutors()
 // at the start of every run.
 def capabilityPlugins = ['pipeline-build-step', 'github-checks', 'workflow-cps', 'workflow-basic-steps', 'workflow-durable-task-step', 'workflow-job', 'workflow-scm-step', 'github-branch-source', 'docker-plugin']
 def capabilitySymbols = ['build', 'withChecks', 'publishChecks', 'checkout', 'node', 'sh', 'writeFile', 'readFile', 'timeout', 'echo', 'error']
+def capabilityAgentClasses = ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral']
 def capabilityGaps = []
 def capabilityPluginManager = jenkins.getPluginManager()
 capabilityPlugins.each { name ->
@@ -98,12 +99,18 @@ try {
 } catch (Throwable failure) {
     capabilityGaps.add('step enumeration (' + failure.getClass().getSimpleName() + ')')
 }
-// This core exposes the configured clouds as the `clouds` property; it has no
-// getClouds() accessor.
 try {
-    if (!jenkins.clouds) capabilityGaps.add('agent cloud')
+    if (!jenkins.clouds) {
+        capabilityGaps.add('agent cloud')
+    } else {
+        boolean anySupportedAgentClassCanProvision = capabilityAgentClasses.any { agentClass ->
+            def label = jenkins.getLabelAtom(agentClass)
+            label != null && jenkins.clouds.any { cloud -> cloud.canProvision(label) }
+        }
+        if (!anySupportedAgentClassCanProvision) capabilityGaps.add('provisionable template for an allowed portfolio agent class')
+    }
 } catch (Throwable failure) {
-    capabilityGaps.add('agent cloud enumeration (' + failure.getClass().getSimpleName() + ')')
+    capabilityGaps.add('agent template capability enumeration (' + failure.getClass().getSimpleName() + ')')
 }
 println 'PORTFOLIO_CAPABILITIES=' + (capabilityGaps.isEmpty() ? 'ok' : 'missing: ' + capabilityGaps.join('; '))
 def loaded = 0

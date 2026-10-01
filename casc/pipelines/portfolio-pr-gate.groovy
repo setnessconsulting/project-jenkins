@@ -19,6 +19,15 @@ def portfolioAdapterImplementationAllowlist = [
 /* JENKINS_PORTFOLIO_CREDENTIAL_STORE_HELPERS */
 
 @com.cloudbees.groovy.cps.NonCPS
+boolean portfolioCanProvisionAgentClass(String agentClass) {
+    if (!(agentClass ==~ /[A-Za-z0-9._-]{1,100}/)) return false
+    def jenkins = jenkins.model.Jenkins.get()
+    def label = jenkins.getLabelAtom(agentClass)
+    if (label == null) return false
+    return jenkins.clouds.any { cloud -> cloud.canProvision(label) }
+}
+
+@com.cloudbees.groovy.cps.NonCPS
 String portfolioScopedAppToken(def run, String credentialId, String repository, Map permissions) {
     def read = org.kohsuke.github.GHPermissionType.READ
     def write = org.kohsuke.github.GHPermissionType.WRITE
@@ -478,6 +487,7 @@ pipeline {
                     boolean pythonRuntimeMatches = hasPythonRuntime &&
                         resolved.pythonVersion.toString() == profile.requiredPythonVersion?.toString() &&
                         profile.requiredNodeVersion == null
+                    String resolvedAgentClass = resolved.agentClass?.toString()
                     if (resolved.repository?.toString()?.equalsIgnoreCase(repository) != true ||
                         resolved.headSha?.toString()?.equalsIgnoreCase(expectedSha) != true ||
                         resolved.profileId?.toString() != profile.id.toString() ||
@@ -485,13 +495,16 @@ pipeline {
                         hasNodeRuntime == hasPythonRuntime ||
                         !(nodeRuntimeMatches || pythonRuntimeMatches) ||
                         (resolved.npmVersion != null && !(resolved.npmVersion.toString() ==~ /\d+\.\d+\.\d+/)) ||
-                        !(resolved.agentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral']) ||
+                        !(resolvedAgentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral']) ||
                         !(resolved.commands instanceof List) || resolved.commands.isEmpty()) {
                         error('The centrally trusted resolver returned a plan outside the controller contract; no checkout ran.')
                     }
+                    if (!portfolioCanProvisionAgentClass(resolvedAgentClass)) {
+                        error("No configured Jenkins cloud has an enabled template for the resolved agent class ${resolvedAgentClass}; the gate stopped before requesting a node or checking out the PR.")
+                    }
 
                     env.PORTFOLIO_PROFILE_ID = profile.id.toString()
-                    env.PORTFOLIO_AGENT_CLASS = resolved.agentClass.toString()
+                    env.PORTFOLIO_AGENT_CLASS = resolvedAgentClass
                     env.PORTFOLIO_NODE_VERSION = resolved.nodeVersion?.toString() ?: ''
                     env.PORTFOLIO_PYTHON_VERSION = resolved.pythonVersion?.toString() ?: ''
                     env.PORTFOLIO_NPM_VERSION = resolved.npmVersion?.toString() ?: ''

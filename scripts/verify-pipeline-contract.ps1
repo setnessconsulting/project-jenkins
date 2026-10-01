@@ -532,21 +532,40 @@ $portfolioRequiredCapabilities = @(
     'docker-plugin', 'build', 'withChecks', 'publishChecks', 'checkout', 'node', 'sh',
     'writeFile', 'readFile', 'timeout', 'echo', 'error'
 )
+$portfolioRequiredAgentClasses = @(
+    'setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral',
+    'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral',
+    'secondary-node24-playwright-ephemeral'
+)
 foreach ($requiredCapability in $portfolioRequiredCapabilities) {
     if (-not $portfolioPollerPipeline.Contains("'$requiredCapability'") -or
         -not $vmStartScript.Contains("'$requiredCapability'")) {
         throw "The controller capability preflight must name '$requiredCapability' in both the trusted poller and the deploy-time verification."
     }
 }
+foreach ($agentClass in $portfolioRequiredAgentClasses) {
+    if (-not $portfolioPollerPipeline.Contains("'$agentClass'") -or
+        -not $portfolioPipeline.Contains("'$agentClass'") -or
+        -not $vmStartScript.Contains("'$agentClass'")) {
+        throw "The poller, gate, and deploy-time verification must keep the supported agent class '$agentClass' aligned."
+    }
+}
 if (-not $portfolioPollerPipeline.Contains('String portfolioPollControllerCapabilityGap(') -or
     -not $portfolioPollerPipeline.Contains("stage('Assert controller capabilities')") -or
     -not $portfolioPollerPipeline.Contains('error(capabilityGap)') -or
     -not $portfolioPollerPipeline.Contains('jenkins.getDescriptorList(org.jenkinsci.plugins.workflow.steps.Step.class)') -or
-    -not $portfolioPollerPipeline.Contains('if (!jenkins.clouds) gaps.add(''agent cloud'')') -or
-    -not $vmStartScript.Contains('if (!jenkins.clouds) capabilityGaps.add(''agent cloud'')') -or
+    -not $portfolioPollerPipeline.Contains('jenkins.getLabelAtom(agentClass.toString())') -or
+    -not $portfolioPollerPipeline.Contains('cloud.canProvision(label)') -or
+    -not $portfolioPollerPipeline.Contains("gaps.add('provisionable template for an allowed portfolio agent class')") -or
+    -not $portfolioPipeline.Contains('boolean portfolioCanProvisionAgentClass(String agentClass)') -or
+    -not $portfolioPipeline.Contains('cloud.canProvision(label)') -or
+    -not $portfolioPipeline.Contains('if (!portfolioCanProvisionAgentClass(resolvedAgentClass))') -or
+    -not $vmStartScript.Contains('jenkins.getLabelAtom(agentClass)') -or
+    -not $vmStartScript.Contains('cloud.canProvision(label)') -or
+    -not $vmStartScript.Contains("capabilityGaps.add('provisionable template for an allowed portfolio agent class')") -or
     -not $portfolioPollerPipeline.Contains('// BEGIN JENKINS_PORTFOLIO_CAPABILITY_PREFLIGHT') -or
     -not $portfolioPollerPipeline.Contains('// END JENKINS_PORTFOLIO_CAPABILITY_PREFLIGHT')) {
-    throw 'The portfolio poller must fail closed at startup, naming every missing plugin, Pipeline step, trusted adapter, or agent cloud, before it can dispatch, and keep the delimited preflight block the read-only live probe evaluates.'
+    throw 'The portfolio poller must fail closed at startup, naming missing plugins, Pipeline steps, trusted resources, or usable agent templates before dispatch; the gate must reject a missing profile-specific template before requesting a node, and keep the delimited preflight block the read-only live probe evaluates.'
 }
 if (-not $vmStartScript.Contains("println 'PORTFOLIO_CAPABILITIES=' +") -or
     -not $vmStartScript.Contains('grep -q ''^PORTFOLIO_CAPABILITIES=ok$''')) {
