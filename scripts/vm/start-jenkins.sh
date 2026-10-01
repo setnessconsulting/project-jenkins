@@ -103,11 +103,17 @@ try {
     if (!jenkins.clouds) {
         capabilityGaps.add('agent cloud')
     } else {
-        boolean anySupportedAgentClassCanProvision = capabilityAgentClasses.any { agentClass ->
+        def missingAgentClasses = capabilityAgentClasses.findAll { agentClass ->
             def label = jenkins.getLabelAtom(agentClass)
-            label != null && jenkins.clouds.any { cloud -> cloud.canProvision(label) }
+            label == null || !jenkins.clouds.any { cloud ->
+                cloud instanceof com.nirima.jenkins.plugins.docker.DockerCloud &&
+                    cloud.canProvision(label) &&
+                    cloud.getTemplates().any { template ->
+                        !template.getDisabled().isDisabled() && label.matches(template.getLabelSet())
+                    }
+            }
         }
-        if (!anySupportedAgentClassCanProvision) capabilityGaps.add('provisionable template for an allowed portfolio agent class')
+        missingAgentClasses.each { agentClass -> capabilityGaps.add('agent template ' + agentClass) }
     }
 } catch (Throwable failure) {
     capabilityGaps.add('agent template capability enumeration (' + failure.getClass().getSimpleName() + ')')
@@ -222,7 +228,7 @@ portfolio_verify() {
     return 0
   fi
   if ! printf '%s\n' "$response" | grep -q '^PORTFOLIO_CAPABILITIES=ok$'; then
-    printf 'Portfolio verification FAILED: the controller did not report an intact portfolio dispatch capability set (expected PORTFOLIO_CAPABILITIES=ok). The poller refuses to dispatch and the gate cannot queue or publish checks until the missing plugin, step, or agent-cloud capability is restored in the controller image. When this ran as part of install or restart the controller is already running, so a non-zero exit means the portfolio jobs cannot dispatch shadow evidence yet, not that the controller failed to start; re-running the same action after fixing the image is idempotent.\n' >&2
+    printf 'Portfolio verification FAILED: the controller did not report an intact portfolio dispatch capability set (expected PORTFOLIO_CAPABILITIES=ok). The poller refuses to dispatch and the gate cannot queue or publish checks until the missing plugin, step, trusted resource, or enabled configured agent template is restored. When this ran as part of install or restart the controller is already running, so a non-zero exit means the portfolio jobs cannot dispatch shadow evidence yet, not that the controller failed to start; re-running the same action after fixing the image or CasC is idempotent.\n' >&2
     return 1
   fi
   printf 'Portfolio verification passed: every loaded portfolio job reports an approved script and the controller reports the required dispatch capabilities. Re-rendering a job script changes it, so re-run this check after any configuration change.\n'

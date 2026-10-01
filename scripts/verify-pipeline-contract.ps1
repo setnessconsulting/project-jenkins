@@ -546,8 +546,9 @@ foreach ($requiredCapability in $portfolioRequiredCapabilities) {
 foreach ($agentClass in $portfolioRequiredAgentClasses) {
     if (-not $portfolioPollerPipeline.Contains("'$agentClass'") -or
         -not $portfolioPipeline.Contains("'$agentClass'") -or
-        -not $vmStartScript.Contains("'$agentClass'")) {
-        throw "The poller, gate, and deploy-time verification must keep the supported agent class '$agentClass' aligned."
+        -not $vmStartScript.Contains("'$agentClass'") -or
+        -not $jenkinsConfig.Contains("labelString: `"$agentClass`"")) {
+        throw "The poller, gate, deploy-time verification, and CasC templates must keep the supported agent class '$agentClass' aligned."
     }
 }
 if (-not $portfolioPollerPipeline.Contains('String portfolioPollControllerCapabilityGap(') -or
@@ -555,14 +556,24 @@ if (-not $portfolioPollerPipeline.Contains('String portfolioPollControllerCapabi
     -not $portfolioPollerPipeline.Contains('error(capabilityGap)') -or
     -not $portfolioPollerPipeline.Contains('jenkins.getDescriptorList(org.jenkinsci.plugins.workflow.steps.Step.class)') -or
     -not $portfolioPollerPipeline.Contains('jenkins.getLabelAtom(agentClass.toString())') -or
+    -not $portfolioPollerPipeline.Contains('cloud instanceof com.nirima.jenkins.plugins.docker.DockerCloud') -or
     -not $portfolioPollerPipeline.Contains('cloud.canProvision(label)') -or
-    -not $portfolioPollerPipeline.Contains("gaps.add('provisionable template for an allowed portfolio agent class')") -or
-    -not $portfolioPipeline.Contains('boolean portfolioCanProvisionAgentClass(String agentClass)') -or
+    -not $portfolioPollerPipeline.Contains('cloud.getTemplates().any { template ->') -or
+    -not $portfolioPollerPipeline.Contains('label.matches(template.getLabelSet())') -or
+    -not $portfolioPollerPipeline.Contains('!template.getDisabled().isDisabled()') -or
+    -not $portfolioPipeline.Contains('boolean portfolioHasProvisionableConfiguredAgentClass(String agentClass)') -or
+    -not $portfolioPipeline.Contains('cloud instanceof com.nirima.jenkins.plugins.docker.DockerCloud') -or
     -not $portfolioPipeline.Contains('cloud.canProvision(label)') -or
-    -not $portfolioPipeline.Contains('if (!portfolioCanProvisionAgentClass(resolvedAgentClass))') -or
+    -not $portfolioPipeline.Contains('cloud.getTemplates().any { template ->') -or
+    -not $portfolioPipeline.Contains('label.matches(template.getLabelSet())') -or
+    -not $portfolioPipeline.Contains('!template.getDisabled().isDisabled()') -or
+    -not $portfolioPipeline.Contains('if (!portfolioHasProvisionableConfiguredAgentClass(resolvedAgentClass))') -or
     -not $vmStartScript.Contains('jenkins.getLabelAtom(agentClass)') -or
+    -not $vmStartScript.Contains('cloud instanceof com.nirima.jenkins.plugins.docker.DockerCloud') -or
     -not $vmStartScript.Contains('cloud.canProvision(label)') -or
-    -not $vmStartScript.Contains("capabilityGaps.add('provisionable template for an allowed portfolio agent class')") -or
+    -not $vmStartScript.Contains('cloud.getTemplates().any { template ->') -or
+    -not $vmStartScript.Contains('label.matches(template.getLabelSet())') -or
+    -not $vmStartScript.Contains('!template.getDisabled().isDisabled()') -or
     -not $portfolioPollerPipeline.Contains('// BEGIN JENKINS_PORTFOLIO_CAPABILITY_PREFLIGHT') -or
     -not $portfolioPollerPipeline.Contains('// END JENKINS_PORTFOLIO_CAPABILITY_PREFLIGHT')) {
     throw 'The portfolio poller must fail closed at startup, naming missing plugins, Pipeline steps, trusted resources, or usable agent templates before dispatch; the gate must reject a missing profile-specific template before requesting a node, and keep the delimited preflight block the read-only live probe evaluates.'
@@ -1245,7 +1256,7 @@ foreach ($portfolioRuntimeGuard in @(
     "'python312-cpa-ai-pack-v1'",
     "'node2214-vercel-api-gitleaks-v1'",
     "'node22-github-api-foundation-v1'",
-    "!(resolved.agentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral'])",
+    "!(resolvedAgentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral'])",
     'resolved.pythonVersion.toString() == profile.requiredPythonVersion?.toString()',
     'env.PORTFOLIO_NODE_VERSION = resolved.nodeVersion?.toString() ?:',
     'env.PORTFOLIO_PYTHON_VERSION = resolved.pythonVersion?.toString() ?:',

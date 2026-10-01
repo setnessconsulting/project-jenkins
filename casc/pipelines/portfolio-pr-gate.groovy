@@ -19,12 +19,18 @@ def portfolioAdapterImplementationAllowlist = [
 /* JENKINS_PORTFOLIO_CREDENTIAL_STORE_HELPERS */
 
 @com.cloudbees.groovy.cps.NonCPS
-boolean portfolioCanProvisionAgentClass(String agentClass) {
+boolean portfolioHasProvisionableConfiguredAgentClass(String agentClass) {
     if (!(agentClass ==~ /[A-Za-z0-9._-]{1,100}/)) return false
     def jenkins = jenkins.model.Jenkins.get()
     def label = jenkins.getLabelAtom(agentClass)
     if (label == null) return false
-    return jenkins.clouds.any { cloud -> cloud.canProvision(label) }
+    return jenkins.clouds.any { cloud ->
+        cloud instanceof com.nirima.jenkins.plugins.docker.DockerCloud &&
+            cloud.canProvision(label) &&
+            cloud.getTemplates().any { template ->
+                !template.getDisabled().isDisabled() && label.matches(template.getLabelSet())
+            }
+    }
 }
 
 @com.cloudbees.groovy.cps.NonCPS
@@ -499,7 +505,7 @@ pipeline {
                         !(resolved.commands instanceof List) || resolved.commands.isEmpty()) {
                         error('The centrally trusted resolver returned a plan outside the controller contract; no checkout ran.')
                     }
-                    if (!portfolioCanProvisionAgentClass(resolvedAgentClass)) {
+                    if (!portfolioHasProvisionableConfiguredAgentClass(resolvedAgentClass)) {
                         error("No configured Jenkins cloud has an enabled template for the resolved agent class ${resolvedAgentClass}; the gate stopped before requesting a node or checking out the PR.")
                     }
 

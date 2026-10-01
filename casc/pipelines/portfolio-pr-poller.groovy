@@ -45,18 +45,24 @@ String portfolioPollControllerCapabilityGap(List requiredPlugins, List requiredS
     }
     if (!(nodeBinary instanceof String) || !new File(nodeBinary).canExecute()) gaps.add("controller Node binary ${nodeBinary}")
     if (!(adapterPath instanceof String) || !new File(adapterPath).isFile()) gaps.add("trusted poll adapter ${adapterPath}")
-    // The poller only needs one supported agent class to be provisionable for
-    // dispatch to be useful. The gate separately checks the exact class chosen
-    // for each profile before requesting its one-use agent.
+    // Every centrally allowed class must have an enabled, persistent Docker
+    // template. canProvision confirms the cloud is enabled; getTemplates()
+    // excludes job-temporary templates, which are not a reliable dispatch path.
     try {
         if (!jenkins.clouds) {
             gaps.add('agent cloud')
         } else {
-            boolean anySupportedAgentClassCanProvision = requiredAgentClasses.any { agentClass ->
+            List missingAgentClasses = requiredAgentClasses.findAll { agentClass ->
                 def label = jenkins.getLabelAtom(agentClass.toString())
-                label != null && jenkins.clouds.any { cloud -> cloud.canProvision(label) }
+                label == null || !jenkins.clouds.any { cloud ->
+                    cloud instanceof com.nirima.jenkins.plugins.docker.DockerCloud &&
+                        cloud.canProvision(label) &&
+                        cloud.getTemplates().any { template ->
+                            !template.getDisabled().isDisabled() && label.matches(template.getLabelSet())
+                        }
+                }
             }
-            if (!anySupportedAgentClassCanProvision) gaps.add('provisionable template for an allowed portfolio agent class')
+            missingAgentClasses.each { agentClass -> gaps.add("agent template ${agentClass}") }
         }
     } catch (Throwable failure) {
         gaps.add("agent template capability enumeration (${failure.getClass().getSimpleName()})")
