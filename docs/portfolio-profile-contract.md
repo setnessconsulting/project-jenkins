@@ -62,7 +62,7 @@ dispatch when enabled. Context File Maker and CPA AI Pack remain manual because
 the poller does not implement their Actions path filters; Context File Maker
 also has a separately conditioned Windows lane.
 
-The focused central implementation set includes eleven centrally trusted lanes.
+The focused central implementation set includes twelve centrally trusted lanes.
 This list describes reviewed code support; it does not mean a private profile
 is enabled, qualified, or authoritative:
 
@@ -82,6 +82,29 @@ is enabled, qualified, or authoritative:
   Actions, and the workflow's `workflow_dispatch` trigger remains intact.
   This implementation alone does not enable a private profile, qualify the
   lane, or change Actions authority.
+- `node24-game-fraction-match-full-ci-v1` is bound to the exact profile
+  `game-fraction-match-node24-full-ci` and repository
+  `setnessconsulting/game-fraction-match`. It runs the complete Linux verify
+  sequence—`npm ci`, typecheck, lint, coverage tests, architecture checks,
+  production build, and privacy check—before the direct and nested Playwright
+  host suites. The one-use `secondary-node24-playwright-ephemeral` worker keeps
+  the build and coverage output from that SHA in the same workspace for both
+  suites. Its centrally installed image provides Node 24.21.0, Playwright
+  1.62.1, Chromium, Firefox, WebKit, and their system dependencies; no target
+  Jenkinsfile, Docker socket, deployment credential, or command-time GitHub
+  credential is exposed to the worker. The trusted gate archives the fixed
+  `dist/`, coverage summary and lcov, test-results, and both Playwright report
+  paths before workspace cleanup, including after command failures. Jenkins
+  artifact retention has not been verified to match the Actions workflow's
+  30-day retention. The target pins `@playwright/test` 1.62.1, but its lockfile
+  also contains a separate top-level peer `playwright-core` 1.63.0 entry; its
+  `.nvmrc` and package engine select Node 24 as a floating major while this
+  worker pins 24.21.0. These differences prevent a runtime-parity claim. The
+  lane remains a supplemental shadow: GitHub Actions remains authoritative,
+  with its `main`/`codex/**` push, pull-request, and manual triggers, 30-day
+  uploads, same-repository owner-only author policy, and deployment controls
+  unchanged. No cutover or CI-savings claim is made, and the profile remains
+  at 0/4 exact-SHA qualification cases.
 - `python312-portfolio-graph-uv-v1` installs pinned `uv==0.11.17`, syncs the
   lockfile, and runs the verification script and CLI checks on Python 3.12.14.
   It covers only the Ubuntu/Python 3.12 cell of the existing 2-by-2 OS/runtime
@@ -169,10 +192,10 @@ credentials store is never used for checkout tokens.
 The poller is opt-in through the ignored local
 `JENKINS_PORTFOLIO_PR_POLL_ENABLED` setting, which defaults to `false`, and
 also requires the private catalog location and `controlPlane.status: active`.
-The routine poller allowlist is restricted in trusted code to fifteen exact
+The routine poller allowlist is restricted in trusted code to sixteen exact
 implementation/repository pairs: `project-test-platform`,
 `project-game-platform-sdk`, `Game-Planetary-Survey`, `curiouspathway`,
-`project-portfolio-graph`,
+`game-fraction-match`, `project-portfolio-graph`,
 `project-vercel-api`, `project-unity-api`, `project-jenkins`,
 `project-setness-consulting`, `project-github-api`, `project-jira-api`, `project-blender-api`,
 `project-cloudflare-api`, `project-fmod-api`, and `project-game-maker`. The

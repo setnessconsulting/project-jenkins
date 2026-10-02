@@ -193,6 +193,59 @@ test('resolves the Planetary Survey Node 24 verify lane for its exact repository
   rejectsCode(() => resolvePlanetarySurvey(), 'runtime-mismatch');
 });
 
+test('resolves the exact Fraction Match full CI profile and ordered browser lane', () => {
+  const input = catalog();
+  const implementationId = 'node24-game-fraction-match-full-ci-v1';
+  const profileId = 'game-fraction-match-node24-full-ci';
+  const targetRepository = 'setnessconsulting/game-fraction-match';
+  input.approvedImplementations.push(implementationId);
+  input.profiles[0].id = profileId;
+  input.profiles[0].implementationId = implementationId;
+  input.profiles[0].repositories = [targetRepository];
+  input.profiles[0].requiredNodeVersion = '24.21.0';
+  input.profiles[0].qualification.state = 'in-progress';
+  const resolveFractionMatch = () => resolve(input, {
+    profileId,
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  });
+
+  const plan = resolveFractionMatch();
+  assert.equal(plan.profileId, profileId);
+  assert.equal(plan.repository, targetRepository);
+  assert.equal(plan.agentClass, 'secondary-node24-playwright-ephemeral');
+  assert.equal(plan.nodeVersion, '24.21.0');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['npm', 'ci'],
+    ['npm', 'run', 'typecheck'],
+    ['npm', 'run', 'lint'],
+    ['npm', 'run', 'test:coverage'],
+    ['npm', 'run', 'check:architecture'],
+    ['npm', 'run', 'build'],
+    ['npm', 'run', 'check:privacy'],
+    ['npm', 'run', 'test:e2e:run'],
+    ['npm', 'run', 'test:host:run'],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes(implementationId), true);
+  assert.equal(ROUTINE_DISPATCH_PROFILE_PAIRS.some(({ implementationId: admitted, repository }) =>
+    admitted === implementationId && repository === targetRepository), true);
+
+  const mispairedRepository = structuredClone(input);
+  mispairedRepository.profiles[0].repositories = ['setnessconsulting/project-game-platform-sdk'];
+  rejectsCode(() => validateProfileCatalog(mispairedRepository), 'implementation-repository-mismatch');
+
+  const mispairedProfile = structuredClone(input);
+  mispairedProfile.profiles[0].id = 'fraction-match-other-profile';
+  rejectsCode(() => validateProfileCatalog(mispairedProfile), 'implementation-profile-mismatch');
+
+  input.profiles[0].requiredNodeVersion = '24.21.1';
+  rejectsCode(() => resolveFractionMatch(), 'runtime-mismatch');
+});
+
 test('resolves CuriousPathway Node 24 and three centrally selected Playwright suites', () => {
   const input = catalog();
   input.approvedImplementations.push('node24-curiouspathway-pilot-v1');
