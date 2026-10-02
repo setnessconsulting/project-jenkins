@@ -326,6 +326,7 @@ test('routine dispatch implementation and repository lists match the explicit re
     'node24-curiouspathway-pilot-v1',
     'python312-portfolio-graph-uv-v1',
     'node2214-vercel-api-gitleaks-v1',
+    'node2214-unity-api-maintenance-v1',
     'jenkins-repository-contract',
     'setness-web-ci-node22-v1',
   ]);
@@ -342,6 +343,7 @@ test('routine dispatch implementation and repository lists match the explicit re
     'setnessconsulting/curiouspathway',
     'setnessconsulting/project-portfolio-graph',
     'setnessconsulting/project-vercel-api',
+    'setnessconsulting/project-unity-api',
     'setnessconsulting/project-jenkins',
     'setnessconsulting/project-setness-consulting',
   ]);
@@ -354,7 +356,7 @@ test('routine dispatch implementation and repository lists match the explicit re
   assert.deepEqual(planRoutinePullRequestPoll(catalog, [], [], [], now).dispatches, []);
 });
 
-test('routine polling stays within the explicit fourteen-repository portfolio-dispatch allowlist', () => {
+test('routine polling stays within the explicit fifteen-repository portfolio-dispatch allowlist', () => {
   const selected = ROUTINE_DISPATCH_PROFILE_PAIRS.map(({ repository: target, implementationId }, index) => ({
     id: `focus-${index}`,
     implementationId,
@@ -370,7 +372,7 @@ test('routine polling stays within the explicit fourteen-repository portfolio-di
       state: 'in-progress',
     },
   }));
-  assert.equal(selected.length, 14);
+  assert.equal(selected.length, 15);
   const outsideFocusGameAi = {
     id: 'outside-focus-game-ai',
     implementationId: 'python312-playtest-lab-v1',

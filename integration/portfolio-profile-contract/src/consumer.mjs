@@ -132,6 +132,16 @@ export const IMPLEMENTATIONS = Object.freeze({
       Object.freeze(['npm', 'run', 'verify']),
     ]),
   }),
+  'node2214-unity-api-maintenance-v1': Object.freeze({
+    agentClass: 'setness-node22-14-disposable-ephemeral',
+    nodeVersion: '22.14.0',
+    npmVersion: '10.9.2',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['npm', 'ci']),
+      Object.freeze(['npm', 'run', 'maintenance']),
+    ]),
+  }),
   'node24-lint-typescript-test-v1': Object.freeze({
     agentClass: 'setness-node24-ephemeral',
     nodeVersion: '24.21.0',
@@ -349,9 +359,17 @@ export const ROUTINE_DISPATCH_PROFILE_PAIRS = Object.freeze([
   Object.freeze({ implementationId: 'node24-curiouspathway-pilot-v1', repository: 'setnessconsulting/curiouspathway' }),
   Object.freeze({ implementationId: 'python312-portfolio-graph-uv-v1', repository: 'setnessconsulting/project-portfolio-graph' }),
   Object.freeze({ implementationId: 'node2214-vercel-api-gitleaks-v1', repository: 'setnessconsulting/project-vercel-api' }),
+  Object.freeze({ implementationId: 'node2214-unity-api-maintenance-v1', repository: 'setnessconsulting/project-unity-api' }),
   Object.freeze({ implementationId: 'jenkins-repository-contract', repository: 'setnessconsulting/project-jenkins' }),
   Object.freeze({ implementationId: 'setness-web-ci-node22-v1', repository: 'setnessconsulting/project-setness-consulting' }),
 ]);
+
+// Some newly reviewed implementations are repository-specific even for manual
+// dispatch. Keep that binding in trusted code so catalog data cannot cross-pair
+// their command plan with another repository.
+const FIXED_IMPLEMENTATION_REPOSITORIES = Object.freeze({
+  'node2214-unity-api-maintenance-v1': 'setnessconsulting/project-unity-api',
+});
 
 // A catalog can select only the centrally reviewed behavior matrix for its
 // implementation. These counts mirror the private profile matrix: four
@@ -366,6 +384,7 @@ const QUALIFICATION_CASES_BY_IMPLEMENTATION = Object.freeze({
   'node22-foundation-v1': 4,
   'node22-verify-clean-checkout-v1': 4,
   'node2214-vercel-api-gitleaks-v1': 6,
+  'node2214-unity-api-maintenance-v1': 4,
   'node24-lint-typescript-test-v1': 4,
   'node24-game-platform-sdk-v1': 4,
   'node24-game-planetary-survey-v1': 4,
@@ -531,6 +550,13 @@ export function validateProfileCatalog(catalog) {
           || !catalog.approvedImplementations.includes(profile.implementationId)
           || profile.qualification.requiredExactShaCases < 1) {
         reject('unapproved-profile', `profile ${profile.id} must select an approved implementation and require exact-SHA evidence`);
+      }
+      const fixedRepository = FIXED_IMPLEMENTATION_REPOSITORIES[profile.implementationId];
+      if (fixedRepository !== undefined
+          && (profile.repositories.length !== 1
+            || profile.repositories[0].toLowerCase() !== fixedRepository.toLowerCase())) {
+        reject('implementation-repository-mismatch',
+          `implementation ${profile.implementationId} is restricted to ${fixedRepository}`);
       }
     }
     if (profile.status === 'qualified'

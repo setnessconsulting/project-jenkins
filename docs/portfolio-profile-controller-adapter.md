@@ -78,10 +78,12 @@ repository is provided through ignored local runtime configuration. The old
 root-level job name is explicitly replaced by a disabled deprecation stub, so
 clearing configuration cannot leave an older dispatcher runnable.
 The central routine-poller allowlist is an explicit set of implementation and
-repository pairs. It includes the ten centrally implemented lanes documented in
-`portfolio-profile-contract.md` plus four supplemental Python 3.12 pairs
-(Blender, Cloudflare API, FMOD API, and Game Maker), fourteen exact pairs in
-total. The Jira API pair uses the centrally pinned Node 22.14 clean-checkout
+repository pairs. It includes the eleven centrally implemented lanes documented
+in `portfolio-profile-contract.md` plus four supplemental Python 3.12 pairs
+(Blender, Cloudflare API, FMOD API, and Game Maker), fifteen exact pairs in
+total. The Unity API pair is pinned to the `project-unity-api` repository and
+the fixed Node 22.14 `npm ci` / `npm run maintenance` command plan. The Jira API
+pair uses the centrally pinned Node 22.14 clean-checkout
 implementation. The agent checks its pinned runtime after exact-SHA checkout
 and before running repository commands. Adding a pair does not change its
 catalog status or make it Jenkins-authoritative; planned profiles remain
