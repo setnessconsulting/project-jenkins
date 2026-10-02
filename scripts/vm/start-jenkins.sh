@@ -94,7 +94,7 @@ println 'PORTFOLIO_EXECUTORS=' + jenkins.getNumExecutors()
 // at the start of every run.
 def capabilityPlugins = ['pipeline-build-step', 'github-checks', 'workflow-cps', 'workflow-basic-steps', 'workflow-durable-task-step', 'workflow-job', 'workflow-scm-step', 'github-branch-source', 'docker-plugin']
 def capabilitySymbols = ['build', 'withChecks', 'publishChecks', 'checkout', 'node', 'sh', 'writeFile', 'readFile', 'timeout', 'echo', 'error']
-def capabilityAgentClasses = ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral']
+def capabilityAgentClasses = ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'setness-game-maker-python-matrix-ephemeral', 'secondary-node24-playwright-ephemeral']
 def capabilityGaps = []
 def capabilityPluginManager = jenkins.getPluginManager()
 capabilityPlugins.each { name ->
@@ -432,8 +432,11 @@ case "$action" in
     if [[ "$action" == start ]] && ! docker image inspect 'jenkins-pilot-agent:python-3.12.14' >/dev/null 2>&1; then
       "${compose[@]}" build python312-agent-image
     fi
+    if [[ "$action" == start ]] && ! docker image inspect 'jenkins-pilot-agent:game-maker-python-3.11.17-3.12.14' >/dev/null 2>&1; then
+      "${compose[@]}" build game-maker-python-matrix-agent-image
+    fi
     if [[ "$action" == install || "$action" == restart ]]; then
-      "${compose[@]}" build controller agent-image node22-14-agent-image node22-14-disposable-agent-image setness-web-ci-agent-image node24-agent-image python312-agent-image e2e-agent-image secondary-agent-image
+      "${compose[@]}" build controller agent-image node22-14-agent-image node22-14-disposable-agent-image setness-web-ci-agent-image node24-agent-image python312-agent-image game-maker-python-matrix-agent-image e2e-agent-image secondary-agent-image
     fi
     if [[ "$action" == restart ]]; then
       "${compose[@]}" up -d --force-recreate controller

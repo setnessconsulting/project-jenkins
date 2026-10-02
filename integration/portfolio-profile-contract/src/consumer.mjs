@@ -309,10 +309,24 @@ export const IMPLEMENTATIONS = Object.freeze({
     ]),
   }),
   'python312-game-maker-v1': Object.freeze({
-    agentClass: 'setness-python312-ephemeral',
+    agentClass: 'setness-game-maker-python-matrix-ephemeral',
     pythonVersion: '3.12.14',
+    additionalPythonVersion: '3.11.17',
     requiredCheck: 'jenkins-pr-gate',
     commands: Object.freeze([
+      Object.freeze(['python3.11', '-m', 'pip', 'install', '--upgrade', 'pip']),
+      Object.freeze(['python3.11', '-m', 'pip', 'install', '-e', '.[dev]']),
+      Object.freeze(['python3.11', '-m', 'ruff', 'check', '.']),
+      Object.freeze(['python3.11', '-m', 'mypy', 'src']),
+      Object.freeze(['python3.11', '-m', 'pytest', '-q']),
+      Object.freeze(['python3.11', '-m', 'game_maker', '--version']),
+      Object.freeze(['python3.11', '-m', 'game_maker', '--help']),
+      Object.freeze(['python3.11', '-m', 'game_maker', 'doctor']),
+      Object.freeze(['python3.11', '-m', 'game_maker', 'status']),
+      Object.freeze([
+        'python3.11', '-c',
+        "import subprocess, sys; result = subprocess.run(['git', 'status', '--porcelain'], check=True, capture_output=True, text=True); print(result.stdout, end=''); sys.exit(1 if result.stdout else 0)",
+      ]),
       Object.freeze(['python', '-m', 'pip', 'install', '--upgrade', 'pip']),
       Object.freeze(['python', '-m', 'pip', 'install', '-e', '.[dev]']),
       Object.freeze(['python', '-m', 'ruff', 'check', '.']),
@@ -387,10 +401,12 @@ export const ROUTINE_DISPATCH_PROFILE_PAIRS = Object.freeze([
 const FIXED_IMPLEMENTATION_REPOSITORIES = Object.freeze({
   'node2214-unity-api-maintenance-v1': 'setnessconsulting/project-unity-api',
   'node24-game-fraction-match-full-ci-v1': 'setnessconsulting/game-fraction-match',
+  'python312-game-maker-v1': 'setnessconsulting/project-game-maker',
 });
 
 const FIXED_IMPLEMENTATION_PROFILE_IDS = Object.freeze({
   'node24-game-fraction-match-full-ci-v1': 'game-fraction-match-node24-full-ci',
+  'python312-game-maker-v1': 'project-game-maker-python312',
 });
 
 // A catalog can select only the centrally reviewed behavior matrix for its
@@ -654,6 +670,7 @@ function resolveShadowExecution(catalog, profileId, headSha) {
     agentClass: implementation.agentClass,
     ...(implementation.nodeVersion ? { nodeVersion: implementation.nodeVersion } : {}),
     ...(implementation.pythonVersion ? { pythonVersion: implementation.pythonVersion } : {}),
+    ...(implementation.additionalPythonVersion ? { additionalPythonVersion: implementation.additionalPythonVersion } : {}),
     ...(implementation.npmVersion ? { npmVersion: implementation.npmVersion } : {}),
     commands: Object.freeze(implementation.commands.map((argv) => Object.freeze([...argv]))),
   });
