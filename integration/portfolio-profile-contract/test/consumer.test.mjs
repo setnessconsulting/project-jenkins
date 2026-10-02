@@ -167,8 +167,16 @@ test('resolves the Planetary Survey Node 24 verify lane for its exact repository
   input.profiles[0].implementationId = 'node24-game-planetary-survey-v1';
   input.profiles[0].repositories = ['setnessconsulting/Game-Planetary-Survey'];
   input.profiles[0].requiredNodeVersion = '24.21.0';
+  const resolvePlanetarySurvey = () => resolve(input, {
+    profileId: 'game-planetary-survey-node24',
+    prOverrides: {
+      head: { sha, repo: { full_name: 'setnessconsulting/Game-Planetary-Survey' } },
+      base: { repo: { full_name: 'setnessconsulting/Game-Planetary-Survey' } },
+    },
+    repository: 'setnessconsulting/Game-Planetary-Survey',
+  });
 
-  const plan = resolve(input);
+  const plan = resolvePlanetarySurvey();
   assert.equal(plan.agentClass, 'setness-node24-ephemeral');
   assert.equal(plan.nodeVersion, '24.21.0');
   assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
@@ -182,7 +190,7 @@ test('resolves the Planetary Survey Node 24 verify lane for its exact repository
       && repository === 'setnessconsulting/Game-Planetary-Survey'), true);
 
   input.profiles[0].requiredNodeVersion = '24.21.1';
-  rejectsCode(() => resolve(input), 'runtime-mismatch');
+  rejectsCode(() => resolvePlanetarySurvey(), 'runtime-mismatch');
 });
 
 test('resolves CuriousPathway Node 24 and three centrally selected Playwright suites', () => {

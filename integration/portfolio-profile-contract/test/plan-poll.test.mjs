@@ -312,7 +312,7 @@ test('project Jenkins self-check rejects fork, outside-author, draft, closed, mi
   assert.deepEqual(planRoutinePullRequestPoll(planned, [], [], [], now).dispatches, []);
 });
 
-test('the Test Platform implementation is pollable only after its repository profile is shadow-enabled', () => {
+test('routine dispatch implementation and repository lists match the explicit reviewed pairs', () => {
   assert.deepEqual(ROUTINE_DISPATCH_IMPLEMENTATIONS, [
     'node22-github-api-foundation-v1',
     'node22-verify-clean-checkout-v1',
@@ -322,6 +322,7 @@ test('the Test Platform implementation is pollable only after its repository pro
     'python312-fmod-api-v1',
     'python312-game-maker-v1',
     'node24-game-platform-sdk-v1',
+    'node24-game-planetary-survey-v1',
     'node24-curiouspathway-pilot-v1',
     'python312-portfolio-graph-uv-v1',
     'node2214-vercel-api-gitleaks-v1',
@@ -337,6 +338,7 @@ test('the Test Platform implementation is pollable only after its repository pro
     'setnessconsulting/project-fmod-api',
     'setnessconsulting/project-game-maker',
     'setnessconsulting/project-game-platform-sdk',
+    'setnessconsulting/Game-Planetary-Survey',
     'setnessconsulting/curiouspathway',
     'setnessconsulting/project-portfolio-graph',
     'setnessconsulting/project-vercel-api',
