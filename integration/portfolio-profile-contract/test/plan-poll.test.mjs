@@ -369,6 +369,7 @@ test('routine dispatch implementation and repository lists match the explicit re
     'node24-game-planetary-survey-v1',
     'node24-game-math-detective-static-v1',
     'node24-game-motion-lab-static-v1',
+    'node24-game-ecosystem-rescue-static-v1',
     'node24-game-fraction-match-full-ci-v1',
     'node24-curiouspathway-pilot-v1',
     'python312-portfolio-graph-uv-v1',
@@ -395,6 +396,7 @@ test('routine dispatch implementation and repository lists match the explicit re
     'setnessconsulting/Game-Planetary-Survey',
     'setnessconsulting/game-math-detective',
     'setnessconsulting/game-motion-lab',
+    'setnessconsulting/game-ecosystem-rescue',
     'setnessconsulting/game-fraction-match',
     'setnessconsulting/curiouspathway',
     'setnessconsulting/project-portfolio-graph',
@@ -412,7 +414,7 @@ test('routine dispatch implementation and repository lists match the explicit re
   assert.deepEqual(planRoutinePullRequestPoll(catalog, [], [], [], now).dispatches, []);
 });
 
-test('routine polling stays within the explicit twenty-four-repository portfolio-dispatch allowlist', () => {
+test('routine polling stays within the explicit twenty-five-repository portfolio-dispatch allowlist', () => {
   const selected = ROUTINE_DISPATCH_PROFILE_PAIRS.map(({ repository: target, implementationId }, index) => ({
     id: implementationId === 'node24-game-fraction-match-full-ci-v1'
       ? 'game-fraction-match-node24-full-ci'
@@ -430,6 +432,8 @@ test('routine polling stays within the explicit twenty-four-repository portfolio
           ? 'game-math-detective-node24-static'
         : implementationId === 'node24-game-motion-lab-static-v1'
           ? 'game-motion-lab-node24-static'
+        : implementationId === 'node24-game-ecosystem-rescue-static-v1'
+          ? 'game-ecosystem-rescue-node24-static'
         : implementationId === 'python312-jira-admin-uv-v1'
           ? 'project-jira-admin-python312-uv'
         : implementationId === 'python312-game-signal-garden-v1'
@@ -448,7 +452,7 @@ test('routine polling stays within the explicit twenty-four-repository portfolio
       state: 'in-progress',
     },
   }));
-  assert.equal(selected.length, 24);
+  assert.equal(selected.length, 25);
   const outsideFocusGameAi = {
     id: 'outside-focus-game-ai',
     implementationId: 'python312-playtest-lab-v1',

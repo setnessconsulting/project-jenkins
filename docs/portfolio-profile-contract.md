@@ -119,6 +119,13 @@ it does not mean a private profile is enabled, qualified, or authoritative:
   bundle-budget check on Node 24.21.0. Playwright browser lanes, nested host
   verification, Lighthouse capture, and performance artifact upload remain in
   Actions. Actions remains authoritative and the profile is shadow-only at 0/4.
+- `node24-game-ecosystem-rescue-static-v1` maps the credential-free static part
+  of `game-ecosystem-rescue`'s verification workflow. It runs install,
+  typecheck, lint, unit tests, boundary, deterministic-randomness, link,
+  build-base, production-build, and bundle-budget checks on Node 24.21.0.
+  Chromium and Playwright smoke/accessibility lanes, trace uploads, and the
+  manual release candidate/R2 path remain in Actions. Actions remains
+  authoritative and the profile is shadow-only at 0/4.
 - `node24-game-fraction-match-full-ci-v1` is bound to the exact profile
   `game-fraction-match-node24-full-ci` and repository
   `setnessconsulting/game-fraction-match`. It runs the complete Linux verify
@@ -268,10 +275,10 @@ credentials store is never used for checkout tokens.
 The poller is opt-in through the ignored local
 `JENKINS_PORTFOLIO_PR_POLL_ENABLED` setting, which defaults to `false`, and
 also requires the private catalog location and `controlPlane.status: active`.
-The routine poller allowlist is restricted in trusted code to twenty-four exact
+The routine poller allowlist is restricted in trusted code to twenty-five exact
 implementation/repository pairs: `project-test-platform`,
 `project-game-platform-sdk`, `Game-Planetary-Survey`, `curiouspathway`,
-`game-math-detective`, `game-motion-lab`, `game-fraction-match`, `project-portfolio-graph`,
+`game-math-detective`, `game-motion-lab`, `game-ecosystem-rescue`, `game-fraction-match`, `project-portfolio-graph`,
 `project-vercel-api`, `project-unity-api`, `project-jenkins`,
 `project-setness-consulting`, `project-github-api`, `project-investment-council`,
 `project-supabase-api`, `project-rive-api`, `game-signal-garden`, `project-jira-platform`, `project-jira-api`, `project-blender-api`,
