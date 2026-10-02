@@ -140,5 +140,6 @@
     "on_stale_head": "blocked",
     "max_head_age_seconds": 3600
   },
-  "max_execution_seconds": 1800
+  "max_execution_seconds": 1800,
+  "platform_version": "0.1.0.dev0"
 }
