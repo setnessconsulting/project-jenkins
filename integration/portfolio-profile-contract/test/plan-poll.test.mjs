@@ -398,7 +398,9 @@ test('routine dispatch implementation and repository lists match the explicit re
 
 test('routine polling stays within the explicit sixteen-repository portfolio-dispatch allowlist', () => {
   const selected = ROUTINE_DISPATCH_PROFILE_PAIRS.map(({ repository: target, implementationId }, index) => ({
-    id: `focus-${index}`,
+    id: implementationId === 'node24-game-fraction-match-full-ci-v1'
+      ? 'game-fraction-match-node24-full-ci'
+      : `focus-${index}`,
     implementationId,
     status: 'shadow',
     repositories: [target],
