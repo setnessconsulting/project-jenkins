@@ -570,6 +570,52 @@ test('resolves the Rive API Node 22 verification matrix leg', () => {
   rejectsCode(() => resolveRive(), 'runtime-mismatch');
 });
 
+test('resolves the Jira Platform Node 22.14 API job on its disposable worker', () => {
+  const input = catalog();
+  const implementationId = 'node2214-jira-platform-api-v1';
+  const profileId = 'project-jira-platform-node2214-api';
+  const targetRepository = 'setnessconsulting/project-jira-platform';
+  input.approvedImplementations.push(implementationId);
+  input.profiles[0].id = profileId;
+  input.profiles[0].implementationId = implementationId;
+  input.profiles[0].repositories = [targetRepository];
+  input.profiles[0].requiredNodeVersion = '22.14.0';
+  delete input.profiles[0].requiredPythonVersion;
+  const resolveJiraPlatform = () => resolve(input, {
+    profileId,
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  });
+
+  const plan = resolveJiraPlatform();
+  assert.equal(plan.profileId, profileId);
+  assert.equal(plan.repository, targetRepository);
+  assert.equal(plan.agentClass, 'setness-node22-14-disposable-ephemeral');
+  assert.equal(plan.nodeVersion, '22.14.0');
+  assert.equal(plan.npmVersion, '10.9.2');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['npm', '--prefix', 'packages/jira-api', 'ci'],
+    ['npm', '--prefix', 'packages/jira-api', 'run', 'verify'],
+    ['npm', '--prefix', 'packages/jira-api', 'run', 'verify:clean-checkout'],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes(implementationId), true);
+  assert.equal(ROUTINE_DISPATCH_PROFILE_PAIRS.some(({ implementationId: admitted, repository }) =>
+    admitted === implementationId && repository === targetRepository), true);
+
+  const mispairedRepository = structuredClone(input);
+  mispairedRepository.profiles[0].repositories = ['setnessconsulting/project-test-platform'];
+  rejectsCode(() => validateProfileCatalog(mispairedRepository), 'implementation-repository-mismatch');
+  const mispairedProfile = structuredClone(input);
+  mispairedProfile.profiles[0].id = 'project-jira-platform-node22';
+  rejectsCode(() => validateProfileCatalog(mispairedProfile), 'implementation-profile-mismatch');
+  input.profiles[0].requiredNodeVersion = '22.14.1';
+  rejectsCode(() => resolveJiraPlatform(), 'runtime-mismatch');
+});
+
 test('resolves the Python 3.12 Test Platform workflow on its exactly pinned agent', () => {
   const input = catalog();
   input.approvedImplementations.push('python312-test-platform-v1');
