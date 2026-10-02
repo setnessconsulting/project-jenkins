@@ -106,6 +106,19 @@ it does not mean a private profile is enabled, qualified, or authoritative:
   Actions, and the workflow's `workflow_dispatch` trigger remains intact.
   This implementation alone does not enable a private profile, qualify the
   lane, or change Actions authority.
+- `node24-game-math-detective-static-v1` maps the credential-free static part
+  of `game-math-detective`'s verification workflow. It runs `npm ci`,
+  typecheck, lint, unit tests, the standalone boundary guard, and the non-root
+  build-base check on Node 24.21.0. The Chromium install, Phaser renderer,
+  accessibility, and browser E2E lanes remain in Actions because they require
+  the repository's browser runtime and artifact behavior. Actions remains
+  authoritative and the profile is shadow-only at 0/4.
+- `node24-game-motion-lab-static-v1` maps the credential-free static part of
+  `game-motion-lab`'s `verify` workflow. It runs the contract and foundation
+  checks, typecheck, lint, unit tests, build, release-manifest readback, and
+  bundle-budget check on Node 24.21.0. Playwright browser lanes, nested host
+  verification, Lighthouse capture, and performance artifact upload remain in
+  Actions. Actions remains authoritative and the profile is shadow-only at 0/4.
 - `node24-game-fraction-match-full-ci-v1` is bound to the exact profile
   `game-fraction-match-node24-full-ci` and repository
   `setnessconsulting/game-fraction-match`. It runs the complete Linux verify
@@ -255,10 +268,10 @@ credentials store is never used for checkout tokens.
 The poller is opt-in through the ignored local
 `JENKINS_PORTFOLIO_PR_POLL_ENABLED` setting, which defaults to `false`, and
 also requires the private catalog location and `controlPlane.status: active`.
-The routine poller allowlist is restricted in trusted code to twenty-two exact
+The routine poller allowlist is restricted in trusted code to twenty-four exact
 implementation/repository pairs: `project-test-platform`,
 `project-game-platform-sdk`, `Game-Planetary-Survey`, `curiouspathway`,
-`game-fraction-match`, `project-portfolio-graph`,
+`game-math-detective`, `game-motion-lab`, `game-fraction-match`, `project-portfolio-graph`,
 `project-vercel-api`, `project-unity-api`, `project-jenkins`,
 `project-setness-consulting`, `project-github-api`, `project-investment-council`,
 `project-supabase-api`, `project-rive-api`, `game-signal-garden`, `project-jira-platform`, `project-jira-api`, `project-blender-api`,
