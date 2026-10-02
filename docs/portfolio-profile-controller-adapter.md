@@ -80,7 +80,8 @@ clearing configuration cannot leave an older dispatcher runnable.
 The central routine-poller allowlist is an explicit set of implementation and
 repository pairs. It includes the centrally implemented lanes documented in
 `portfolio-profile-contract.md`, including the credential-free Investment
-Council Node 22 lane, and now contains seventeen exact pairs in total. The
+Council Node 22 lane and the Jira Admin Python 3.12 lane, and now contains
+eighteen exact pairs in total. The
 Game Maker pair uses the existing `project-game-maker-python312` profile and
 fixed implementation to run both Python 3.11.17 and 3.12.14 command sequences
 on a one-build, unprivileged dual-runtime agent. The image source hashes and

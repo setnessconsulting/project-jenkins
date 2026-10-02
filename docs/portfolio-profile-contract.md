@@ -50,6 +50,14 @@ Python 3.12.14 agent and centrally owned command vectors to install pinned
 pull-request job from the repository's primary workflow; its self-hosted,
 scheduled, release, and manual workflows remain in Actions.
 
+The `python312-jira-admin-uv-v1` implementation uses that same dedicated
+Python 3.12.14 agent to install pinned `uv==0.11.17`, sync the locked
+development extra, run the repository's tests and compile check, verify the
+environment, audit dependencies, scan for secrets, and verify a clean
+checkout. It maps only the credential-free `project-jira-admin` CI job;
+Actions keeps the required `test` check, path filters, push coverage, and
+fallback authority.
+
 Four additional first-wave implementations—`python312-blender-api-v1`,
 `python312-fmod-api-v1`, `python312-context-file-maker-v1`, and
 `python312-cpa-ai-pack-v1`—use the dedicated Python 3.12.14 agent and fixed
@@ -121,6 +129,11 @@ it does not mean a private profile is enabled, qualified, or authoritative:
   uploads, same-repository owner-only author policy, and deployment controls
   unchanged. No cutover or CI-savings claim is made, and the profile remains
   at 0/4 exact-SHA qualification cases.
+- `python312-jira-admin-uv-v1` runs `project-jira-admin`'s locked Python 3.12
+  verification sequence on the disposable Python agent. It does not read
+  Jira credentials, call the live Jira adapter, mutate Jira, or deploy; the
+  repository's required Actions `test` check and push/PR path filters remain
+  authoritative.
 - `python312-portfolio-graph-uv-v1` installs pinned `uv==0.11.17`, syncs the
   lockfile, and runs the verification script and CLI checks on Python 3.12.14.
   It covers only the Ubuntu/Python 3.12 cell of the existing 2-by-2 OS/runtime
@@ -215,13 +228,13 @@ credentials store is never used for checkout tokens.
 The poller is opt-in through the ignored local
 `JENKINS_PORTFOLIO_PR_POLL_ENABLED` setting, which defaults to `false`, and
 also requires the private catalog location and `controlPlane.status: active`.
-The routine poller allowlist is restricted in trusted code to seventeen exact
+The routine poller allowlist is restricted in trusted code to eighteen exact
 implementation/repository pairs: `project-test-platform`,
 `project-game-platform-sdk`, `Game-Planetary-Survey`, `curiouspathway`,
 `game-fraction-match`, `project-portfolio-graph`,
 `project-vercel-api`, `project-unity-api`, `project-jenkins`,
 `project-setness-consulting`, `project-github-api`, `project-investment-council`,
-`project-jira-api`, `project-blender-api`,
+`project-jira-api`, `project-blender-api`, `project-jira-admin`,
 `project-cloudflare-api`, `project-fmod-api`, and `project-game-maker`. The
 Jira API pair uses the centrally fixed Node 22.14 clean-checkout commands; its
 Actions verification check and manual token-backed fallback remain unchanged.
