@@ -1298,6 +1298,11 @@ foreach ($portfolioGuard in @(
     "Object.freeze(['npm', '--prefix', 'plugin', 'run', 'build'])",
     "Object.freeze(['npm', '--prefix', 'plugin', 'run', 'typecheck'])",
     "Object.freeze(['npm', '--prefix', 'plugin', 'test'])",
+    "'node24-game-number-line-jumper-static-v1'",
+    "'game-number-line-jumper-node24-static'",
+    "Object.freeze(['npm', 'run', 'build:host-test'])",
+    "Object.freeze(['npm', 'run', 'check:ip'])",
+    "Object.freeze(['npm', 'run', 'check:bundle-budget'])",
     "'node24-game-fraction-match-full-ci-v1'",
     "'game-fraction-match-node24-full-ci'",
     "'setnessconsulting/game-fraction-match'",
@@ -1428,6 +1433,7 @@ foreach ($portfolioRuntimeGuard in @(
     "'node24-game-motion-lab-static-v1'",
     "'node24-game-ecosystem-rescue-static-v1'",
     "'node24-game-weather-command-static-v1'",
+    "'node24-game-number-line-jumper-static-v1'",
     "'node2214-figma-plugin-static-v1'",
     "'node24-game-fraction-match-full-ci-v1'",
     "'node24-curiouspathway-pilot-v1'",
@@ -1631,6 +1637,8 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumer.Contains("'node24-game-motion-lab-static-v1'") -or
     -not $portfolioConsumer.Contains("'node24-game-ecosystem-rescue-static-v1'") -or
     -not $portfolioConsumer.Contains("'node24-game-weather-command-static-v1'") -or
+    -not $portfolioConsumer.Contains("'node24-game-number-line-jumper-static-v1'") -or
+    -not $portfolioConsumer.Contains("setnessconsulting/game-number-line-jumper") -or
     -not $portfolioConsumer.Contains("'node2214-figma-plugin-static-v1'") -or
     -not $portfolioConsumer.Contains("setnessconsulting/project-figma-api") -or
     -not $portfolioConsumer.Contains("'node2214-consulting-dashboard-static-v1'") -or
@@ -1653,7 +1661,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumerTests.Contains('resolves both Game Maker Python matrix legs on its exact existing profile and repository') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check dispatches only the owner same-repository shadow head') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check rejects fork, outside-author, draft, closed, mismatched-base, and planned cases') -or
-    -not $portfolioPollerTests.Contains('routine polling stays within the explicit twenty-eight-repository portfolio-dispatch allowlist') -or
+    -not $portfolioPollerTests.Contains('routine polling stays within the explicit twenty-nine-repository portfolio-dispatch allowlist') -or
     -not $portfolioPollerCliTests.Contains('planner fails closed on malformed input, oversized data, and caller arguments') -or
     -not $portfolioAdapterDocs.Contains('JENKINS_PORTFOLIO_PR_POLL_ENABLED=true') -or
     -not $portfolioAdapterDocs.Contains('queues one') -or
