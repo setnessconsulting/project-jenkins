@@ -1239,6 +1239,11 @@ foreach ($portfolioGuard in @(
     "npmVersion: '10.9.9'",
     "'node22-github-api-foundation-v1'",
     "Object.freeze(['npm', 'ci', '--ignore-scripts'])",
+    "'node22-investment-council-v1'",
+    "Object.freeze(['node', 'scripts/council.mjs', 'check'])",
+    "Object.freeze(['node', 'scripts/council.mjs', 'route', '--mode', 'default'])",
+    "Object.freeze(['node', '--test', 'tests/**/*.test.mjs'])",
+    "Object.freeze(['node', 'scripts/benchmark.mjs', '--smoke'])",
     "'jenkins-repository-contract'",
     "integration/portfolio-profile-contract/test/consumer.test.mjs",
     "Object.freeze(['node', '--test', 'integration/test-platform-contract/test/adapter.test.mjs'])",
@@ -1312,10 +1317,12 @@ foreach ($portfolioGuard in @(
     "Object.freeze(['npm', 'ci'])",
     "Object.freeze(['npm', 'run', 'maintenance'])",
     'const FIXED_IMPLEMENTATION_REPOSITORIES = Object.freeze({',
+    "'node22-investment-council-v1': 'setnessconsulting/project-investment-council'",
     "'node24-game-fraction-match-full-ci-v1': 'setnessconsulting/game-fraction-match'",
     "'python312-game-maker-v1': 'setnessconsulting/project-game-maker'",
     "reject('implementation-repository-mismatch',",
     'const FIXED_IMPLEMENTATION_PROFILE_IDS = Object.freeze({',
+    "'node22-investment-council-v1': 'project-investment-council-node22'",
     "'node24-game-fraction-match-full-ci-v1': 'game-fraction-match-node24-full-ci'",
     "'python312-game-maker-v1': 'project-game-maker-python312'",
     "reject('implementation-profile-mismatch',",
@@ -1372,6 +1379,7 @@ foreach ($portfolioRuntimeGuard in @(
     "'node2214-vercel-api-gitleaks-v1'",
     "'node2214-unity-api-maintenance-v1'",
     "'node22-github-api-foundation-v1'",
+    "'node22-investment-council-v1'",
     "!(resolvedAgentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'setness-game-maker-python-matrix-ephemeral', 'secondary-node24-playwright-ephemeral'])",
     'resolved.pythonVersion.toString() == profile.requiredPythonVersion?.toString()',
     'env.PORTFOLIO_NODE_VERSION = resolved.nodeVersion?.toString() ?:',
@@ -1542,6 +1550,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumer.Contains("'jenkins-repository-contract'") -or
     -not $portfolioConsumer.Contains("'node2214-vercel-api-gitleaks-v1'") -or
     -not $portfolioConsumer.Contains("'node22-verify-clean-checkout-v1'") -or
+    -not $portfolioConsumer.Contains("'node22-investment-council-v1'") -or
     -not $portfolioConsumer.Contains("'node24-game-planetary-survey-v1'") -or
     -not $portfolioConsumer.Contains("'node24-game-fraction-match-full-ci-v1'") -or
     -not $portfolioConsumer.Contains("setnessconsulting/game-fraction-match") -or
@@ -1562,7 +1571,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumerTests.Contains('resolves both Game Maker Python matrix legs on its exact existing profile and repository') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check dispatches only the owner same-repository shadow head') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check rejects fork, outside-author, draft, closed, mismatched-base, and planned cases') -or
-    -not $portfolioPollerTests.Contains('routine polling stays within the explicit sixteen-repository portfolio-dispatch allowlist') -or
+    -not $portfolioPollerTests.Contains('routine polling stays within the explicit seventeen-repository portfolio-dispatch allowlist') -or
     -not $portfolioPollerCliTests.Contains('planner fails closed on malformed input, oversized data, and caller arguments') -or
     -not $portfolioAdapterDocs.Contains('JENKINS_PORTFOLIO_PR_POLL_ENABLED=true') -or
     -not $portfolioAdapterDocs.Contains('queues one') -or
@@ -1592,6 +1601,7 @@ if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
     -not $portfolioConsumerTests.Contains('resolves Unity API maintenance on the isolated Node 22.14 disposable agent') -or
     -not $portfolioConsumerTests.Contains('implementation-repository-mismatch') -or
     -not $portfolioConsumerTests.Contains('resolves the GitHub API foundation on the no-socket Node 22.23 profile') -or
+    -not $portfolioConsumerTests.Contains('resolves the Investment Council credential-free Node 22 workflow') -or
     -not $portfolioConsumerTests.Contains('rejects qualified and fork claims without full evidence') -or
     -not $portfolioCli.Contains('readInput()') -or
     -not $portfolioCli.Contains('MAX_REQUEST_BYTES = 1024 * 1024') -or

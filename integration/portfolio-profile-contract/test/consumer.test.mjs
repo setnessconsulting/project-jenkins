@@ -434,6 +434,52 @@ test('resolves the GitHub API foundation on the no-socket Node 22.23 profile', (
   assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes('node22-github-api-foundation-v1'), true);
 });
 
+test('resolves the Investment Council credential-free Node 22 workflow', () => {
+  const input = catalog();
+  const implementationId = 'node22-investment-council-v1';
+  const targetRepository = 'setnessconsulting/project-investment-council';
+  input.approvedImplementations.push(implementationId);
+  input.profiles[0].id = 'project-investment-council-node22';
+  input.profiles[0].implementationId = implementationId;
+  input.profiles[0].repositories = [targetRepository];
+  input.profiles[0].requiredNodeVersion = '22.23.3';
+
+  const plan = resolve(input, {
+    profileId: 'project-investment-council-node22',
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  });
+  assert.equal(plan.agentClass, 'setness-ephemeral');
+  assert.equal(plan.nodeVersion, '22.23.3');
+  assert.equal(plan.npmVersion, '10.9.9');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['node', 'scripts/council.mjs', 'check'],
+    ['node', 'scripts/council.mjs', 'route', '--mode', 'default'],
+    ['node', '--test', 'tests/**/*.test.mjs'],
+    ['node', 'scripts/benchmark.mjs', '--smoke'],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes(implementationId), true);
+  assert.equal(ROUTINE_DISPATCH_PROFILE_PAIRS.some(({ implementationId: admitted, repository }) =>
+    admitted === implementationId && repository === targetRepository), true);
+
+  const mispaired = structuredClone(input);
+  mispaired.profiles[0].repositories = ['setnessconsulting/project-test-platform'];
+  rejectsCode(() => validateProfileCatalog(mispaired), 'implementation-repository-mismatch');
+  input.profiles[0].requiredNodeVersion = '22.23.2';
+  rejectsCode(() => resolve(input, {
+    profileId: 'project-investment-council-node22',
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  }), 'runtime-mismatch');
+});
+
 test('resolves the Python 3.12 Test Platform workflow on its exactly pinned agent', () => {
   const input = catalog();
   input.approvedImplementations.push('python312-test-platform-v1');

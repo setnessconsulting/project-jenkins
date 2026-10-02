@@ -78,9 +78,9 @@ repository is provided through ignored local runtime configuration. The old
 root-level job name is explicitly replaced by a disabled deprecation stub, so
 clearing configuration cannot leave an older dispatcher runnable.
 The central routine-poller allowlist is an explicit set of implementation and
-repository pairs. It includes the twelve centrally implemented lanes documented
-in `portfolio-profile-contract.md` plus four Python repository pairs (Blender,
-Cloudflare API, FMOD API, and Game Maker), sixteen exact pairs in total. The
+repository pairs. It includes the centrally implemented lanes documented in
+`portfolio-profile-contract.md`, including the credential-free Investment
+Council Node 22 lane, and now contains seventeen exact pairs in total. The
 Game Maker pair uses the existing `project-game-maker-python312` profile and
 fixed implementation to run both Python 3.11.17 and 3.12.14 command sequences
 on a one-build, unprivileged dual-runtime agent. The image source hashes and
