@@ -386,6 +386,51 @@ test('resolves the Weather Command Node 24 static lane for its exact repository'
   }), 'runtime-mismatch');
 });
 
+test('resolves the Figma API plugin Node 22.14 static lane for its exact repository', () => {
+  const input = catalog();
+  const implementationId = 'node2214-figma-plugin-static-v1';
+  const profileId = 'project-figma-api-node2214-plugin-static';
+  const targetRepository = 'setnessconsulting/project-figma-api';
+  input.approvedImplementations.push(implementationId);
+  input.profiles[0].id = profileId;
+  input.profiles[0].implementationId = implementationId;
+  input.profiles[0].repositories = [targetRepository];
+  input.profiles[0].requiredNodeVersion = '22.14.0';
+  const plan = resolve(input, {
+    profileId,
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  });
+
+  assert.equal(plan.profileId, profileId);
+  assert.equal(plan.repository, targetRepository);
+  assert.equal(plan.agentClass, 'setness-node22-14-disposable-ephemeral');
+  assert.equal(plan.nodeVersion, '22.14.0');
+  assert.equal(plan.npmVersion, '10.9.2');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['npm', '--prefix', 'plugin', 'ci'],
+    ['npm', '--prefix', 'plugin', 'run', 'build'],
+    ['npm', '--prefix', 'plugin', 'run', 'typecheck'],
+    ['npm', '--prefix', 'plugin', 'test'],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_PROFILE_PAIRS.some(({ implementationId: admitted, repository }) =>
+    admitted === implementationId && repository === targetRepository), true);
+
+  input.profiles[0].requiredNodeVersion = '22.15.0';
+  rejectsCode(() => resolve(input, {
+    profileId,
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  }), 'runtime-mismatch');
+});
+
 test('resolves the exact Fraction Match full CI profile and ordered browser lane', () => {
   const input = catalog();
   const implementationId = 'node24-game-fraction-match-full-ci-v1';
