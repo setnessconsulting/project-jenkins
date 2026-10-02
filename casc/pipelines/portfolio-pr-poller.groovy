@@ -16,7 +16,7 @@ def portfolioPollAdapter = '/usr/share/jenkins/portfolio-profile-contract/src/pl
 // scripts/verify-pipeline-contract.ps1 keeps this list in step with plugins.txt.
 def portfolioPollRequiredPlugins = ['pipeline-build-step', 'github-checks', 'workflow-cps', 'workflow-basic-steps', 'workflow-durable-task-step', 'workflow-job', 'workflow-scm-step', 'github-branch-source', 'docker-plugin']
 def portfolioPollRequiredStepSymbols = ['build', 'withChecks', 'publishChecks', 'checkout', 'node', 'sh', 'writeFile', 'readFile', 'timeout', 'echo', 'error']
-def portfolioPollRequiredAgentClasses = ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral']
+def portfolioPollRequiredAgentClasses = ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'setness-game-maker-python-matrix-ephemeral', 'secondary-node24-playwright-ephemeral']
 
 // Fail-closed capability preflight. Returns a loud message naming every missing
 // capability, or null when the dispatch path can run. It reads only Jenkins

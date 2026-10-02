@@ -37,6 +37,7 @@ agent_images=(
   'jenkins-pilot-agent:setness-web-ci-node22-pwsh-7.6.6'
   'jenkins-pilot-agent:node-24.21.0'
   'jenkins-pilot-agent:python-3.12.14'
+  'jenkins-pilot-agent:game-maker-python-3.11.17-3.12.14'
   'jenkins-pilot-agent:node-22.23.3-playwright-1.62.1'
   'jenkins-pilot-agent:node-24.21.0-playwright-1.62.1'
 )

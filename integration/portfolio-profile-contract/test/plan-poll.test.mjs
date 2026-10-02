@@ -400,7 +400,9 @@ test('routine polling stays within the explicit sixteen-repository portfolio-dis
   const selected = ROUTINE_DISPATCH_PROFILE_PAIRS.map(({ repository: target, implementationId }, index) => ({
     id: implementationId === 'node24-game-fraction-match-full-ci-v1'
       ? 'game-fraction-match-node24-full-ci'
-      : `focus-${index}`,
+      : implementationId === 'python312-game-maker-v1'
+        ? 'project-game-maker-python312'
+        : `focus-${index}`,
     implementationId,
     status: 'shadow',
     repositories: [target],

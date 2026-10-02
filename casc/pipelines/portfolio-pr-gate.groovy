@@ -489,6 +489,7 @@ pipeline {
                     ])
                     boolean hasNodeRuntime = resolved.nodeVersion?.toString() ==~ /\d+\.\d+\.\d+/
                     boolean hasPythonRuntime = resolved.pythonVersion?.toString() ==~ /\d+\.\d+\.\d+/
+                    boolean hasAdditionalPythonRuntime = resolved.additionalPythonVersion?.toString() ==~ /\d+\.\d+\.\d+/
                     boolean nodeRuntimeMatches = hasNodeRuntime &&
                         resolved.nodeVersion.toString() == profile.requiredNodeVersion?.toString() &&
                         profile.requiredPythonVersion == null
@@ -502,8 +503,10 @@ pipeline {
                         resolved.requiredCheck != 'jenkins-pr-gate' ||
                         hasNodeRuntime == hasPythonRuntime ||
                         !(nodeRuntimeMatches || pythonRuntimeMatches) ||
+                        (resolved.additionalPythonVersion != null &&
+                            (!hasAdditionalPythonRuntime || !pythonRuntimeMatches || resolvedAgentClass != 'setness-game-maker-python-matrix-ephemeral')) ||
                         (resolved.npmVersion != null && !(resolved.npmVersion.toString() ==~ /\d+\.\d+\.\d+/)) ||
-                        !(resolvedAgentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral']) ||
+                        !(resolvedAgentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'setness-game-maker-python-matrix-ephemeral', 'secondary-node24-playwright-ephemeral']) ||
                         !(resolved.commands instanceof List) || resolved.commands.isEmpty()) {
                         error('The centrally trusted resolver returned a plan outside the controller contract; no checkout ran.')
                     }
@@ -515,6 +518,7 @@ pipeline {
                     env.PORTFOLIO_AGENT_CLASS = resolvedAgentClass
                     env.PORTFOLIO_NODE_VERSION = resolved.nodeVersion?.toString() ?: ''
                     env.PORTFOLIO_PYTHON_VERSION = resolved.pythonVersion?.toString() ?: ''
+                    env.PORTFOLIO_ADDITIONAL_PYTHON_VERSION = resolved.additionalPythonVersion?.toString() ?: ''
                     env.PORTFOLIO_NPM_VERSION = resolved.npmVersion?.toString() ?: ''
                     env.PORTFOLIO_COMMANDS_JSON = groovy.json.JsonOutput.toJson(resolved.commands)
                     env.PORTFOLIO_STATE = 'AUTHORIZED'
@@ -590,6 +594,9 @@ pipeline {
                             } else if (env.PORTFOLIO_PYTHON_VERSION?.trim()) {
                                 runtimeEnvironment.add("EXPECTED_PYTHON_VERSION=${env.PORTFOLIO_PYTHON_VERSION}")
                             }
+                            if (env.PORTFOLIO_ADDITIONAL_PYTHON_VERSION?.trim()) {
+                                runtimeEnvironment.add("EXPECTED_ADDITIONAL_PYTHON_VERSION=${env.PORTFOLIO_ADDITIONAL_PYTHON_VERSION}")
+                            }
                             withEnv(runtimeEnvironment) {
                                 sh '''#!/usr/bin/env bash
 set -euo pipefail
@@ -602,6 +609,9 @@ elif [ -n "${EXPECTED_PYTHON_VERSION:-}" ]; then
   test "$(python --version)" = "Python $EXPECTED_PYTHON_VERSION"
 else
   exit 1
+fi
+if [ -n "${EXPECTED_ADDITIONAL_PYTHON_VERSION:-}" ]; then
+  test "$(python3.11 --version)" = "Python $EXPECTED_ADDITIONAL_PYTHON_VERSION"
 fi
 '''
                             }

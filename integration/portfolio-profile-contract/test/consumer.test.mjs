@@ -541,21 +541,6 @@ const python312FirstWaveImplementations = [
     ['python', '-m', 'pytest', '-q'],
     ['python', '-m', 'build'],
   ]],
-  ['python312-game-maker-v1', [
-    ['python', '-m', 'pip', 'install', '--upgrade', 'pip'],
-    ['python', '-m', 'pip', 'install', '-e', '.[dev]'],
-    ['python', '-m', 'ruff', 'check', '.'],
-    ['python', '-m', 'mypy', 'src'],
-    ['python', '-m', 'pytest', '-q'],
-    ['python', '-m', 'game_maker', '--version'],
-    ['python', '-m', 'game_maker', '--help'],
-    ['python', '-m', 'game_maker', 'doctor'],
-    ['python', '-m', 'game_maker', 'status'],
-    [
-      'python', '-c',
-      "import subprocess, sys; result = subprocess.run(['git', 'status', '--porcelain'], check=True, capture_output=True, text=True); print(result.stdout, end=''); sys.exit(1 if result.stdout else 0)",
-    ],
-  ]],
   ['python312-context-file-maker-v1', [
     ['python', '-m', 'pip', 'install', 'pytest', 'jsonschema'],
     ['python', '-m', 'pytest', '-q'],
@@ -578,6 +563,72 @@ const routinePython312Implementations = new Set([
   'python312-fmod-api-v1',
   'python312-game-maker-v1',
 ]);
+
+test('resolves both Game Maker Python matrix legs on its exact existing profile and repository', () => {
+  const input = catalog();
+  const implementationId = 'python312-game-maker-v1';
+  const profileId = 'project-game-maker-python312';
+  const targetRepository = 'setnessconsulting/project-game-maker';
+  const cleanWorkingTree = "import subprocess, sys; result = subprocess.run(['git', 'status', '--porcelain'], check=True, capture_output=True, text=True); print(result.stdout, end=''); sys.exit(1 if result.stdout else 0)";
+  input.approvedImplementations.push(implementationId);
+  input.profiles[0].id = profileId;
+  input.profiles[0].implementationId = implementationId;
+  input.profiles[0].repositories = [targetRepository];
+  input.profiles[0].requiredPythonVersion = '3.12.14';
+  delete input.profiles[0].requiredNodeVersion;
+  const resolveGameMaker = () => resolve(input, {
+    profileId,
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  });
+
+  const plan = resolveGameMaker();
+  assert.equal(plan.profileId, profileId);
+  assert.equal(plan.repository, targetRepository);
+  assert.equal(plan.agentClass, 'setness-game-maker-python-matrix-ephemeral');
+  assert.equal(plan.pythonVersion, '3.12.14');
+  assert.equal(plan.additionalPythonVersion, '3.11.17');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['python3.11', '-m', 'pip', 'install', '--upgrade', 'pip'],
+    ['python3.11', '-m', 'pip', 'install', '-e', '.[dev]'],
+    ['python3.11', '-m', 'ruff', 'check', '.'],
+    ['python3.11', '-m', 'mypy', 'src'],
+    ['python3.11', '-m', 'pytest', '-q'],
+    ['python3.11', '-m', 'game_maker', '--version'],
+    ['python3.11', '-m', 'game_maker', '--help'],
+    ['python3.11', '-m', 'game_maker', 'doctor'],
+    ['python3.11', '-m', 'game_maker', 'status'],
+    ['python3.11', '-c', cleanWorkingTree],
+    ['python', '-m', 'pip', 'install', '--upgrade', 'pip'],
+    ['python', '-m', 'pip', 'install', '-e', '.[dev]'],
+    ['python', '-m', 'ruff', 'check', '.'],
+    ['python', '-m', 'mypy', 'src'],
+    ['python', '-m', 'pytest', '-q'],
+    ['python', '-m', 'game_maker', '--version'],
+    ['python', '-m', 'game_maker', '--help'],
+    ['python', '-m', 'game_maker', 'doctor'],
+    ['python', '-m', 'game_maker', 'status'],
+    ['python', '-c', cleanWorkingTree],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes(implementationId), true);
+  assert.equal(ROUTINE_DISPATCH_PROFILE_PAIRS.some(({ implementationId: admitted, repository }) =>
+    admitted === implementationId && repository === targetRepository), true);
+
+  const mispairedRepository = structuredClone(input);
+  mispairedRepository.profiles[0].repositories = ['setnessconsulting/project-test-platform'];
+  rejectsCode(() => validateProfileCatalog(mispairedRepository), 'implementation-repository-mismatch');
+
+  const mispairedProfile = structuredClone(input);
+  mispairedProfile.profiles[0].id = 'project-game-maker-python311';
+  rejectsCode(() => validateProfileCatalog(mispairedProfile), 'implementation-profile-mismatch');
+
+  input.profiles[0].requiredPythonVersion = '3.12.13';
+  rejectsCode(() => resolveGameMaker(), 'runtime-mismatch');
+});
 
 for (const [implementationId, expectedCommands] of python312FirstWaveImplementations) {
   test(`resolves ${implementationId} to its fixed Python 3.12 command vector`, () => {

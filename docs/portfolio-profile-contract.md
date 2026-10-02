@@ -50,17 +50,34 @@ Python 3.12.14 agent and centrally owned command vectors to install pinned
 pull-request job from the repository's primary workflow; its self-hosted,
 scheduled, release, and manual workflows remain in Actions.
 
-The five additional first-wave implementations—`python312-blender-api-v1`,
-`python312-fmod-api-v1`, `python312-game-maker-v1`,
-`python312-context-file-maker-v1`, and `python312-cpa-ai-pack-v1`—also use the
-dedicated Python 3.12.14 agent and fixed commands from this resolver. They are
-partial supplemental shadows: Python 3.11 matrices, Windows-specific checks,
-Gitleaks, path filters, and event-specific behavior remain in Actions as
-documented in `python312-first-wave-remaining-2026-09-30.md`. The trusted
-poller allowlist includes Blender, FMOD, and Game Maker for routine shadow
-dispatch when enabled. Context File Maker and CPA AI Pack remain manual because
-the poller does not implement their Actions path filters; Context File Maker
-also has a separately conditioned Windows lane.
+Four additional first-wave implementations—`python312-blender-api-v1`,
+`python312-fmod-api-v1`, `python312-context-file-maker-v1`, and
+`python312-cpa-ai-pack-v1`—use the dedicated Python 3.12.14 agent and fixed
+commands from this resolver. Their supplemental shadows leave Python 3.11
+matrices, Windows-specific checks, Gitleaks, path filters, and event-specific
+behavior in Actions as documented in
+`python312-first-wave-remaining-2026-09-30.md`.
+
+`python312-game-maker-v1` is bound in trusted code to the exact
+`project-game-maker-python312` profile and `setnessconsulting/project-game-maker`
+repository. Its fixed plan runs the complete workflow command sequence first
+with Python 3.11.17, then with Python 3.12.14, including pip upgrade, editable
+development install, Ruff, mypy, pytest, CLI checks, and a clean-tree assertion
+for each runtime. The dedicated unprivileged image is built from the official
+Python source archives whose SHA-256 values are pinned in
+`agent/GameMakerPythonMatrix.Dockerfile`; it exposes no credentials, Docker
+socket, or controller access. The target workflow's `setup-python` selects the
+floating `3.11` patch, while this agent pins Python 3.11.17; the observed
+same-head Actions run used Python 3.11.16. That patch difference prevents a
+runtime-parity claim. Actions remains authoritative and keeps its push trigger.
+This PR adds centrally trusted code and image build support; the image must be
+built and deployed on the Jenkins VM before any actual Jenkins Game Maker run.
+The profile's qualification record remains 1/4 exact-SHA cases.
+
+The trusted poller allowlist includes Blender, FMOD, and Game Maker for routine
+shadow dispatch when enabled. Context File Maker and CPA AI Pack remain manual
+because the poller does not implement their Actions path filters; Context File
+Maker also has a separately conditioned Windows lane.
 
 The focused central implementation set includes twelve centrally trusted lanes.
 This list describes reviewed code support; it does not mean a private profile
@@ -201,14 +218,15 @@ implementation/repository pairs: `project-test-platform`,
 `project-cloudflare-api`, `project-fmod-api`, and `project-game-maker`. The
 Jira API pair uses the centrally fixed Node 22.14 clean-checkout commands; its
 Actions verification check and manual token-backed fallback remain unchanged.
-The four added Python 3.12 lanes
-are partial shadow checks: Blender's Python 3.11 matrix leg, Windows, recovery,
-secret-scan, and lock jobs remain in Actions; Cloudflare API's push, local,
-shadow, scheduled, release, and manual fallback workflows remain in Actions;
-FMOD and Game Maker retain their Actions Python 3.11 matrix legs and push
-triggers, and FMOD also retains manual dispatch. Cloudflare API `verify` remains
-its required Actions check. These pairs do not change any profile's shadow
-status or qualification count. The Jenkins repository pair
+The Python 3.12 first-wave lanes remain partial shadows: Blender's Python 3.11
+matrix leg, Windows, recovery, secret-scan, and lock jobs remain in Actions;
+Cloudflare API's push, local, shadow, scheduled, release, and manual fallback
+workflows remain in Actions; FMOD retains its Actions Python 3.11 matrix leg,
+push trigger, and manual dispatch. Game Maker's central fixed plan includes
+both Python 3.11.17 and 3.12.14, but its floating Actions 3.11 patch is not
+runtime-identical and its push trigger remains in Actions. Cloudflare API
+`verify` remains its required Actions check. These pairs do not change any
+profile's shadow status or qualification count. The Jenkins repository pair
 uses the already approved `jenkins-repository-contract` implementation; the
 poller's same-repository, non-draft, owner-only and exact-live-head checks remain
 unchanged. It checks only open, same-repository, non-draft PRs authored by

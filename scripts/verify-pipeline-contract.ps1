@@ -18,6 +18,7 @@ $node2214DisposableDockerfilePath = Join-Path $repositoryRoot 'agent/Node22.14Di
 $setnessWebCIDockerfilePath = Join-Path $repositoryRoot 'agent/SetnessWebCI.Dockerfile'
 $node24DockerfilePath = Join-Path $repositoryRoot 'agent/Node24.Dockerfile'
 $python312DockerfilePath = Join-Path $repositoryRoot 'agent/Python312.Dockerfile'
+$gameMakerPythonMatrixDockerfilePath = Join-Path $repositoryRoot 'agent/GameMakerPythonMatrix.Dockerfile'
 $playwrightDockerfilePath = Join-Path $repositoryRoot 'agent/Playwright.Dockerfile'
 $secondaryPlaywrightDockerfilePath = Join-Path $repositoryRoot 'agent/Node24Playwright.Dockerfile'
 $secondaryPipelinePath = Join-Path $repositoryRoot 'casc/pipelines/secondary-repository.groovy'
@@ -79,6 +80,7 @@ $node2214DisposableDockerfile = Get-Content -LiteralPath $node2214DisposableDock
 $setnessWebCIDockerfile = Get-Content -LiteralPath $setnessWebCIDockerfilePath -Raw
 $node24Dockerfile = Get-Content -LiteralPath $node24DockerfilePath -Raw
 $python312Dockerfile = Get-Content -LiteralPath $python312DockerfilePath -Raw
+$gameMakerPythonMatrixDockerfile = Get-Content -LiteralPath $gameMakerPythonMatrixDockerfilePath -Raw
 $playwrightDockerfile = Get-Content -LiteralPath $playwrightDockerfilePath -Raw
 $secondaryPlaywrightDockerfile = Get-Content -LiteralPath $secondaryPlaywrightDockerfilePath -Raw
 $secondaryPipeline = Get-Content -LiteralPath $secondaryPipelinePath -Raw
@@ -406,8 +408,8 @@ $oneBuildTemplateCapCount = [regex]::Matches(
     '(?m)^[ \t]+instanceCapStr: "1"$'
 ).Count
 if (-not $jenkinsConfig.Contains('containerCap: 1') -or
-    $oneBuildTemplateCapCount -ne 8 -or
-    $oneBuildRetentionStrategyCount -ne 8 -or
+    $oneBuildTemplateCapCount -ne 9 -or
+    $oneBuildRetentionStrategyCount -ne 9 -or
     $jenkinsConfig.Contains('$class: com.nirima.jenkins.plugins.docker.strategy.DockerOnceRetentionStrategy') -or
     $jenkinsConfig.Contains('dockerOnce:') -or
     -not $jenkinsConfig.Contains('idleMinutes: 0') -or
@@ -418,7 +420,7 @@ if (-not $jenkinsConfig.Contains('containerCap: 1') -or
     -not $jenkinsConfig.Contains('cpus: "4.0"') -or
     -not $jenkinsConfig.Contains('privileged: false') -or
     -not $jenkinsConfig.Contains('network: "setness-jenkins-private"')) {
-    throw 'The Docker cloud must configure eight correctly bounded one-build templates through the plugin CasC schema and provision resource-limited, unprivileged containers on its private network.'
+    throw 'The Docker cloud must configure nine correctly bounded one-build templates through the plugin CasC schema and provision resource-limited, unprivileged containers on its private network.'
 }
 if ($jenkinsConfig.Contains('permanent:') -or $jenkinsConfig.Contains('setness-linux-agent')) {
     throw 'A persistent Jenkins agent must not be configured.'
@@ -434,6 +436,8 @@ foreach ($agentContract in @(
     'image: "jenkins-pilot-agent:node-24.21.0"',
     'labelString: "setness-python312-ephemeral"',
     'image: "jenkins-pilot-agent:python-3.12.14"',
+    'labelString: "setness-game-maker-python-matrix-ephemeral"',
+    'image: "jenkins-pilot-agent:game-maker-python-3.11.17-3.12.14"',
     'labelString: "setness-e2e-ephemeral"',
     'image: "jenkins-pilot-agent:node-22.23.3-playwright-1.62.1"',
     'labelString: "secondary-node24-playwright-ephemeral"',
@@ -494,6 +498,13 @@ if (-not [regex]::IsMatch(
     -not $jenkinsConfig.Contains('memoryLimit: 4096')) {
     throw 'The pinned Python 3.12 profile must have a dedicated one-use, resource-limited Docker agent template.'
 }
+if (-not [regex]::IsMatch(
+    $jenkinsConfig,
+    '(?m)^          - name: "setness-game-maker-python-matrix-one-build"\r?\n            labelString: "setness-game-maker-python-matrix-ephemeral"$'
+) -or -not $jenkinsConfig.Contains('image: "jenkins-pilot-agent:game-maker-python-3.11.17-3.12.14"') -or
+    -not $jenkinsConfig.Contains('memoryLimit: 4096')) {
+    throw 'The Game Maker matrix profile must have a dedicated one-use, resource-limited Docker agent template.'
+}
 
 # The guest Docker socket belongs to the controller alone (Compose) because the
 # Docker cloud needs it to create one-use agents. It must never reach an agent:
@@ -510,7 +521,8 @@ if ($dockerSockMountCount -ne 0 -or
 }
 foreach ($socketFreeAgentTemplate in @(
     'setness-node22-one-build',
-    'setness-node22-14-one-build'
+    'setness-node22-14-one-build',
+    'setness-game-maker-python-matrix-one-build'
 )) {
     $socketFreeTemplateMatch = [regex]::Match(
         $jenkinsConfig,
@@ -558,7 +570,7 @@ $portfolioRequiredCapabilities = @(
 $portfolioRequiredAgentClasses = @(
     'setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral',
     'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral',
-    'secondary-node24-playwright-ephemeral'
+    'setness-game-maker-python-matrix-ephemeral', 'secondary-node24-playwright-ephemeral'
 )
 foreach ($requiredCapability in $portfolioRequiredCapabilities) {
     if (-not $portfolioPollerPipeline.Contains("'$requiredCapability'") -or
@@ -680,6 +692,19 @@ if (-not $python312Dockerfile.Contains('ARG PYTHON_VERSION=3.12.14') -or
     $python312Dockerfile.Contains('GITHUB_APP')) {
     throw 'The Python 3.12 agent must pin and verify the official source runtime, remain unprivileged, and contain no controller or credential access.'
 }
+if (-not $gameMakerPythonMatrixDockerfile.Contains('ARG PYTHON311_VERSION=3.11.17') -or
+    -not $gameMakerPythonMatrixDockerfile.Contains('ARG PYTHON311_SOURCE_SHA256=bfb74ad39efae27cda510f134ab408e00f9992c56851cfc0b1cdb5646da11599') -or
+    -not $gameMakerPythonMatrixDockerfile.Contains('ARG PYTHON312_VERSION=3.12.14') -or
+    -not $gameMakerPythonMatrixDockerfile.Contains('5c8462af5790baf43a321a1559dbe0db06d1be4300fb85fb53c40060668e548a') -or
+    -not $gameMakerPythonMatrixDockerfile.Contains('sha256sum --check --strict') -or
+    -not $gameMakerPythonMatrixDockerfile.Contains('python3.11 --version') -or
+    -not $gameMakerPythonMatrixDockerfile.Contains('python --version') -or
+    -not $gameMakerPythonMatrixDockerfile.Contains('USER jenkins') -or
+    $gameMakerPythonMatrixDockerfile.Contains('docker.sock') -or
+    $gameMakerPythonMatrixDockerfile.Contains('JENKINS_SECRET') -or
+    $gameMakerPythonMatrixDockerfile.Contains('GITHUB_APP')) {
+    throw 'The Game Maker matrix agent must pin both official source runtimes, verify their hashes and versions, remain unprivileged, and contain no controller or credential access.'
+}
 if (-not $secondaryPlaywrightDockerfile.Contains('v24.21.0') -or
     -not $secondaryPlaywrightDockerfile.Contains('sha256sum --check --strict') -or
     -not $secondaryPlaywrightDockerfile.Contains('PLAYWRIGHT_VERSION=1.62.1') -or
@@ -702,7 +727,9 @@ if (-not $compose.Contains('dockerfile: agent/Node22.14.Dockerfile') -or
     -not $compose.Contains('jenkins-pilot-agent:node-22.23.3-playwright-1.62.1') -or
     -not $compose.Contains('jenkins-pilot-agent:node-24.21.0-playwright-1.62.1') -or
     -not $compose.Contains('dockerfile: agent/Python312.Dockerfile') -or
-    -not $compose.Contains('jenkins-pilot-agent:python-3.12.14')) {
+    -not $compose.Contains('jenkins-pilot-agent:python-3.12.14') -or
+    -not $compose.Contains('dockerfile: agent/GameMakerPythonMatrix.Dockerfile') -or
+    -not $compose.Contains('jenkins-pilot-agent:game-maker-python-3.11.17-3.12.14')) {
     throw 'Compose must define the buildable pinned Node, Playwright, and Python agent profiles.'
 }
 if (-not $e2ePipeline.Contains('TARGET_SHA') -or
@@ -914,11 +941,14 @@ if (-not $vmStartScript.Contains('the controller is already running') -or
     -not $vmStartScript.Contains('there is nothing to verify')) {
     throw 'Portfolio verification must state its own install/restart exit semantics and its no-loaded-job posture.'
 }
-if (-not $vmStartScript.Contains('build controller agent-image node22-14-agent-image node22-14-disposable-agent-image setness-web-ci-agent-image node24-agent-image python312-agent-image e2e-agent-image secondary-agent-image')) {
+if (-not $vmStartScript.Contains('build controller agent-image node22-14-agent-image node22-14-disposable-agent-image setness-web-ci-agent-image node24-agent-image python312-agent-image game-maker-python-matrix-agent-image e2e-agent-image secondary-agent-image')) {
     throw 'VM installation and restart must prebuild every disposable agent profile.'
 }
 if (-not $vmStartScript.Contains("docker image inspect 'jenkins-pilot-agent:python-3.12.14'")) {
     throw 'A normal VM start must build the Python agent image if the pinned runtime is missing.'
+}
+if (-not $vmStartScript.Contains("docker image inspect 'jenkins-pilot-agent:game-maker-python-3.11.17-3.12.14'")) {
+    throw 'A normal VM start must build the Game Maker matrix agent image if either pinned runtime is missing.'
 }
 foreach ($agentImage in @(
     'jenkins-pilot-agent:node-22.23.3',
@@ -927,6 +957,7 @@ foreach ($agentImage in @(
     'jenkins-pilot-agent:setness-web-ci-node22-pwsh-7.6.6',
     'jenkins-pilot-agent:node-24.21.0',
     'jenkins-pilot-agent:python-3.12.14',
+    'jenkins-pilot-agent:game-maker-python-3.11.17-3.12.14',
     'jenkins-pilot-agent:node-22.23.3-playwright-1.62.1',
     'jenkins-pilot-agent:node-24.21.0-playwright-1.62.1'
 )) {
@@ -1282,9 +1313,11 @@ foreach ($portfolioGuard in @(
     "Object.freeze(['npm', 'run', 'maintenance'])",
     'const FIXED_IMPLEMENTATION_REPOSITORIES = Object.freeze({',
     "'node24-game-fraction-match-full-ci-v1': 'setnessconsulting/game-fraction-match'",
+    "'python312-game-maker-v1': 'setnessconsulting/project-game-maker'",
     "reject('implementation-repository-mismatch',",
     'const FIXED_IMPLEMENTATION_PROFILE_IDS = Object.freeze({',
     "'node24-game-fraction-match-full-ci-v1': 'game-fraction-match-node24-full-ci'",
+    "'python312-game-maker-v1': 'project-game-maker-python312'",
     "reject('implementation-profile-mismatch',",
     "'setnessconsulting/project-unity-api'",
     'export function validateProfileCatalog(catalog)',
@@ -1295,6 +1328,7 @@ foreach ($portfolioGuard in @(
     'if (implementation.nodeVersion)',
     'profile.requiredPythonVersion !== implementation.pythonVersion',
     'pythonVersion: implementation.pythonVersion',
+    'additionalPythonVersion: implementation.additionalPythonVersion',
     "reject('runtime-mismatch'",
     'profile.repositories.length !== 1',
     'implementation.requiredCheck',
@@ -1330,12 +1364,15 @@ foreach ($portfolioRuntimeGuard in @(
     "'python312-blender-api-v1'",
     "'python312-fmod-api-v1'",
     "'python312-game-maker-v1'",
+    'env.PORTFOLIO_ADDITIONAL_PYTHON_VERSION = resolved.additionalPythonVersion?.toString() ?:',
+    'EXPECTED_ADDITIONAL_PYTHON_VERSION=${env.PORTFOLIO_ADDITIONAL_PYTHON_VERSION}',
+    'test "$(python3.11 --version)" = "Python $EXPECTED_ADDITIONAL_PYTHON_VERSION"',
     "'python312-context-file-maker-v1'",
     "'python312-cpa-ai-pack-v1'",
     "'node2214-vercel-api-gitleaks-v1'",
     "'node2214-unity-api-maintenance-v1'",
     "'node22-github-api-foundation-v1'",
-    "!(resolvedAgentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral'])",
+    "!(resolvedAgentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'setness-game-maker-python-matrix-ephemeral', 'secondary-node24-playwright-ephemeral'])",
     'resolved.pythonVersion.toString() == profile.requiredPythonVersion?.toString()',
     'env.PORTFOLIO_NODE_VERSION = resolved.nodeVersion?.toString() ?:',
     'env.PORTFOLIO_PYTHON_VERSION = resolved.pythonVersion?.toString() ?:',
@@ -1494,6 +1531,9 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumer.Contains("'setnessconsulting/project-vercel-api'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-jenkins'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-setness-consulting'") -or
+    -not $portfolioConsumer.Contains("'setnessconsulting/project-game-maker'") -or
+    -not $portfolioConsumer.Contains("'project-game-maker-python312'") -or
+    -not $portfolioConsumer.Contains("additionalPythonVersion: '3.11.17'") -or
     -not $portfolioConsumer.Contains("'setness-web-ci-node22-v1'") -or
     -not $portfolioConsumer.Contains("'python312-blender-api-v1'") -or
     -not $portfolioConsumer.Contains("'python312-cloudflare-api-uv-v1'") -or
@@ -1519,6 +1559,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioPollerTests.Contains('polling is inert until the private control plane is explicitly active') -or
     -not $portfolioPollerTests.Contains('only centrally approved implementations are polled') -or
     -not $portfolioPollerTests.Contains('Fraction Match full CI polling binds to its exact shadow profile and repository') -or
+    -not $portfolioConsumerTests.Contains('resolves both Game Maker Python matrix legs on its exact existing profile and repository') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check dispatches only the owner same-repository shadow head') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check rejects fork, outside-author, draft, closed, mismatched-base, and planned cases') -or
     -not $portfolioPollerTests.Contains('routine polling stays within the explicit sixteen-repository portfolio-dispatch allowlist') -or
@@ -1527,6 +1568,12 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioAdapterDocs.Contains('queues one') -or
     -not $portfolioConsumerDocs.Contains('controlPlane.status: active')) {
     throw 'The opt-in portfolio poller must remain controller-only, bounded, least-permission, centrally allowlisted, and disabled by default.'
+}
+if (-not $portfolioConsumerDocs.Contains('python312-game-maker-v1') -or
+    -not $portfolioConsumerDocs.Contains('Python 3.11.17, then with Python 3.12.14') -or
+    -not $portfolioConsumerDocs.Contains('The target workflow''s `setup-python` selects the floating `3.11` patch') -or
+    -not $portfolioConsumerDocs.Contains('Actions remains authoritative')) {
+    throw 'The Game Maker matrix shadow documentation must name both pinned runtimes and retain the Actions authority boundary.'
 }
 if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
     $portfolioConsumer.Contains('export function resolveShadowExecution(catalog, profileId, headSha)') -or
