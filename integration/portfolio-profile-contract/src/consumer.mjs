@@ -112,6 +112,16 @@ export const IMPLEMENTATIONS = Object.freeze({
       Object.freeze(['npm', 'run', 'verify']),
     ]),
   }),
+  'node22-rive-api-v1': Object.freeze({
+    agentClass: 'setness-ephemeral',
+    nodeVersion: '22.23.3',
+    npmVersion: '10.9.9',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['npm', 'ci', '--omit=optional']),
+      Object.freeze(['npm', 'run', 'verify']),
+    ]),
+  }),
   'jenkins-repository-contract': Object.freeze({
     agentClass: 'setness-web-ci-node22-ephemeral',
     nodeVersion: '22.23.3',
@@ -417,6 +427,7 @@ export const ROUTINE_DISPATCH_PROFILE_PAIRS = Object.freeze([
   Object.freeze({ implementationId: 'node22-github-api-foundation-v1', repository: 'setnessconsulting/project-github-api' }),
   Object.freeze({ implementationId: 'node22-investment-council-v1', repository: 'setnessconsulting/project-investment-council' }),
   Object.freeze({ implementationId: 'node22-supabase-api-v1', repository: 'setnessconsulting/project-supabase-api' }),
+  Object.freeze({ implementationId: 'node22-rive-api-v1', repository: 'setnessconsulting/project-rive-api' }),
   Object.freeze({ implementationId: 'node22-verify-clean-checkout-v1', repository: 'setnessconsulting/project-jira-api' }),
   Object.freeze({ implementationId: 'python312-test-platform-v1', repository: 'setnessconsulting/project-test-platform' }),
   Object.freeze({ implementationId: 'python312-blender-api-v1', repository: 'setnessconsulting/project-blender-api' }),
@@ -441,6 +452,7 @@ export const ROUTINE_DISPATCH_PROFILE_PAIRS = Object.freeze([
 const FIXED_IMPLEMENTATION_REPOSITORIES = Object.freeze({
   'node22-investment-council-v1': 'setnessconsulting/project-investment-council',
   'node22-supabase-api-v1': 'setnessconsulting/project-supabase-api',
+  'node22-rive-api-v1': 'setnessconsulting/project-rive-api',
   'node2214-unity-api-maintenance-v1': 'setnessconsulting/project-unity-api',
   'node24-game-fraction-match-full-ci-v1': 'setnessconsulting/game-fraction-match',
   'python312-game-maker-v1': 'setnessconsulting/project-game-maker',
@@ -450,6 +462,7 @@ const FIXED_IMPLEMENTATION_REPOSITORIES = Object.freeze({
 const FIXED_IMPLEMENTATION_PROFILE_IDS = Object.freeze({
   'node22-investment-council-v1': 'project-investment-council-node22',
   'node22-supabase-api-v1': 'project-supabase-api-node22',
+  'node22-rive-api-v1': 'project-rive-api-node22',
   'node24-game-fraction-match-full-ci-v1': 'game-fraction-match-node24-full-ci',
   'python312-game-maker-v1': 'project-game-maker-python312',
   'python312-jira-admin-uv-v1': 'project-jira-admin-python312-uv',
@@ -463,6 +476,7 @@ const QUALIFICATION_CASES_BY_IMPLEMENTATION = Object.freeze({
   'node22-github-api-foundation-v1': 4,
   'node22-investment-council-v1': 4,
   'node22-supabase-api-v1': 4,
+  'node22-rive-api-v1': 4,
   'setness-web-ci-node22-v1': 4,
   'jenkins-repository-contract': 4,
   'setness-repository-pilot': 4,
