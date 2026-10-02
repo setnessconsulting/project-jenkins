@@ -198,6 +198,14 @@ it does not mean a private profile is enabled, qualified, or authoritative:
   promotion remain explicitly `NOT_RUN` or `NOT_READY` in the Actions workflow.
   The `main` branch has no classic protection or active rulesets at this
   readback, so this supplemental lane is shadow-only.
+- `node2214-jira-platform-api-v1` maps only the credential-free `jira-api`
+  job in `project-jira-platform`'s monorepo CI. It runs the exact
+  `npm --prefix packages/jira-api ci`, `npm --prefix packages/jira-api run
+  verify`, and `npm --prefix packages/jira-api run verify:clean-checkout`
+  commands on the disposable Node 22.14.0/npm 10.9.2 worker. The Jira Admin,
+  contract-fixture, protocol-integration, and required Actions checks remain
+  in Actions; the repository's `main` branch is protected with required
+  Actions checks, so this supplemental lane is shadow-only.
 - `jenkins-repository-contract` runs the centrally defined Node contract suites
   against the current exact PR head of `project-jenkins`: the four portfolio
   profile-contract Node test files and the Test Platform adapter test. Its
@@ -247,13 +255,13 @@ credentials store is never used for checkout tokens.
 The poller is opt-in through the ignored local
 `JENKINS_PORTFOLIO_PR_POLL_ENABLED` setting, which defaults to `false`, and
 also requires the private catalog location and `controlPlane.status: active`.
-The routine poller allowlist is restricted in trusted code to twenty-one exact
+The routine poller allowlist is restricted in trusted code to twenty-two exact
 implementation/repository pairs: `project-test-platform`,
 `project-game-platform-sdk`, `Game-Planetary-Survey`, `curiouspathway`,
 `game-fraction-match`, `project-portfolio-graph`,
 `project-vercel-api`, `project-unity-api`, `project-jenkins`,
 `project-setness-consulting`, `project-github-api`, `project-investment-council`,
-`project-supabase-api`, `project-rive-api`, `game-signal-garden`, `project-jira-api`, `project-blender-api`,
+`project-supabase-api`, `project-rive-api`, `game-signal-garden`, `project-jira-platform`, `project-jira-api`, `project-blender-api`,
 `project-jira-admin`,
 `project-cloudflare-api`, `project-fmod-api`, and `project-game-maker`. The
 Jira API pair uses the centrally fixed Node 22.14 clean-checkout commands; its

@@ -1248,6 +1248,11 @@ foreach ($portfolioGuard in @(
     "Object.freeze(['npm', 'ci', '--omit=optional'])",
     "Object.freeze(['npm', 'run', 'verify'])",
     "'node22-rive-api-v1'",
+    "'node2214-jira-platform-api-v1'",
+    "'project-jira-platform-node2214-api'",
+    "Object.freeze(['npm', '--prefix', 'packages/jira-api', 'ci'])",
+    "Object.freeze(['npm', '--prefix', 'packages/jira-api', 'run', 'verify'])",
+    "Object.freeze(['npm', '--prefix', 'packages/jira-api', 'run', 'verify:clean-checkout'])",
     "'setnessconsulting/project-rive-api'",
     "'project-rive-api-node22'",
     "'jenkins-repository-contract'",
@@ -1407,6 +1412,7 @@ foreach ($portfolioRuntimeGuard in @(
     "'node22-investment-council-v1'",
     "'node22-supabase-api-v1'",
     "'node22-rive-api-v1'",
+    "'node2214-jira-platform-api-v1'",
     "'python312-game-signal-garden-v1'",
     "!(resolvedAgentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'setness-game-maker-python-matrix-ephemeral', 'secondary-node24-playwright-ephemeral'])",
     'resolved.pythonVersion.toString() == profile.requiredPythonVersion?.toString()',
@@ -1601,7 +1607,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumerTests.Contains('resolves both Game Maker Python matrix legs on its exact existing profile and repository') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check dispatches only the owner same-repository shadow head') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check rejects fork, outside-author, draft, closed, mismatched-base, and planned cases') -or
-    -not $portfolioPollerTests.Contains('routine polling stays within the explicit twenty-one-repository portfolio-dispatch allowlist') -or
+    -not $portfolioPollerTests.Contains('routine polling stays within the explicit twenty-two-repository portfolio-dispatch allowlist') -or
     -not $portfolioPollerCliTests.Contains('planner fails closed on malformed input, oversized data, and caller arguments') -or
     -not $portfolioAdapterDocs.Contains('JENKINS_PORTFOLIO_PR_POLL_ENABLED=true') -or
     -not $portfolioAdapterDocs.Contains('queues one') -or
@@ -1634,6 +1640,7 @@ if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
     -not $portfolioConsumerTests.Contains('resolves the Investment Council credential-free Node 22 workflow') -or
     -not $portfolioConsumerTests.Contains('resolves the Supabase API Node 22 verification matrix leg') -or
     -not $portfolioConsumerTests.Contains('resolves the Rive API Node 22 verification matrix leg') -or
+    -not $portfolioConsumerTests.Contains('resolves the Jira Platform Node 22.14 API job on its disposable worker') -or
     -not $portfolioConsumerTests.Contains('resolves Game Signal Garden credential-free validators on the pinned Python 3.12 agent') -or
     -not $portfolioConsumerTests.Contains('resolves the Jira Admin locked Python 3.12 verification workflow') -or
     -not $portfolioConsumerTests.Contains('rejects qualified and fork claims without full evidence') -or
