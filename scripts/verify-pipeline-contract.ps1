@@ -1253,6 +1253,11 @@ foreach ($portfolioGuard in @(
     "Object.freeze(['npm', '--prefix', 'packages/jira-api', 'ci'])",
     "Object.freeze(['npm', '--prefix', 'packages/jira-api', 'run', 'verify'])",
     "Object.freeze(['npm', '--prefix', 'packages/jira-api', 'run', 'verify:clean-checkout'])",
+    "'node2214-consulting-dashboard-static-v1'",
+    "'project-consulting-dashboard-node2214-static'",
+    "Object.freeze(['npm', 'ci', '--no-audit', '--no-fund'])",
+    "Object.freeze(['npm', 'run', 'typecheck'])",
+    "Object.freeze(['npm', 'run', 'build'])",
     "'setnessconsulting/project-rive-api'",
     "'project-rive-api-node22'",
     "'jenkins-repository-contract'",
@@ -1433,6 +1438,7 @@ foreach ($portfolioRuntimeGuard in @(
     "'node22-supabase-api-v1'",
     "'node22-rive-api-v1'",
     "'node2214-jira-platform-api-v1'",
+    "'node2214-consulting-dashboard-static-v1'",
     "'python312-game-signal-garden-v1'",
     "!(resolvedAgentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'setness-game-maker-python-matrix-ephemeral', 'secondary-node24-playwright-ephemeral'])",
     'resolved.pythonVersion.toString() == profile.requiredPythonVersion?.toString()',
@@ -1611,6 +1617,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumer.Contains("'node24-game-math-detective-static-v1'") -or
     -not $portfolioConsumer.Contains("'node24-game-motion-lab-static-v1'") -or
     -not $portfolioConsumer.Contains("'node24-game-ecosystem-rescue-static-v1'") -or
+    -not $portfolioConsumer.Contains("'node2214-consulting-dashboard-static-v1'") -or
     -not $portfolioConsumer.Contains("'node24-game-fraction-match-full-ci-v1'") -or
     -not $portfolioConsumer.Contains("setnessconsulting/game-fraction-match") -or
     -not $portfolioConsumer.Contains("['missing', 'in_progress', 'orphaned', 'untracked', 'completed']") -or
@@ -1630,7 +1637,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumerTests.Contains('resolves both Game Maker Python matrix legs on its exact existing profile and repository') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check dispatches only the owner same-repository shadow head') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check rejects fork, outside-author, draft, closed, mismatched-base, and planned cases') -or
-    -not $portfolioPollerTests.Contains('routine polling stays within the explicit twenty-five-repository portfolio-dispatch allowlist') -or
+    -not $portfolioPollerTests.Contains('routine polling stays within the explicit twenty-six-repository portfolio-dispatch allowlist') -or
     -not $portfolioPollerCliTests.Contains('planner fails closed on malformed input, oversized data, and caller arguments') -or
     -not $portfolioAdapterDocs.Contains('JENKINS_PORTFOLIO_PR_POLL_ENABLED=true') -or
     -not $portfolioAdapterDocs.Contains('queues one') -or
