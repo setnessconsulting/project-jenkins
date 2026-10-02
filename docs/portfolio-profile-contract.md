@@ -62,7 +62,7 @@ dispatch when enabled. Context File Maker and CPA AI Pack remain manual because
 the poller does not implement their Actions path filters; Context File Maker
 also has a separately conditioned Windows lane.
 
-The focused central implementation set includes ten centrally trusted lanes.
+The focused central implementation set includes eleven centrally trusted lanes.
 This list describes reviewed code support; it does not mean a private profile
 is enabled, qualified, or authoritative:
 
@@ -97,6 +97,17 @@ is enabled, qualified, or authoritative:
   pinned Node 22.14.0/npm 10.9.2/Gitleaks 8.24.3 disposable agent with no Docker
   CLI, socket, or host mounts. Its commands match the live workflow order;
   push/manual triggers, Actions authority, and deployment behavior remain
+  unchanged.
+- `node2214-unity-api-maintenance-v1` maps only
+  `setnessconsulting/project-unity-api`'s repository-only maintenance workflow.
+  It uses the existing one-use, no-socket Node 22.14.0/npm 10.9.2 disposable
+  agent and runs the fixed `npm ci` then `npm run maintenance` command plan.
+  This partial PR shadow reports `jenkins-pr-gate`; GitHub Actions keeps all
+  workflow triggers and remains authoritative. The tag-based `release.yml`
+  workflow, including its `contents:write` publishing job, stays in Actions.
+  This central implementation neither enables nor qualifies its private
+  catalog profile, changes target protection, nor grants Jenkins release or
+  deployment credentials. The existing same-repository owner-only policy is
   unchanged.
 - `node22-verify-clean-checkout-v1` uses the same no-socket Node 22.14.0/npm
   10.9.2 image for `project-jira-api`'s `npm ci`, `npm run verify`, and
@@ -158,12 +169,12 @@ credentials store is never used for checkout tokens.
 The poller is opt-in through the ignored local
 `JENKINS_PORTFOLIO_PR_POLL_ENABLED` setting, which defaults to `false`, and
 also requires the private catalog location and `controlPlane.status: active`.
-The routine poller allowlist is restricted in trusted code to fourteen exact
+The routine poller allowlist is restricted in trusted code to fifteen exact
 implementation/repository pairs: `project-test-platform`,
 `project-game-platform-sdk`, `Game-Planetary-Survey`, `curiouspathway`,
 `project-portfolio-graph`,
-`project-vercel-api`, `project-jenkins`, `project-setness-consulting`,
-`project-github-api`, `project-jira-api`, `project-blender-api`,
+`project-vercel-api`, `project-unity-api`, `project-jenkins`,
+`project-setness-consulting`, `project-github-api`, `project-jira-api`, `project-blender-api`,
 `project-cloudflare-api`, `project-fmod-api`, and `project-game-maker`. The
 Jira API pair uses the centrally fixed Node 22.14 clean-checkout commands; its
 Actions verification check and manual token-backed fallback remain unchanged.

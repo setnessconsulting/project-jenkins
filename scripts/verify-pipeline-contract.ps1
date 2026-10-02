@@ -1262,11 +1262,19 @@ foreach ($portfolioGuard in @(
     "Object.freeze(['npm', 'run', 'lint'])",
     "Object.freeze(['node_modules/.bin/tsc', '--noEmit'])",
     "'node2214-vercel-api-gitleaks-v1'",
+    "'node2214-unity-api-maintenance-v1'",
+    "agentClass: 'setness-node22-14-disposable-ephemeral'",
+    "nodeVersion: '22.14.0'",
     "npmVersion: '10.9.2'",
     "Object.freeze(['npm', 'ci', '--ignore-scripts'])",
     "Object.freeze(['npm', 'run', 'check'])",
     "'gitleaks', 'dir', '--redact', '--exit-code', '1',",
     "'--report-format', 'sarif', '--report-path', '/tmp/gitleaks.sarif', '.'",
+    "Object.freeze(['npm', 'ci'])",
+    "Object.freeze(['npm', 'run', 'maintenance'])",
+    'const FIXED_IMPLEMENTATION_REPOSITORIES = Object.freeze({',
+    "reject('implementation-repository-mismatch',",
+    "'setnessconsulting/project-unity-api'",
     'export function validateProfileCatalog(catalog)',
     'function resolveShadowExecution(catalog, profileId, headSha)',
     'export function resolveAuthorizedShadowPullRequest(',
@@ -1312,6 +1320,7 @@ foreach ($portfolioRuntimeGuard in @(
     "'python312-context-file-maker-v1'",
     "'python312-cpa-ai-pack-v1'",
     "'node2214-vercel-api-gitleaks-v1'",
+    "'node2214-unity-api-maintenance-v1'",
     "'node22-github-api-foundation-v1'",
     "!(resolvedAgentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'secondary-node24-playwright-ephemeral'])",
     'resolved.pythonVersion.toString() == profile.requiredPythonVersion?.toString()',
@@ -1490,7 +1499,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioPollerTests.Contains('only centrally approved implementations are polled') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check dispatches only the owner same-repository shadow head') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check rejects fork, outside-author, draft, closed, mismatched-base, and planned cases') -or
-    -not $portfolioPollerTests.Contains('routine polling stays within the explicit fourteen-repository portfolio-dispatch allowlist') -or
+    -not $portfolioPollerTests.Contains('routine polling stays within the explicit fifteen-repository portfolio-dispatch allowlist') -or
     -not $portfolioPollerCliTests.Contains('planner fails closed on malformed input, oversized data, and caller arguments') -or
     -not $portfolioAdapterDocs.Contains('JENKINS_PORTFOLIO_PR_POLL_ENABLED=true') -or
     -not $portfolioAdapterDocs.Contains('queues one') -or
@@ -1508,6 +1517,8 @@ if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
     -not $portfolioConsumerTests.Contains('resolves the project-jenkins self-check on the no-socket Node 22.23 agent') -or
     -not $portfolioConsumerTests.Contains('resolves the clean-checkout workflow on the isolated Node 22.14 disposable agent') -or
     -not $portfolioConsumerTests.Contains('resolves Vercel API secret-scan and tests on the isolated Node 22.14 Gitleaks agent') -or
+    -not $portfolioConsumerTests.Contains('resolves Unity API maintenance on the isolated Node 22.14 disposable agent') -or
+    -not $portfolioConsumerTests.Contains('implementation-repository-mismatch') -or
     -not $portfolioConsumerTests.Contains('resolves the GitHub API foundation on the no-socket Node 22.23 profile') -or
     -not $portfolioConsumerTests.Contains('rejects qualified and fork claims without full evidence') -or
     -not $portfolioCli.Contains('readInput()') -or

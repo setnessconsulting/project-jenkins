@@ -310,6 +310,57 @@ test('resolves Vercel API secret-scan and tests on the isolated Node 22.14 Gitle
   rejectsCode(() => resolve(input), 'runtime-mismatch');
 });
 
+test('resolves Unity API maintenance on the isolated Node 22.14 disposable agent', () => {
+  const input = catalog();
+  const implementationId = 'node2214-unity-api-maintenance-v1';
+  const profileId = 'unity-api-node2214-maintenance';
+  const targetRepository = 'setnessconsulting/project-unity-api';
+  input.approvedImplementations.push(implementationId);
+  input.profiles[0].id = profileId;
+  input.profiles[0].implementationId = implementationId;
+  input.profiles[0].repositories = [targetRepository];
+  input.profiles[0].requiredNodeVersion = '22.14.0';
+
+  const plan = resolve(input, {
+    profileId,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+    repository: targetRepository,
+  });
+  assert.equal(plan.repository, targetRepository);
+  assert.equal(plan.profileId, profileId);
+  assert.equal(plan.agentClass, 'setness-node22-14-disposable-ephemeral');
+  assert.equal(plan.nodeVersion, '22.14.0');
+  assert.equal(plan.npmVersion, '10.9.2');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['npm', 'ci'],
+    ['npm', 'run', 'maintenance'],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_PROFILE_PAIRS.some(({ implementationId: admitted, repository }) =>
+    admitted === implementationId && repository === targetRepository), true);
+
+  const mispaired = structuredClone(input);
+  mispaired.profiles[0].repositories = ['setnessconsulting/project-unity-api-shadow'];
+  rejectsCode(() => validateProfileCatalog(mispaired), 'implementation-repository-mismatch');
+
+  const injectedCommands = structuredClone(input);
+  injectedCommands.profiles[0].commands = [['npm', 'run', 'release']];
+  rejectsCode(() => validateProfileCatalog(injectedCommands), 'unexpected-field');
+
+  input.profiles[0].requiredNodeVersion = '22.14.1';
+  rejectsCode(() => resolve(input, {
+    profileId,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+    repository: targetRepository,
+  }), 'runtime-mismatch');
+});
+
 test('resolves the GitHub API foundation on the no-socket Node 22.23 profile', () => {
   const input = catalog();
   input.approvedImplementations.push('node22-github-api-foundation-v1');
