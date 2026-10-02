@@ -62,7 +62,9 @@ dispatch when enabled. Context File Maker and CPA AI Pack remain manual because
 the poller does not implement their Actions path filters; Context File Maker
 also has a separately conditioned Windows lane.
 
-The focused shadow set includes nine centrally trusted lanes:
+The focused central implementation set includes ten centrally trusted lanes.
+This list describes reviewed code support; it does not mean a private profile
+is enabled, qualified, or authoritative:
 
 - `python312-test-platform-v1` runs the existing single Linux verification job
   on Python 3.12.14. That lane is Python-only: no agent receives the guest
@@ -72,6 +74,14 @@ The focused shadow set includes nine centrally trusted lanes:
   `npm run verify:bundle` on Node 24.21.0. It covers the repository's PR
   verification workflow; artifact upload remains an Actions-only reporting
   step.
+- `node24-game-planetary-survey-v1` runs the
+  `Game-Planetary-Survey` `verify` job's exact `npm ci` and
+  `npm run verify` commands on Node 24.21.0. It covers only the static, unit,
+  and build job in `.github/workflows/ci.yml`. The downstream three-engine
+  Playwright suites, nested host checks, and failure-artifact upload remain in
+  Actions, and the workflow's `workflow_dispatch` trigger remains intact.
+  This implementation alone does not enable a private profile, qualify the
+  lane, or change Actions authority.
 - `python312-portfolio-graph-uv-v1` installs pinned `uv==0.11.17`, syncs the
   lockfile, and runs the verification script and CLI checks on Python 3.12.14.
   It covers only the Ubuntu/Python 3.12 cell of the existing 2-by-2 OS/runtime
@@ -148,9 +158,10 @@ credentials store is never used for checkout tokens.
 The poller is opt-in through the ignored local
 `JENKINS_PORTFOLIO_PR_POLL_ENABLED` setting, which defaults to `false`, and
 also requires the private catalog location and `controlPlane.status: active`.
-The routine poller allowlist is restricted in trusted code to thirteen exact
+The routine poller allowlist is restricted in trusted code to fourteen exact
 implementation/repository pairs: `project-test-platform`,
-`project-game-platform-sdk`, `curiouspathway`, `project-portfolio-graph`,
+`project-game-platform-sdk`, `Game-Planetary-Survey`, `curiouspathway`,
+`project-portfolio-graph`,
 `project-vercel-api`, `project-jenkins`, `project-setness-consulting`,
 `project-github-api`, `project-jira-api`, `project-blender-api`,
 `project-cloudflare-api`, `project-fmod-api`, and `project-game-maker`. The

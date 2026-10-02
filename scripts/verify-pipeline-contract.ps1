@@ -1216,6 +1216,8 @@ foreach ($portfolioGuard in @(
     "nodeVersion: '24.21.0'",
     "'node24-game-platform-sdk-v1'",
     "Object.freeze(['npm', 'run', 'verify:bundle'])",
+    "'node24-game-planetary-survey-v1'",
+    "Object.freeze(['npm', 'run', 'verify'])",
     "'node24-curiouspathway-pilot-v1'",
     "agentClass: 'secondary-node24-playwright-ephemeral'",
     "Object.freeze(['npm', 'ci', '--no-audit', '--no-fund'])",
@@ -1298,6 +1300,7 @@ foreach ($portfolioRuntimeGuard in @(
     "'node22-verify-clean-checkout-v1'",
     "'jenkins-repository-contract'",
     "'node24-game-platform-sdk-v1'",
+    "'node24-game-planetary-survey-v1'",
     "'node24-curiouspathway-pilot-v1'",
     "'python312-portfolio-graph-uv-v1'",
     "'python312-test-platform-v1'",
@@ -1456,6 +1459,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumer.Contains("'setnessconsulting/project-game-maker'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-github-api'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-game-platform-sdk'") -or
+    -not $portfolioConsumer.Contains("'setnessconsulting/Game-Planetary-Survey'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/curiouspathway'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-portfolio-graph'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-jira-api'") -or
@@ -1470,6 +1474,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumer.Contains("'jenkins-repository-contract'") -or
     -not $portfolioConsumer.Contains("'node2214-vercel-api-gitleaks-v1'") -or
     -not $portfolioConsumer.Contains("'node22-verify-clean-checkout-v1'") -or
+    -not $portfolioConsumer.Contains("'node24-game-planetary-survey-v1'") -or
     -not $portfolioConsumer.Contains("['missing', 'in_progress', 'orphaned', 'untracked', 'completed']") -or
     -not $portfolioConsumer.Contains("'dispatchId'") -or
     -not $portfolioConsumer.Contains('const dispatches = dispatchCandidates.slice(0, 1)') -or
@@ -1485,7 +1490,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioPollerTests.Contains('only centrally approved implementations are polled') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check dispatches only the owner same-repository shadow head') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check rejects fork, outside-author, draft, closed, mismatched-base, and planned cases') -or
-    -not $portfolioPollerTests.Contains('routine polling stays within the explicit thirteen-repository portfolio-dispatch allowlist') -or
+    -not $portfolioPollerTests.Contains('routine polling stays within the explicit fourteen-repository portfolio-dispatch allowlist') -or
     -not $portfolioPollerCliTests.Contains('planner fails closed on malformed input, oversized data, and caller arguments') -or
     -not $portfolioAdapterDocs.Contains('JENKINS_PORTFOLIO_PR_POLL_ENABLED=true') -or
     -not $portfolioAdapterDocs.Contains('queues one') -or
