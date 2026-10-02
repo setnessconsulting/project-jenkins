@@ -179,6 +179,12 @@ it does not mean a private profile is enabled, qualified, or authoritative:
   The workflow's Ubuntu/Windows matrix remains in Actions, as do its push and
   pull-request triggers; this supplemental shadow does not access provider
   credentials, deploy, or change the repository's authority boundary.
+- `node22-supabase-api-v1` maps only the Node 22.23.3 cell of
+  `project-supabase-api`'s hosted CI matrix. It runs the exact `npm ci
+  --omit=optional` and `npm run verify` commands on the no-socket Node 22
+  worker. Node 20 and 24, the Python 3.12/3.13 matrix, and the optional
+  Windows lane remain in Actions; the repository's `master` branch has no
+  protection at this readback, so this supplemental lane is shadow-only.
 - `jenkins-repository-contract` runs the centrally defined Node contract suites
   against the current exact PR head of `project-jenkins`: the four portfolio
   profile-contract Node test files and the Test Platform adapter test. Its
@@ -228,13 +234,14 @@ credentials store is never used for checkout tokens.
 The poller is opt-in through the ignored local
 `JENKINS_PORTFOLIO_PR_POLL_ENABLED` setting, which defaults to `false`, and
 also requires the private catalog location and `controlPlane.status: active`.
-The routine poller allowlist is restricted in trusted code to eighteen exact
+The routine poller allowlist is restricted in trusted code to nineteen exact
 implementation/repository pairs: `project-test-platform`,
 `project-game-platform-sdk`, `Game-Planetary-Survey`, `curiouspathway`,
 `game-fraction-match`, `project-portfolio-graph`,
 `project-vercel-api`, `project-unity-api`, `project-jenkins`,
 `project-setness-consulting`, `project-github-api`, `project-investment-council`,
-`project-jira-api`, `project-blender-api`, `project-jira-admin`,
+`project-supabase-api`, `project-jira-api`, `project-blender-api`,
+`project-jira-admin`,
 `project-cloudflare-api`, `project-fmod-api`, and `project-game-maker`. The
 Jira API pair uses the centrally fixed Node 22.14 clean-checkout commands; its
 Actions verification check and manual token-backed fallback remain unchanged.
