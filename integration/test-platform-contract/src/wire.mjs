@@ -265,6 +265,7 @@ export function validateExecutionRequest(request, catalog) {
   }
   requireString(request.policy_version, 'request.policy_version');
   requireInteger(request.max_execution_seconds, 'request.max_execution_seconds', 1, 604800);
+  requireString(request.platform_version, 'request.platform_version');
 
   requireObject(request.head, 'request.head');
   requireString(request.head.repository, 'request.head.repository', REPOSITORY);
@@ -480,6 +481,9 @@ export function validateReceiptSubmission(submission, catalog) {
     reject('malformed-document', 'submission.execution_mode is not a known mode');
   }
   requireString(submission.generated_at, 'submission.generated_at');
+  // Echoed verbatim from the request by the adapter; the consumer compares it
+  // against the request it issued and refuses a divergent revision.
+  requireString(submission.platform_version, 'submission.platform_version');
   const outcomes = requireArray(submission.outcomes, 'submission.outcomes', 256);
   if (outcomes.length === 0) reject('malformed-document', 'submission.outcomes must not be empty');
   const seen = new Set();

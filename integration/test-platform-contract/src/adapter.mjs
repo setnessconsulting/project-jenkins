@@ -424,6 +424,9 @@ export function buildSubmission(
     evidence_origin: liveOnly ? 'live' : evidenceOrigin,
     outcomes,
     generated_at: generatedAt,
+    // Echo the exact Test Platform revision that minted the request, so the
+    // consumer can refuse evidence produced under different platform policy.
+    platform_version: request.platform_version,
   };
   validateReceiptSubmission(submission, catalog);
   return submission;
