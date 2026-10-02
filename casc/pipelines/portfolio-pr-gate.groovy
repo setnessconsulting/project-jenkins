@@ -15,6 +15,7 @@ def portfolioAdapterImplementationAllowlist = [
     'python312-context-file-maker-v1', 'python312-cpa-ai-pack-v1',
     'node2214-vercel-api-gitleaks-v1', 'node2214-unity-api-maintenance-v1',
     'node22-github-api-foundation-v1', 'node22-investment-council-v1',
+    'node22-supabase-api-v1',
     'node24-game-platform-sdk-v1', 'node24-game-planetary-survey-v1',
     'node24-game-fraction-match-full-ci-v1',
     'node24-curiouspathway-pilot-v1', 'python312-portfolio-graph-uv-v1'
