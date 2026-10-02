@@ -406,7 +406,10 @@ test('routine polling stays within the explicit fourteen-repository portfolio-di
     profiles: [...selected, outsideFocusGameAi, ...mispairedProfiles],
   };
 
-  assert.deepEqual(listRoutinePullRequestPollRepositories(catalog), [...ROUTINE_DISPATCH_REPOSITORIES].sort());
+  const expectedRepositories = [...ROUTINE_DISPATCH_REPOSITORIES].sort(
+    (left, right) => left.localeCompare(right),
+  );
+  assert.deepEqual(listRoutinePullRequestPollRepositories(catalog), expectedRepositories);
 });
 
 test('qualified profiles remain runnable after their evidence gate passes', () => {
