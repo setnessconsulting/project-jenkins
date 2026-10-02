@@ -389,6 +389,19 @@ export const IMPLEMENTATIONS = Object.freeze({
       ]),
     ]),
   }),
+  'python312-game-signal-garden-v1': Object.freeze({
+    agentClass: 'setness-python312-ephemeral',
+    pythonVersion: '3.12.14',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['python', 'scripts/ci/validate_repository.py']),
+      Object.freeze(['python', 'scripts/ci/check_clean_checkout.py']),
+      Object.freeze(['python', 'scripts/ci/validate_release_evidence.py']),
+      Object.freeze(['python', 'scripts/ci/validate_playtest_evidence.py']),
+      Object.freeze(['python', 'scripts/ci/validate_closeout_evidence.py']),
+      Object.freeze(['python', 'scripts/ci/test_closeout_production_readback.py']),
+    ]),
+  }),
   'python312-context-file-maker-v1': Object.freeze({
     agentClass: 'setness-python312-ephemeral',
     pythonVersion: '3.12.14',
@@ -435,6 +448,7 @@ export const ROUTINE_DISPATCH_PROFILE_PAIRS = Object.freeze([
   Object.freeze({ implementationId: 'python312-jira-admin-uv-v1', repository: 'setnessconsulting/project-jira-admin' }),
   Object.freeze({ implementationId: 'python312-fmod-api-v1', repository: 'setnessconsulting/project-fmod-api' }),
   Object.freeze({ implementationId: 'python312-game-maker-v1', repository: 'setnessconsulting/project-game-maker' }),
+  Object.freeze({ implementationId: 'python312-game-signal-garden-v1', repository: 'setnessconsulting/game-signal-garden' }),
   Object.freeze({ implementationId: 'node24-game-platform-sdk-v1', repository: 'setnessconsulting/project-game-platform-sdk' }),
   Object.freeze({ implementationId: 'node24-game-planetary-survey-v1', repository: 'setnessconsulting/Game-Planetary-Survey' }),
   Object.freeze({ implementationId: 'node24-game-fraction-match-full-ci-v1', repository: 'setnessconsulting/game-fraction-match' }),
@@ -456,6 +470,7 @@ const FIXED_IMPLEMENTATION_REPOSITORIES = Object.freeze({
   'node2214-unity-api-maintenance-v1': 'setnessconsulting/project-unity-api',
   'node24-game-fraction-match-full-ci-v1': 'setnessconsulting/game-fraction-match',
   'python312-game-maker-v1': 'setnessconsulting/project-game-maker',
+  'python312-game-signal-garden-v1': 'setnessconsulting/game-signal-garden',
   'python312-jira-admin-uv-v1': 'setnessconsulting/project-jira-admin',
 });
 
@@ -465,6 +480,7 @@ const FIXED_IMPLEMENTATION_PROFILE_IDS = Object.freeze({
   'node22-rive-api-v1': 'project-rive-api-node22',
   'node24-game-fraction-match-full-ci-v1': 'game-fraction-match-node24-full-ci',
   'python312-game-maker-v1': 'project-game-maker-python312',
+  'python312-game-signal-garden-v1': 'game-signal-garden-python312',
   'python312-jira-admin-uv-v1': 'project-jira-admin-python312-uv',
 });
 
@@ -498,6 +514,7 @@ const QUALIFICATION_CASES_BY_IMPLEMENTATION = Object.freeze({
   'python312-blender-api-v1': 4,
   'python312-fmod-api-v1': 4,
   'python312-game-maker-v1': 4,
+  'python312-game-signal-garden-v1': 4,
   'python312-context-file-maker-v1': 4,
   'python312-cpa-ai-pack-v1': 4,
 });

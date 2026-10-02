@@ -816,6 +816,54 @@ test('resolves both Game Maker Python matrix legs on its exact existing profile 
   rejectsCode(() => resolveGameMaker(), 'runtime-mismatch');
 });
 
+test('resolves Game Signal Garden credential-free validators on the pinned Python 3.12 agent', () => {
+  const input = catalog();
+  const implementationId = 'python312-game-signal-garden-v1';
+  const profileId = 'game-signal-garden-python312';
+  const targetRepository = 'setnessconsulting/game-signal-garden';
+  input.approvedImplementations.push(implementationId);
+  input.profiles[0].id = profileId;
+  input.profiles[0].implementationId = implementationId;
+  input.profiles[0].repositories = [targetRepository];
+  input.profiles[0].requiredPythonVersion = '3.12.14';
+  delete input.profiles[0].requiredNodeVersion;
+  const resolveSignalGarden = () => resolve(input, {
+    profileId,
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  });
+
+  const plan = resolveSignalGarden();
+  assert.equal(plan.profileId, profileId);
+  assert.equal(plan.repository, targetRepository);
+  assert.equal(plan.agentClass, 'setness-python312-ephemeral');
+  assert.equal(plan.pythonVersion, '3.12.14');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['python', 'scripts/ci/validate_repository.py'],
+    ['python', 'scripts/ci/check_clean_checkout.py'],
+    ['python', 'scripts/ci/validate_release_evidence.py'],
+    ['python', 'scripts/ci/validate_playtest_evidence.py'],
+    ['python', 'scripts/ci/validate_closeout_evidence.py'],
+    ['python', 'scripts/ci/test_closeout_production_readback.py'],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes(implementationId), true);
+  assert.equal(ROUTINE_DISPATCH_PROFILE_PAIRS.some(({ implementationId: admitted, repository }) =>
+    admitted === implementationId && repository === targetRepository), true);
+
+  const mispairedRepository = structuredClone(input);
+  mispairedRepository.profiles[0].repositories = ['setnessconsulting/project-test-platform'];
+  rejectsCode(() => validateProfileCatalog(mispairedRepository), 'implementation-repository-mismatch');
+  const mispairedProfile = structuredClone(input);
+  mispairedProfile.profiles[0].id = 'game-signal-garden-node24';
+  rejectsCode(() => validateProfileCatalog(mispairedProfile), 'implementation-profile-mismatch');
+  input.profiles[0].requiredPythonVersion = '3.12.13';
+  rejectsCode(() => resolveSignalGarden(), 'runtime-mismatch');
+});
+
 for (const [implementationId, expectedCommands] of python312FirstWaveImplementations) {
   test(`resolves ${implementationId} to its fixed Python 3.12 command vector`, () => {
     const input = catalog();
