@@ -1,6 +1,6 @@
 # Python 3.12 first-wave shadow profiles — 2026-09-30
 
-This change adds centrally trusted, manually dispatched Python 3.12.14
+This change added centrally trusted Python 3.12.14
 verification profiles for the five first-wave repositories that were not yet
 represented in the profile catalog: `project-blender-api`, `project-fmod-api`,
 `project-game-maker`, `project-context-file-maker`, and `project-cpa-ai-pack`.
@@ -11,9 +11,12 @@ the private catalog stores only implementation IDs and repository metadata.
 
 These are partial shadow lanes, not full workflow replacements. The current
 Actions workflows remain authoritative. All five profiles use a distinct
-behavior matrix for exact-SHA qualification instead of a fixed ten-case quota;
-none is added to automatic routine dispatch, fork builds
-remain disabled, and no branch protection or repository workflow is changed.
+behavior matrix for exact-SHA qualification instead of a fixed ten-case quota.
+Blender, FMOD, and Game Maker are now eligible for owner-only routine shadow
+polling. Context File Maker and CPA AI Pack remain manual because the poller
+does not implement their Actions path filters; Context File Maker also has a
+separately conditioned Windows lane. Fork builds remain disabled, and no branch
+protection or repository workflow is changed.
 
 ## `project-blender-api`
 
