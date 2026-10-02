@@ -368,14 +368,14 @@ test('routine polling stays within the explicit thirteen-repository portfolio-di
       state: 'in-progress',
     },
   }));
-  const mispairedCleanCheckout = {
-    id: 'wrong-repository-pair',
-    implementationId: 'node22-verify-clean-checkout-v1',
+  const outsideFocusGameAi = {
+    id: 'outside-focus-game-ai',
+    implementationId: 'python312-playtest-lab-v1',
     status: 'shadow',
-    repositories: ['setnessconsulting/project-context-file-maker'],
+    repositories: ['setnessconsulting/game-ai-playtest-lab'],
     checkNames: ['jenkins-pr-gate'],
-    requiredNodeVersion: '22.14.0',
-    qualification: { requiredExactShaCases: 4, qualifiedExactShaCases: 0, state: 'in-progress' },
+    requiredPythonVersion: '3.12.14',
+    qualification: { requiredExactShaCases: 5, qualifiedExactShaCases: 0, state: 'in-progress' },
   };
   const mispairedProfiles = [
     {
@@ -399,8 +399,8 @@ test('routine polling stays within the explicit thirteen-repository portfolio-di
   ];
   const catalog = {
     ...makeCatalog(),
-    approvedImplementations: [...selected.map((profile) => profile.implementationId), mispairedCleanCheckout.implementationId],
-    profiles: [...selected, mispairedCleanCheckout, ...mispairedProfiles],
+    approvedImplementations: [...selected.map((profile) => profile.implementationId), outsideFocusGameAi.implementationId],
+    profiles: [...selected, outsideFocusGameAi, ...mispairedProfiles],
   };
 
   assert.deepEqual(listRoutinePullRequestPollRepositories(catalog), [...ROUTINE_DISPATCH_REPOSITORIES].sort());
