@@ -358,6 +358,7 @@ test('routine dispatch implementation and repository lists match the explicit re
     'python312-test-platform-v1',
     'python312-blender-api-v1',
     'python312-cloudflare-api-uv-v1',
+    'python312-jira-admin-uv-v1',
     'python312-fmod-api-v1',
     'python312-game-maker-v1',
     'node24-game-platform-sdk-v1',
@@ -377,6 +378,7 @@ test('routine dispatch implementation and repository lists match the explicit re
     'setnessconsulting/project-test-platform',
     'setnessconsulting/project-blender-api',
     'setnessconsulting/project-cloudflare-api',
+    'setnessconsulting/project-jira-admin',
     'setnessconsulting/project-fmod-api',
     'setnessconsulting/project-game-maker',
     'setnessconsulting/project-game-platform-sdk',
@@ -398,7 +400,7 @@ test('routine dispatch implementation and repository lists match the explicit re
   assert.deepEqual(planRoutinePullRequestPoll(catalog, [], [], [], now).dispatches, []);
 });
 
-test('routine polling stays within the explicit seventeen-repository portfolio-dispatch allowlist', () => {
+test('routine polling stays within the explicit eighteen-repository portfolio-dispatch allowlist', () => {
   const selected = ROUTINE_DISPATCH_PROFILE_PAIRS.map(({ repository: target, implementationId }, index) => ({
     id: implementationId === 'node24-game-fraction-match-full-ci-v1'
       ? 'game-fraction-match-node24-full-ci'
@@ -406,6 +408,8 @@ test('routine polling stays within the explicit seventeen-repository portfolio-d
         ? 'project-game-maker-python312'
         : implementationId === 'node22-investment-council-v1'
           ? 'project-investment-council-node22'
+        : implementationId === 'python312-jira-admin-uv-v1'
+          ? 'project-jira-admin-python312-uv'
         : `focus-${index}`,
     implementationId,
     status: 'shadow',
@@ -420,7 +424,7 @@ test('routine polling stays within the explicit seventeen-repository portfolio-d
       state: 'in-progress',
     },
   }));
-  assert.equal(selected.length, 17);
+  assert.equal(selected.length, 18);
   const outsideFocusGameAi = {
     id: 'outside-focus-game-ai',
     implementationId: 'python312-playtest-lab-v1',

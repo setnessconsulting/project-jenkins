@@ -10,6 +10,7 @@ def portfolioAdapterImplementationAllowlist = [
     'node22-foundation-v1', 'node22-verify-clean-checkout-v1',
     'jenkins-repository-contract',
     'python312-test-platform-v1', 'python312-playtest-lab-v1', 'python312-cloudflare-api-uv-v1',
+    'python312-jira-admin-uv-v1',
     'python312-blender-api-v1', 'python312-fmod-api-v1', 'python312-game-maker-v1',
     'python312-context-file-maker-v1', 'python312-cpa-ai-pack-v1',
     'node2214-vercel-api-gitleaks-v1', 'node2214-unity-api-maintenance-v1',

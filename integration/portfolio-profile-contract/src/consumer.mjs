@@ -275,6 +275,21 @@ export const IMPLEMENTATIONS = Object.freeze({
       Object.freeze(['uv', 'run', 'cloudflare-api', 'doctor', '--json']),
     ]),
   }),
+  'python312-jira-admin-uv-v1': Object.freeze({
+    agentClass: 'setness-python312-ephemeral',
+    pythonVersion: '3.12.14',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['python', '-m', 'pip', 'install', '--disable-pip-version-check', 'uv==0.11.17']),
+      Object.freeze(['uv', 'sync', '--locked', '--extra', 'dev']),
+      Object.freeze(['uv', 'run', 'python', '-m', 'pytest', '-q']),
+      Object.freeze(['uv', 'run', 'python', '-m', 'compileall', '-q', 'src', 'scripts', 'tests']),
+      Object.freeze(['uv', 'pip', 'check', '--python', '.venv/bin/python']),
+      Object.freeze(['uv', 'run', '--with', 'pip-audit==2.9.0', 'pip-audit', '-l', '--skip-editable', '--strict']),
+      Object.freeze(['uv', 'run', 'python', 'scripts/secret-scan.py']),
+      Object.freeze(['uv', 'run', 'python', 'scripts/verify-clean-checkout.py']),
+    ]),
+  }),
   'python312-portfolio-graph-uv-v1': Object.freeze({
     agentClass: 'setness-python312-ephemeral',
     pythonVersion: '3.12.14',
@@ -395,6 +410,7 @@ export const ROUTINE_DISPATCH_PROFILE_PAIRS = Object.freeze([
   Object.freeze({ implementationId: 'python312-test-platform-v1', repository: 'setnessconsulting/project-test-platform' }),
   Object.freeze({ implementationId: 'python312-blender-api-v1', repository: 'setnessconsulting/project-blender-api' }),
   Object.freeze({ implementationId: 'python312-cloudflare-api-uv-v1', repository: 'setnessconsulting/project-cloudflare-api' }),
+  Object.freeze({ implementationId: 'python312-jira-admin-uv-v1', repository: 'setnessconsulting/project-jira-admin' }),
   Object.freeze({ implementationId: 'python312-fmod-api-v1', repository: 'setnessconsulting/project-fmod-api' }),
   Object.freeze({ implementationId: 'python312-game-maker-v1', repository: 'setnessconsulting/project-game-maker' }),
   Object.freeze({ implementationId: 'node24-game-platform-sdk-v1', repository: 'setnessconsulting/project-game-platform-sdk' }),
@@ -416,12 +432,14 @@ const FIXED_IMPLEMENTATION_REPOSITORIES = Object.freeze({
   'node2214-unity-api-maintenance-v1': 'setnessconsulting/project-unity-api',
   'node24-game-fraction-match-full-ci-v1': 'setnessconsulting/game-fraction-match',
   'python312-game-maker-v1': 'setnessconsulting/project-game-maker',
+  'python312-jira-admin-uv-v1': 'setnessconsulting/project-jira-admin',
 });
 
 const FIXED_IMPLEMENTATION_PROFILE_IDS = Object.freeze({
   'node22-investment-council-v1': 'project-investment-council-node22',
   'node24-game-fraction-match-full-ci-v1': 'game-fraction-match-node24-full-ci',
   'python312-game-maker-v1': 'project-game-maker-python312',
+  'python312-jira-admin-uv-v1': 'project-jira-admin-python312-uv',
 });
 
 // A catalog can select only the centrally reviewed behavior matrix for its
@@ -447,6 +465,7 @@ const QUALIFICATION_CASES_BY_IMPLEMENTATION = Object.freeze({
   'python312-test-platform-v1': 4,
   'python312-playtest-lab-v1': 5,
   'python312-cloudflare-api-uv-v1': 4,
+  'python312-jira-admin-uv-v1': 4,
   'python312-portfolio-graph-uv-v1': 4,
   'python312-blender-api-v1': 4,
   'python312-fmod-api-v1': 4,

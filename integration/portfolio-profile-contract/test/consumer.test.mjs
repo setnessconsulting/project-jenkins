@@ -564,6 +564,56 @@ test('resolves Cloudflare API locked verification only on its pinned Python 3.12
   rejectsCode(() => resolve(input), 'runtime-mismatch');
 });
 
+test('resolves the Jira Admin locked Python 3.12 verification workflow', () => {
+  const input = catalog();
+  const implementationId = 'python312-jira-admin-uv-v1';
+  const profileId = 'project-jira-admin-python312-uv';
+  const targetRepository = 'setnessconsulting/project-jira-admin';
+  input.approvedImplementations.push(implementationId);
+  input.profiles[0].id = profileId;
+  input.profiles[0].implementationId = implementationId;
+  input.profiles[0].repositories = [targetRepository];
+  delete input.profiles[0].requiredNodeVersion;
+  input.profiles[0].requiredPythonVersion = '3.12.14';
+  const resolveJiraAdmin = () => resolve(input, {
+    profileId,
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  });
+
+  const plan = resolveJiraAdmin();
+  assert.equal(plan.profileId, profileId);
+  assert.equal(plan.repository, targetRepository);
+  assert.equal(plan.agentClass, 'setness-python312-ephemeral');
+  assert.equal(plan.pythonVersion, '3.12.14');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['python', '-m', 'pip', 'install', '--disable-pip-version-check', 'uv==0.11.17'],
+    ['uv', 'sync', '--locked', '--extra', 'dev'],
+    ['uv', 'run', 'python', '-m', 'pytest', '-q'],
+    ['uv', 'run', 'python', '-m', 'compileall', '-q', 'src', 'scripts', 'tests'],
+    ['uv', 'pip', 'check', '--python', '.venv/bin/python'],
+    ['uv', 'run', '--with', 'pip-audit==2.9.0', 'pip-audit', '-l', '--skip-editable', '--strict'],
+    ['uv', 'run', 'python', 'scripts/secret-scan.py'],
+    ['uv', 'run', 'python', 'scripts/verify-clean-checkout.py'],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes(implementationId), true);
+  assert.equal(ROUTINE_DISPATCH_PROFILE_PAIRS.some(({ implementationId: admitted, repository }) =>
+    admitted === implementationId && repository === targetRepository), true);
+
+  const mispairedRepository = structuredClone(input);
+  mispairedRepository.profiles[0].repositories = ['setnessconsulting/project-test-platform'];
+  rejectsCode(() => validateProfileCatalog(mispairedRepository), 'implementation-repository-mismatch');
+  const mispairedProfile = structuredClone(input);
+  mispairedProfile.profiles[0].id = 'project-jira-admin-python311';
+  rejectsCode(() => validateProfileCatalog(mispairedProfile), 'implementation-profile-mismatch');
+  input.profiles[0].requiredPythonVersion = '3.12.13';
+  rejectsCode(() => resolveJiraAdmin(), 'runtime-mismatch');
+});
+
 const python312FirstWaveImplementations = [
   ['python312-blender-api-v1', [
     ['python', '-m', 'pip', 'install', '--require-hashes', '-r', 'requirements-lock-linux-py312.txt'],

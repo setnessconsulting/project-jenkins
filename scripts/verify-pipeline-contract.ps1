@@ -1286,6 +1286,13 @@ foreach ($portfolioGuard in @(
     "Object.freeze(['uv', 'sync', '--locked', '--extra', 'dev'])",
     "Object.freeze(['uv', 'run', 'python', 'scripts/verify.py'])",
     "Object.freeze(['uv', 'run', 'cloudflare-api', 'doctor', '--json'])",
+    "'python312-jira-admin-uv-v1'",
+    "Object.freeze(['uv', 'run', 'python', '-m', 'pytest', '-q'])",
+    "Object.freeze(['uv', 'run', 'python', '-m', 'compileall', '-q', 'src', 'scripts', 'tests'])",
+    "Object.freeze(['uv', 'pip', 'check', '--python', '.venv/bin/python'])",
+    "Object.freeze(['uv', 'run', '--with', 'pip-audit==2.9.0', 'pip-audit', '-l', '--skip-editable', '--strict'])",
+    "Object.freeze(['uv', 'run', 'python', 'scripts/secret-scan.py'])",
+    "Object.freeze(['uv', 'run', 'python', 'scripts/verify-clean-checkout.py'])",
     "'python312-portfolio-graph-uv-v1'",
     "Object.freeze(['uv', 'run', '--locked', 'python', 'scripts/verify.py'])",
     "Object.freeze(['uv', 'run', '--locked', 'portfolio', 'doctor', '--json'])",
@@ -1320,11 +1327,13 @@ foreach ($portfolioGuard in @(
     "'node22-investment-council-v1': 'setnessconsulting/project-investment-council'",
     "'node24-game-fraction-match-full-ci-v1': 'setnessconsulting/game-fraction-match'",
     "'python312-game-maker-v1': 'setnessconsulting/project-game-maker'",
+    "'python312-jira-admin-uv-v1': 'setnessconsulting/project-jira-admin'",
     "reject('implementation-repository-mismatch',",
     'const FIXED_IMPLEMENTATION_PROFILE_IDS = Object.freeze({',
     "'node22-investment-council-v1': 'project-investment-council-node22'",
     "'node24-game-fraction-match-full-ci-v1': 'game-fraction-match-node24-full-ci'",
     "'python312-game-maker-v1': 'project-game-maker-python312'",
+    "'python312-jira-admin-uv-v1': 'project-jira-admin-python312-uv'",
     "reject('implementation-profile-mismatch',",
     "'setnessconsulting/project-unity-api'",
     'export function validateProfileCatalog(catalog)',
@@ -1368,6 +1377,7 @@ foreach ($portfolioRuntimeGuard in @(
     "'python312-test-platform-v1'",
     "'python312-playtest-lab-v1'",
     "'python312-cloudflare-api-uv-v1'",
+    "'python312-jira-admin-uv-v1'",
     "'python312-blender-api-v1'",
     "'python312-fmod-api-v1'",
     "'python312-game-maker-v1'",
@@ -1551,6 +1561,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumer.Contains("'node2214-vercel-api-gitleaks-v1'") -or
     -not $portfolioConsumer.Contains("'node22-verify-clean-checkout-v1'") -or
     -not $portfolioConsumer.Contains("'node22-investment-council-v1'") -or
+    -not $portfolioConsumer.Contains("'python312-jira-admin-uv-v1'") -or
     -not $portfolioConsumer.Contains("'node24-game-planetary-survey-v1'") -or
     -not $portfolioConsumer.Contains("'node24-game-fraction-match-full-ci-v1'") -or
     -not $portfolioConsumer.Contains("setnessconsulting/game-fraction-match") -or
@@ -1571,7 +1582,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumerTests.Contains('resolves both Game Maker Python matrix legs on its exact existing profile and repository') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check dispatches only the owner same-repository shadow head') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check rejects fork, outside-author, draft, closed, mismatched-base, and planned cases') -or
-    -not $portfolioPollerTests.Contains('routine polling stays within the explicit seventeen-repository portfolio-dispatch allowlist') -or
+    -not $portfolioPollerTests.Contains('routine polling stays within the explicit eighteen-repository portfolio-dispatch allowlist') -or
     -not $portfolioPollerCliTests.Contains('planner fails closed on malformed input, oversized data, and caller arguments') -or
     -not $portfolioAdapterDocs.Contains('JENKINS_PORTFOLIO_PR_POLL_ENABLED=true') -or
     -not $portfolioAdapterDocs.Contains('queues one') -or
@@ -1602,6 +1613,7 @@ if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
     -not $portfolioConsumerTests.Contains('implementation-repository-mismatch') -or
     -not $portfolioConsumerTests.Contains('resolves the GitHub API foundation on the no-socket Node 22.23 profile') -or
     -not $portfolioConsumerTests.Contains('resolves the Investment Council credential-free Node 22 workflow') -or
+    -not $portfolioConsumerTests.Contains('resolves the Jira Admin locked Python 3.12 verification workflow') -or
     -not $portfolioConsumerTests.Contains('rejects qualified and fork claims without full evidence') -or
     -not $portfolioCli.Contains('readInput()') -or
     -not $portfolioCli.Contains('MAX_REQUEST_BYTES = 1024 * 1024') -or
