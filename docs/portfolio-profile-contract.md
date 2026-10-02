@@ -133,6 +133,12 @@ it does not mean a private profile is enabled, qualified, or authoritative:
   Playwright browser suite remain in Actions, along with its existing
   workflow-dispatch trigger. Actions remains authoritative and the profile is
   shadow-only at 0/4.
+- `node24-game-weather-command-static-v1` maps the credential-free static
+  verification job in `game-weather-command`. It runs install, typecheck,
+  lint, coverage tests, architecture checks, production build, and privacy
+  checks on Node 24.21.0. The browser/host matrix, bundle report, artifact
+  retention, and manual release/R2 path remain in Actions. Actions remains
+  authoritative and the profile is shadow-only at 0/4.
 - `node24-game-fraction-match-full-ci-v1` is bound to the exact profile
   `game-fraction-match-node24-full-ci` and repository
   `setnessconsulting/game-fraction-match`. It runs the complete Linux verify
@@ -282,10 +288,10 @@ credentials store is never used for checkout tokens.
 The poller is opt-in through the ignored local
 `JENKINS_PORTFOLIO_PR_POLL_ENABLED` setting, which defaults to `false`, and
 also requires the private catalog location and `controlPlane.status: active`.
-The routine poller allowlist is restricted in trusted code to twenty-six exact
+The routine poller allowlist is restricted in trusted code to twenty-seven exact
 implementation/repository pairs: `project-test-platform`,
 `project-game-platform-sdk`, `Game-Planetary-Survey`, `curiouspathway`,
-`game-math-detective`, `game-motion-lab`, `game-ecosystem-rescue`, `game-fraction-match`, `project-consulting-dashboard`, `project-portfolio-graph`,
+`game-math-detective`, `game-motion-lab`, `game-ecosystem-rescue`, `game-weather-command`, `game-fraction-match`, `project-consulting-dashboard`, `project-portfolio-graph`,
 `project-vercel-api`, `project-unity-api`, `project-jenkins`,
 `project-setness-consulting`, `project-github-api`, `project-investment-council`,
 `project-supabase-api`, `project-rive-api`, `game-signal-garden`, `project-jira-platform`, `project-jira-api`, `project-blender-api`,

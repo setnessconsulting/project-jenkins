@@ -339,6 +339,53 @@ test('resolves the Ecosystem Rescue Node 24 static lane for its exact repository
   }), 'runtime-mismatch');
 });
 
+test('resolves the Weather Command Node 24 static lane for its exact repository', () => {
+  const input = catalog();
+  const implementationId = 'node24-game-weather-command-static-v1';
+  const profileId = 'game-weather-command-node24-static';
+  const targetRepository = 'setnessconsulting/game-weather-command';
+  input.approvedImplementations.push(implementationId);
+  input.profiles[0].id = profileId;
+  input.profiles[0].implementationId = implementationId;
+  input.profiles[0].repositories = [targetRepository];
+  input.profiles[0].requiredNodeVersion = '24.21.0';
+  const plan = resolve(input, {
+    profileId,
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  });
+
+  assert.equal(plan.profileId, profileId);
+  assert.equal(plan.repository, targetRepository);
+  assert.equal(plan.agentClass, 'setness-node24-ephemeral');
+  assert.equal(plan.nodeVersion, '24.21.0');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['npm', 'ci'],
+    ['npm', 'run', 'typecheck'],
+    ['npm', 'run', 'lint'],
+    ['npm', 'run', 'test:coverage'],
+    ['npm', 'run', 'check:architecture'],
+    ['npm', 'run', 'build'],
+    ['npm', 'run', 'check:privacy'],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_PROFILE_PAIRS.some(({ implementationId: admitted, repository }) =>
+    admitted === implementationId && repository === targetRepository), true);
+
+  input.profiles[0].requiredNodeVersion = '24.21.1';
+  rejectsCode(() => resolve(input, {
+    profileId,
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  }), 'runtime-mismatch');
+});
+
 test('resolves the exact Fraction Match full CI profile and ordered browser lane', () => {
   const input = catalog();
   const implementationId = 'node24-game-fraction-match-full-ci-v1';
