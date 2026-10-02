@@ -357,6 +357,7 @@ test('routine dispatch implementation and repository lists match the explicit re
     'node22-supabase-api-v1',
     'node22-rive-api-v1',
     'node2214-jira-platform-api-v1',
+    'node2214-consulting-dashboard-static-v1',
     'node22-verify-clean-checkout-v1',
     'python312-test-platform-v1',
     'python312-blender-api-v1',
@@ -384,6 +385,7 @@ test('routine dispatch implementation and repository lists match the explicit re
     'setnessconsulting/project-supabase-api',
     'setnessconsulting/project-rive-api',
     'setnessconsulting/project-jira-platform',
+    'setnessconsulting/project-consulting-dashboard',
     'setnessconsulting/project-jira-api',
     'setnessconsulting/project-test-platform',
     'setnessconsulting/project-blender-api',
@@ -414,7 +416,7 @@ test('routine dispatch implementation and repository lists match the explicit re
   assert.deepEqual(planRoutinePullRequestPoll(catalog, [], [], [], now).dispatches, []);
 });
 
-test('routine polling stays within the explicit twenty-five-repository portfolio-dispatch allowlist', () => {
+test('routine polling stays within the explicit twenty-six-repository portfolio-dispatch allowlist', () => {
   const selected = ROUTINE_DISPATCH_PROFILE_PAIRS.map(({ repository: target, implementationId }, index) => ({
     id: implementationId === 'node24-game-fraction-match-full-ci-v1'
       ? 'game-fraction-match-node24-full-ci'
@@ -428,6 +430,8 @@ test('routine polling stays within the explicit twenty-five-repository portfolio
           ? 'project-rive-api-node22'
         : implementationId === 'node2214-jira-platform-api-v1'
           ? 'project-jira-platform-node2214-api'
+        : implementationId === 'node2214-consulting-dashboard-static-v1'
+          ? 'project-consulting-dashboard-node2214-static'
         : implementationId === 'node24-game-math-detective-static-v1'
           ? 'game-math-detective-node24-static'
         : implementationId === 'node24-game-motion-lab-static-v1'
@@ -452,7 +456,7 @@ test('routine polling stays within the explicit twenty-five-repository portfolio
       state: 'in-progress',
     },
   }));
-  assert.equal(selected.length, 25);
+  assert.equal(selected.length, 26);
   const outsideFocusGameAi = {
     id: 'outside-focus-game-ai',
     implementationId: 'python312-playtest-lab-v1',

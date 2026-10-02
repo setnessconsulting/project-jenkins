@@ -82,9 +82,9 @@ repository pairs. It includes the centrally implemented lanes documented in
 `portfolio-profile-contract.md`, including the credential-free Investment
 Council Node 22 lane, the Jira Admin Python 3.12 lane, and the Supabase API
 Node 22 lane, the Rive API Node 22 lane, the Game Signal Garden Python
-3.12 lane, the Jira Platform Node 22.14 API lane, and the Math Detective,
-Motion Lab, and Ecosystem Rescue Node 24 static lanes, and now contains
-twenty-five exact pairs in total. The
+3.12 lane, the Jira Platform Node 22.14 API lane, the Math Detective, Motion
+Lab, and Ecosystem Rescue Node 24 static lanes, and the Consulting Dashboard
+Node 22.14 static lane, and now contains twenty-six exact pairs in total. The
 Game Maker pair uses the existing `project-game-maker-python312` profile and
 fixed implementation to run both Python 3.11.17 and 3.12.14 command sequences
 on a one-build, unprivileged dual-runtime agent. The image source hashes and

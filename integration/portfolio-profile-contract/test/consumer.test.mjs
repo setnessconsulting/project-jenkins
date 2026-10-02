@@ -484,6 +484,52 @@ test('resolves the clean-checkout workflow on the isolated Node 22.14 disposable
   rejectsCode(() => resolve(input), 'runtime-mismatch');
 });
 
+test('resolves the Consulting Dashboard Node 22.14 static lane for its exact repository', () => {
+  const input = catalog();
+  const implementationId = 'node2214-consulting-dashboard-static-v1';
+  const profileId = 'project-consulting-dashboard-node2214-static';
+  const targetRepository = 'setnessconsulting/project-consulting-dashboard';
+  input.approvedImplementations.push(implementationId);
+  input.profiles[0].id = profileId;
+  input.profiles[0].implementationId = implementationId;
+  input.profiles[0].repositories = [targetRepository];
+  input.profiles[0].requiredNodeVersion = '22.14.0';
+  const plan = resolve(input, {
+    profileId,
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  });
+
+  assert.equal(plan.profileId, profileId);
+  assert.equal(plan.repository, targetRepository);
+  assert.equal(plan.agentClass, 'setness-node22-14-disposable-ephemeral');
+  assert.equal(plan.nodeVersion, '22.14.0');
+  assert.equal(plan.npmVersion, '10.9.2');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['npm', 'ci', '--no-audit', '--no-fund'],
+    ['npm', 'run', 'lint'],
+    ['npm', 'run', 'typecheck'],
+    ['npm', 'test'],
+    ['npm', 'run', 'build'],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_PROFILE_PAIRS.some(({ implementationId: admitted, repository }) =>
+    admitted === implementationId && repository === targetRepository), true);
+
+  input.profiles[0].requiredNodeVersion = '22.14.1';
+  rejectsCode(() => resolve(input, {
+    profileId,
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  }), 'runtime-mismatch');
+});
+
 test('resolves Vercel API secret-scan and tests on the isolated Node 22.14 Gitleaks agent', () => {
   const input = catalog();
   input.approvedImplementations.push('node2214-vercel-api-gitleaks-v1');
