@@ -240,6 +240,7 @@ test('resolves the clean-checkout workflow on the isolated Node 22.14 disposable
   assert.equal(plan.agentClass, 'setness-node22-14-disposable-ephemeral');
   assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
   assert.equal(plan.npmVersion, '10.9.2');
+  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes('node22-verify-clean-checkout-v1'), true);
   assert.deepEqual(plan.commands, [
     ['npm', 'ci'],
     ['npm', 'run', 'verify'],

@@ -56,8 +56,11 @@ The five additional first-wave implementations—`python312-blender-api-v1`,
 dedicated Python 3.12.14 agent and fixed commands from this resolver. They are
 partial supplemental shadows: Python 3.11 matrices, Windows-specific checks,
 Gitleaks, path filters, and event-specific behavior remain in Actions as
-documented in `python312-first-wave-remaining-2026-09-30.md`. None is added to
-routine polling, and none permits Jenkins cutover.
+documented in `python312-first-wave-remaining-2026-09-30.md`. The trusted
+poller allowlist includes Blender, FMOD, and Game Maker for routine shadow
+dispatch when enabled. Context File Maker and CPA AI Pack remain manual because
+the poller does not implement their Actions path filters; Context File Maker
+also has a separately conditioned Windows lane.
 
 The focused shadow set includes nine centrally trusted lanes:
 
@@ -87,8 +90,11 @@ The focused shadow set includes nine centrally trusted lanes:
   unchanged.
 - `node22-verify-clean-checkout-v1` uses the same no-socket Node 22.14.0/npm
   10.9.2 image for `project-jira-api`'s `npm ci`, `npm run verify`, and
-  `npm run verify:clean-checkout` commands. Its manual exact-SHA Actions fallback
-  and required Actions `verify` check remain intact.
+  `npm run verify:clean-checkout` commands. Its exact repository/profile pair
+  is included in the central allowlist for owner-only shadow polling when the
+  poller is enabled. The required Actions `verify` check, push/manual triggers,
+  and token-backed exact-SHA manual fallback remain in Actions; Jenkins receives
+  no GitHub write token.
 - `node22-github-api-foundation-v1` runs `project-github-api`'s existing Node
   22.23.3/npm 10.9.9 command sequence on the no-socket Setness Node/PowerShell
   agent. Its push, pull-request, and manual Actions triggers remain intact;
@@ -142,12 +148,15 @@ credentials store is never used for checkout tokens.
 The poller is opt-in through the ignored local
 `JENKINS_PORTFOLIO_PR_POLL_ENABLED` setting, which defaults to `false`, and
 also requires the private catalog location and `controlPlane.status: active`.
-Routine dispatch is restricted in trusted code to twelve exact
+The routine poller allowlist is restricted in trusted code to thirteen exact
 implementation/repository pairs: `project-test-platform`,
 `project-game-platform-sdk`, `curiouspathway`, `project-portfolio-graph`,
 `project-vercel-api`, `project-jenkins`, `project-setness-consulting`,
-`project-github-api`, `project-blender-api`, `project-cloudflare-api`,
-`project-fmod-api`, and `project-game-maker`. The four added Python 3.12 lanes
+`project-github-api`, `project-jira-api`, `project-blender-api`,
+`project-cloudflare-api`, `project-fmod-api`, and `project-game-maker`. The
+Jira API pair uses the centrally fixed Node 22.14 clean-checkout commands; its
+Actions verification check and manual token-backed fallback remain unchanged.
+The four added Python 3.12 lanes
 are partial shadow checks: Blender's Python 3.11 matrix leg, Windows, recovery,
 secret-scan, and lock jobs remain in Actions; Cloudflare API's push, local,
 shadow, scheduled, release, and manual fallback workflows remain in Actions;
@@ -164,6 +173,12 @@ verification. The reaper schedule remains maintenance-only. Enabling this
 poller does not make a repository Jenkins-authoritative; Actions, protection,
 and deployment settings remain unchanged until separately qualified and
 approved.
+
+Other centrally implemented shadow profiles remain outside routine polling
+when that would broaden their current workflow behavior: Game AI Playtest Lab
+fetches a pinned external GameWorld revision, while Context File Maker and CPA
+AI Pack have path filters (and Context File Maker has a separate actor-specific
+Windows lane). Those profiles remain available for controlled manual checks.
 
 Exact-SHA qualification uses a profile-specific evidence matrix instead of a
 fixed observation quota. Each case must exercise a distinct required behavior

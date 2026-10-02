@@ -1458,6 +1458,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumer.Contains("'setnessconsulting/project-game-platform-sdk'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/curiouspathway'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-portfolio-graph'") -or
+    -not $portfolioConsumer.Contains("'setnessconsulting/project-jira-api'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-vercel-api'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-jenkins'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-setness-consulting'") -or
@@ -1468,6 +1469,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumer.Contains("'python312-game-maker-v1'") -or
     -not $portfolioConsumer.Contains("'jenkins-repository-contract'") -or
     -not $portfolioConsumer.Contains("'node2214-vercel-api-gitleaks-v1'") -or
+    -not $portfolioConsumer.Contains("'node22-verify-clean-checkout-v1'") -or
     -not $portfolioConsumer.Contains("['missing', 'in_progress', 'orphaned', 'untracked', 'completed']") -or
     -not $portfolioConsumer.Contains("'dispatchId'") -or
     -not $portfolioConsumer.Contains('const dispatches = dispatchCandidates.slice(0, 1)') -or
@@ -1483,7 +1485,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioPollerTests.Contains('only centrally approved implementations are polled') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check dispatches only the owner same-repository shadow head') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check rejects fork, outside-author, draft, closed, mismatched-base, and planned cases') -or
-    -not $portfolioPollerTests.Contains('routine polling stays within the explicit twelve-repository portfolio-dispatch allowlist') -or
+    -not $portfolioPollerTests.Contains('routine polling stays within the explicit thirteen-repository portfolio-dispatch allowlist') -or
     -not $portfolioPollerCliTests.Contains('planner fails closed on malformed input, oversized data, and caller arguments') -or
     -not $portfolioAdapterDocs.Contains('JENKINS_PORTFOLIO_PR_POLL_ENABLED=true') -or
     -not $portfolioAdapterDocs.Contains('queues one') -or

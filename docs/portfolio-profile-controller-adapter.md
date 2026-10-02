@@ -78,13 +78,14 @@ repository is provided through ignored local runtime configuration. The old
 root-level job name is explicitly replaced by a disabled deprecation stub, so
 clearing configuration cannot leave an older dispatcher runnable.
 The central routine-poller allowlist is an explicit set of implementation and
-repository pairs. It includes the exact Node 22 foundation implementation
-(`node22-foundation-v1`, Node 22.23.3/npm 10.9.9), the Node 22.14
-clean-checkout implementation, and the nine focused shadow lanes documented
-in `portfolio-profile-contract.md`. The agent checks its pinned
-runtime after exact-SHA checkout and before running repository commands.
-Profiles remain planned until their matching runtime is loaded and ready; no
-repository is enabled merely by adding the dispatcher. Existing pilot jobs are
+repository pairs. It includes the nine core shadow lanes documented in
+`portfolio-profile-contract.md` plus four supplemental Python 3.12 pairs
+(Blender, Cloudflare API, FMOD API, and Game Maker), thirteen exact pairs in
+total. The Jira API pair uses the centrally pinned Node 22.14 clean-checkout
+implementation. The agent checks its pinned runtime after exact-SHA checkout
+and before running repository commands. Adding a pair does not change its
+catalog status or make it Jenkins-authoritative; planned profiles remain
+excluded. Existing pilot jobs are
 not routed through it, avoiding duplicate check publishers. Actions remains authoritative.
 Jenkins must still prove the live controller configuration, agent availability,
 exact-SHA results, cleanup, recovery, and fallback before any cutover.

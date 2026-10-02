@@ -329,6 +329,7 @@ export const IMPLEMENTATIONS = Object.freeze({
 // two otherwise approved entries.
 export const ROUTINE_DISPATCH_PROFILE_PAIRS = Object.freeze([
   Object.freeze({ implementationId: 'node22-github-api-foundation-v1', repository: 'setnessconsulting/project-github-api' }),
+  Object.freeze({ implementationId: 'node22-verify-clean-checkout-v1', repository: 'setnessconsulting/project-jira-api' }),
   Object.freeze({ implementationId: 'python312-test-platform-v1', repository: 'setnessconsulting/project-test-platform' }),
   Object.freeze({ implementationId: 'python312-blender-api-v1', repository: 'setnessconsulting/project-blender-api' }),
   Object.freeze({ implementationId: 'python312-cloudflare-api-uv-v1', repository: 'setnessconsulting/project-cloudflare-api' }),

@@ -315,6 +315,7 @@ test('project Jenkins self-check rejects fork, outside-author, draft, closed, mi
 test('the Test Platform implementation is pollable only after its repository profile is shadow-enabled', () => {
   assert.deepEqual(ROUTINE_DISPATCH_IMPLEMENTATIONS, [
     'node22-github-api-foundation-v1',
+    'node22-verify-clean-checkout-v1',
     'python312-test-platform-v1',
     'python312-blender-api-v1',
     'python312-cloudflare-api-uv-v1',
@@ -329,6 +330,7 @@ test('the Test Platform implementation is pollable only after its repository pro
   ]);
   assert.deepEqual(ROUTINE_DISPATCH_REPOSITORIES, [
     'setnessconsulting/project-github-api',
+    'setnessconsulting/project-jira-api',
     'setnessconsulting/project-test-platform',
     'setnessconsulting/project-blender-api',
     'setnessconsulting/project-cloudflare-api',
@@ -350,7 +352,7 @@ test('the Test Platform implementation is pollable only after its repository pro
   assert.deepEqual(planRoutinePullRequestPoll(catalog, [], [], [], now).dispatches, []);
 });
 
-test('routine polling stays within the explicit twelve-repository portfolio-dispatch allowlist', () => {
+test('routine polling stays within the explicit thirteen-repository portfolio-dispatch allowlist', () => {
   const selected = ROUTINE_DISPATCH_PROFILE_PAIRS.map(({ repository: target, implementationId }, index) => ({
     id: `focus-${index}`,
     implementationId,
@@ -366,14 +368,14 @@ test('routine polling stays within the explicit twelve-repository portfolio-disp
       state: 'in-progress',
     },
   }));
-  const outsideFocus = {
-    id: 'outside-focus',
-    implementationId: 'node22-verify-clean-checkout-v1',
+  const outsideFocusGameAi = {
+    id: 'outside-focus-game-ai',
+    implementationId: 'python312-playtest-lab-v1',
     status: 'shadow',
-    repositories: ['setnessconsulting/project-jira-api'],
+    repositories: ['setnessconsulting/game-ai-playtest-lab'],
     checkNames: ['jenkins-pr-gate'],
-    requiredNodeVersion: '22.14.0',
-    qualification: { requiredExactShaCases: 4, qualifiedExactShaCases: 0, state: 'in-progress' },
+    requiredPythonVersion: '3.12.14',
+    qualification: { requiredExactShaCases: 5, qualifiedExactShaCases: 0, state: 'in-progress' },
   };
   const mispairedProfiles = [
     {
@@ -397,8 +399,8 @@ test('routine polling stays within the explicit twelve-repository portfolio-disp
   ];
   const catalog = {
     ...makeCatalog(),
-    approvedImplementations: [...selected.map((profile) => profile.implementationId), outsideFocus.implementationId],
-    profiles: [...selected, outsideFocus, ...mispairedProfiles],
+    approvedImplementations: [...selected.map((profile) => profile.implementationId), outsideFocusGameAi.implementationId],
+    profiles: [...selected, outsideFocusGameAi, ...mispairedProfiles],
   };
 
   assert.deepEqual(listRoutinePullRequestPollRepositories(catalog), [...ROUTINE_DISPATCH_REPOSITORIES].sort());
