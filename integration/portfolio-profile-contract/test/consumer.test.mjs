@@ -373,7 +373,7 @@ test('resolves Cloudflare API locked verification only on its pinned Python 3.12
     ['uv', 'run', 'python', 'scripts/verify.py'],
     ['uv', 'run', 'cloudflare-api', 'doctor', '--json'],
   ]);
-  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes('python312-cloudflare-api-uv-v1'), false);
+  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes('python312-cloudflare-api-uv-v1'), true);
 
   input.profiles[0].requiredPythonVersion = '3.12.13';
   rejectsCode(() => resolve(input), 'runtime-mismatch');
@@ -433,6 +433,13 @@ const python312FirstWaveImplementations = [
   ]],
 ];
 
+const routinePython312Implementations = new Set([
+  'python312-blender-api-v1',
+  'python312-cloudflare-api-uv-v1',
+  'python312-fmod-api-v1',
+  'python312-game-maker-v1',
+]);
+
 for (const [implementationId, expectedCommands] of python312FirstWaveImplementations) {
   test(`resolves ${implementationId} to its fixed Python 3.12 command vector`, () => {
     const input = catalog();
@@ -447,7 +454,10 @@ for (const [implementationId, expectedCommands] of python312FirstWaveImplementat
     assert.equal(plan.pythonVersion, '3.12.14');
     assert.equal(Object.hasOwn(plan, 'nodeVersion'), false);
     assert.deepEqual(plan.commands, expectedCommands);
-    assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes(implementationId), false);
+    assert.equal(
+      ROUTINE_DISPATCH_IMPLEMENTATIONS.includes(implementationId),
+      routinePython312Implementations.has(implementationId),
+    );
 
     input.profiles[0].requiredPythonVersion = '3.12.13';
     rejectsCode(() => resolve(input), 'runtime-mismatch');

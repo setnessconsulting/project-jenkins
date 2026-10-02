@@ -322,14 +322,18 @@ export const IMPLEMENTATIONS = Object.freeze({
 // Only implementations explicitly admitted here may be polled automatically.
 // Adding an implementation requires a reviewed trusted runtime and profile
 // contract; catalog data cannot expand this set.
-// The portfolio poller is deliberately scoped to this user-selected focus set.
-// Repository profiles outside this set remain eligible for explicit dispatch,
-// but cannot start recurring shadow builds through the poller. Keep each
-// implementation bound to its repository so catalog data cannot cross-pair
+// Routine dispatch remains a separate explicit opt-in from catalog shadow
+// status. A pair makes only that fixed implementation/repository eligible for
+// owner-authored PR polling; it does not make the profile authoritative. Keep
+// each implementation bound to its repository so catalog data cannot cross-pair
 // two otherwise approved entries.
 export const ROUTINE_DISPATCH_PROFILE_PAIRS = Object.freeze([
   Object.freeze({ implementationId: 'node22-github-api-foundation-v1', repository: 'setnessconsulting/project-github-api' }),
   Object.freeze({ implementationId: 'python312-test-platform-v1', repository: 'setnessconsulting/project-test-platform' }),
+  Object.freeze({ implementationId: 'python312-blender-api-v1', repository: 'setnessconsulting/project-blender-api' }),
+  Object.freeze({ implementationId: 'python312-cloudflare-api-uv-v1', repository: 'setnessconsulting/project-cloudflare-api' }),
+  Object.freeze({ implementationId: 'python312-fmod-api-v1', repository: 'setnessconsulting/project-fmod-api' }),
+  Object.freeze({ implementationId: 'python312-game-maker-v1', repository: 'setnessconsulting/project-game-maker' }),
   Object.freeze({ implementationId: 'node24-game-platform-sdk-v1', repository: 'setnessconsulting/project-game-platform-sdk' }),
   Object.freeze({ implementationId: 'node24-curiouspathway-pilot-v1', repository: 'setnessconsulting/curiouspathway' }),
   Object.freeze({ implementationId: 'python312-portfolio-graph-uv-v1', repository: 'setnessconsulting/project-portfolio-graph' }),

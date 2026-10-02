@@ -142,20 +142,28 @@ credentials store is never used for checkout tokens.
 The poller is opt-in through the ignored local
 `JENKINS_PORTFOLIO_PR_POLL_ENABLED` setting, which defaults to `false`, and
 also requires the private catalog location and `controlPlane.status: active`.
-Routine dispatch is restricted in trusted code to
-`project-test-platform`, `project-game-platform-sdk`, `curiouspathway`,
-`project-portfolio-graph`, `project-vercel-api`, `project-jenkins`,
-`project-setness-consulting`, and `project-github-api`, with only their eight exact
-implementation/repository pairs. The Jenkins repository pair uses the already
-approved `jenkins-repository-contract` implementation; the poller's
-same-repository, non-draft, owner-only and exact-live-head checks remain
-unchanged. It checks only
-open, same-repository, non-draft PRs authored by `setnessconsulting`, queues
-one exact-head SHA at a time, and persists dispatch state in Jenkins home. It
-does not schedule main-branch, fork, or outside-author verification. The
-reaper schedule remains maintenance-only. Enabling this poller does not make
-a repository Jenkins-authoritative; Actions, protection, and deployment
-settings remain unchanged until separately qualified and approved.
+Routine dispatch is restricted in trusted code to twelve exact
+implementation/repository pairs: `project-test-platform`,
+`project-game-platform-sdk`, `curiouspathway`, `project-portfolio-graph`,
+`project-vercel-api`, `project-jenkins`, `project-setness-consulting`,
+`project-github-api`, `project-blender-api`, `project-cloudflare-api`,
+`project-fmod-api`, and `project-game-maker`. The four added Python 3.12 lanes
+are partial shadow checks: Blender's Python 3.11 matrix leg, Windows, recovery,
+secret-scan, and lock jobs remain in Actions; Cloudflare API's push, local,
+shadow, scheduled, release, and manual fallback workflows remain in Actions;
+FMOD and Game Maker retain their Actions Python 3.11 matrix legs and push
+triggers, and FMOD also retains manual dispatch. Cloudflare API `verify` remains
+its required Actions check. These pairs do not change any profile's shadow
+status or qualification count. The Jenkins repository pair
+uses the already approved `jenkins-repository-contract` implementation; the
+poller's same-repository, non-draft, owner-only and exact-live-head checks remain
+unchanged. It checks only open, same-repository, non-draft PRs authored by
+`setnessconsulting`, queues one exact-head SHA at a time, and persists dispatch
+state in Jenkins home. It does not schedule main-branch, fork, or outside-author
+verification. The reaper schedule remains maintenance-only. Enabling this
+poller does not make a repository Jenkins-authoritative; Actions, protection,
+and deployment settings remain unchanged until separately qualified and
+approved.
 
 Exact-SHA qualification uses a profile-specific evidence matrix instead of a
 fixed observation quota. Each case must exercise a distinct required behavior
