@@ -1298,6 +1298,13 @@ foreach ($portfolioGuard in @(
     "Object.freeze(['npm', '--prefix', 'plugin', 'run', 'build'])",
     "Object.freeze(['npm', '--prefix', 'plugin', 'run', 'typecheck'])",
     "Object.freeze(['npm', '--prefix', 'plugin', 'test'])",
+    "'node2214-setness-tours-web-public-static-v1'",
+    "'project-setness-tours-web-public-node2214-static'",
+    "Object.freeze(['npm', '--prefix', 'web-public', 'ci', '--no-audit', '--no-fund'])",
+    "Object.freeze(['npm', '--prefix', 'web-public', 'run', 'lint'])",
+    "Object.freeze(['npm', '--prefix', 'web-public', 'run', 'typecheck'])",
+    "Object.freeze(['npm', '--prefix', 'web-public', 'run', 'test'])",
+    "Object.freeze(['npm', '--prefix', 'web-public', 'run', 'build'])",
     "'node24-game-number-line-jumper-static-v1'",
     "'game-number-line-jumper-node24-static'",
     "Object.freeze(['npm', 'run', 'build:host-test'])",
@@ -1435,6 +1442,7 @@ foreach ($portfolioRuntimeGuard in @(
     "'node24-game-weather-command-static-v1'",
     "'node24-game-number-line-jumper-static-v1'",
     "'node2214-figma-plugin-static-v1'",
+    "'node2214-setness-tours-web-public-static-v1'",
     "'node24-game-fraction-match-full-ci-v1'",
     "'node24-curiouspathway-pilot-v1'",
     "'python312-portfolio-graph-uv-v1'",
@@ -1641,6 +1649,9 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumer.Contains("setnessconsulting/game-number-line-jumper") -or
     -not $portfolioConsumer.Contains("'node2214-figma-plugin-static-v1'") -or
     -not $portfolioConsumer.Contains("setnessconsulting/project-figma-api") -or
+    -not $portfolioConsumer.Contains("'node2214-setness-tours-web-public-static-v1'") -or
+    -not $portfolioConsumer.Contains("'project-setness-tours-web-public-node2214-static'") -or
+    -not $portfolioConsumer.Contains("setnessconsulting/project-setness-tours") -or
     -not $portfolioConsumer.Contains("'node2214-consulting-dashboard-static-v1'") -or
     -not $portfolioConsumer.Contains("'node24-game-fraction-match-full-ci-v1'") -or
     -not $portfolioConsumer.Contains("setnessconsulting/game-fraction-match") -or
@@ -1661,7 +1672,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumerTests.Contains('resolves both Game Maker Python matrix legs on its exact existing profile and repository') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check dispatches only the owner same-repository shadow head') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check rejects fork, outside-author, draft, closed, mismatched-base, and planned cases') -or
-    -not $portfolioPollerTests.Contains('routine polling stays within the explicit twenty-nine-repository portfolio-dispatch allowlist') -or
+    -not $portfolioPollerTests.Contains('routine polling stays within the explicit thirty-repository portfolio-dispatch allowlist') -or
     -not $portfolioPollerCliTests.Contains('planner fails closed on malformed input, oversized data, and caller arguments') -or
     -not $portfolioAdapterDocs.Contains('JENKINS_PORTFOLIO_PR_POLL_ENABLED=true') -or
     -not $portfolioAdapterDocs.Contains('queues one') -or
@@ -1697,6 +1708,7 @@ if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
     -not $portfolioConsumerTests.Contains('resolves the Jira Platform Node 22.14 API job on its disposable worker') -or
     -not $portfolioConsumerTests.Contains('resolves Game Signal Garden credential-free validators on the pinned Python 3.12 agent') -or
     -not $portfolioConsumerTests.Contains('resolves the Jira Admin locked Python 3.12 verification workflow') -or
+    -not $portfolioConsumerTests.Contains('resolves the Setness Tours public web Node 22.14 static lane for its exact repository') -or
     -not $portfolioConsumerTests.Contains('rejects qualified and fork claims without full evidence') -or
     -not $portfolioCli.Contains('readInput()') -or
     -not $portfolioCli.Contains('MAX_REQUEST_BYTES = 1024 * 1024') -or
