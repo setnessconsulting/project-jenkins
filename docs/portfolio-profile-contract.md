@@ -301,10 +301,10 @@ credentials store is never used for checkout tokens.
 The poller is opt-in through the ignored local
 `JENKINS_PORTFOLIO_PR_POLL_ENABLED` setting, which defaults to `false`, and
 also requires the private catalog location and `controlPlane.status: active`.
-The routine poller allowlist is restricted in trusted code to twenty-nine exact
+The routine poller allowlist is restricted in trusted code to thirty exact
 implementation/repository pairs: `project-test-platform`,
 `project-game-platform-sdk`, `Game-Planetary-Survey`, `curiouspathway`,
-`game-math-detective`, `game-motion-lab`, `game-ecosystem-rescue`, `game-weather-command`, `game-number-line-jumper`, `project-figma-api`, `game-fraction-match`, `project-consulting-dashboard`, `project-portfolio-graph`,
+`game-math-detective`, `game-motion-lab`, `game-ecosystem-rescue`, `game-weather-command`, `game-number-line-jumper`, `project-figma-api`, `game-fraction-match`, `project-consulting-dashboard`, `project-setness-tours`, `project-portfolio-graph`,
 `project-vercel-api`, `project-unity-api`, `project-jenkins`,
 `project-setness-consulting`, `project-github-api`, `project-investment-council`,
 `project-supabase-api`, `project-rive-api`, `game-signal-garden`, `project-jira-platform`, `project-jira-api`, `project-blender-api`,

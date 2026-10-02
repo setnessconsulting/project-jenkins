@@ -84,8 +84,9 @@ Council Node 22 lane, the Jira Admin Python 3.12 lane, and the Supabase API
 Node 22 lane, the Rive API Node 22 lane, the Game Signal Garden Python
 3.12 lane, the Jira Platform Node 22.14 API lane, the Math Detective, Motion
 Lab, Ecosystem Rescue, Weather Command, and Number Line Jumper Node 24 static
-lanes, the Figma API plugin Node 22.14 static lane, and the Consulting Dashboard
-Node 22.14 static lane, and now contains twenty-nine
+lanes, the Figma API plugin Node 22.14 static lane, the Consulting Dashboard
+Node 22.14 static lane, and the Setness Tours public web Node 22.14 static lane;
+it now contains thirty
 exact pairs in total. The
 Game Maker pair uses the existing `project-game-maker-python312` profile and
 fixed implementation to run both Python 3.11.17 and 3.12.14 command sequences
