@@ -619,9 +619,11 @@ fi
                                 }
                             } finally {
                                 try {
-                                    archiveArtifacts artifacts: 'dist/**,coverage/coverage-summary.json,coverage/lcov.info,test-results/**,playwright-report/**,playwright-report-host/**',
-                                        allowEmptyArchive: true,
-                                        onlyIfSuccessful: false
+                                    if (env.PORTFOLIO_PROFILE_ID == 'game-fraction-match-node24-full-ci') {
+                                        archiveArtifacts artifacts: 'dist/**,coverage/coverage-summary.json,coverage/lcov.info,test-results/**,playwright-report/**,playwright-report-host/**',
+                                            allowEmptyArchive: true,
+                                            onlyIfSuccessful: false
+                                    }
                                 } finally {
                                     deleteDir()
                                 }

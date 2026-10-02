@@ -1373,13 +1373,9 @@ foreach ($portfolioRuntimeGuard in @(
     }
 }
 $portfolioArtifactPattern = "archiveArtifacts artifacts: 'dist/**,coverage/coverage-summary.json,coverage/lcov.info,test-results/**,playwright-report/**,playwright-report-host/**'"
-$portfolioArtifactArchiveIndex = $portfolioPipeline.LastIndexOf($portfolioArtifactPattern, [System.StringComparison]::Ordinal)
-$portfolioWorkspaceCleanupIndex = $portfolioPipeline.LastIndexOf('deleteDir()', [System.StringComparison]::Ordinal)
-if ($portfolioArtifactArchiveIndex -lt 0 -or
-    -not $portfolioPipeline.Contains('allowEmptyArchive: true') -or
-    -not $portfolioPipeline.Contains('onlyIfSuccessful: false') -or
-    $portfolioWorkspaceCleanupIndex -lt $portfolioArtifactArchiveIndex) {
-    throw 'The portfolio PR gate must archive the fixed verification and browser outputs, including failed runs, before cleaning the isolated workspace.'
+$portfolioArtifactScopedBlock = "(?s)finally\s*\{\s*try\s*\{\s*if \(env\.PORTFOLIO_PROFILE_ID == 'game-fraction-match-node24-full-ci'\)\s*\{\s*$([regex]::Escape($portfolioArtifactPattern))\s*,\s*allowEmptyArchive: true,\s*onlyIfSuccessful: false\s*\}\s*\}\s*finally\s*\{\s*deleteDir\(\)"
+if (-not [regex]::IsMatch($portfolioPipeline, $portfolioArtifactScopedBlock)) {
+    throw 'The Fraction Match profile must archive the fixed verification and browser outputs, including failed runs, before unconditional workspace cleanup.'
 }
 if (-not $portfolioCredentialHelpers.Contains('CredentialsProvider.lookupStores(folder)') -or
     -not $portfolioCredentialHelpers.Contains('candidate.getContext()?.is(folder)') -or
