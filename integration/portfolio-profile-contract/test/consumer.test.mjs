@@ -7,6 +7,7 @@ const {
   IMPLEMENTATIONS,
   ProfileRejection,
   ROUTINE_DISPATCH_IMPLEMENTATIONS,
+  ROUTINE_DISPATCH_PROFILE_PAIRS,
   resolveAuthorizedShadowPullRequest,
   resolveAuthorizedShadowPullRequestForRepository,
   validateProfileCatalog,
@@ -154,6 +155,31 @@ test('resolves the Game Platform SDK workflow on pinned Node 24', () => {
     ['npm', 'run', 'verify:bundle'],
   ]);
   assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes('node24-game-platform-sdk-v1'), true);
+
+  input.profiles[0].requiredNodeVersion = '24.21.1';
+  rejectsCode(() => resolve(input), 'runtime-mismatch');
+});
+
+test('resolves the Planetary Survey Node 24 verify lane for its exact repository', () => {
+  const input = catalog();
+  input.approvedImplementations.push('node24-game-planetary-survey-v1');
+  input.profiles[0].id = 'game-planetary-survey-node24';
+  input.profiles[0].implementationId = 'node24-game-planetary-survey-v1';
+  input.profiles[0].repositories = ['setnessconsulting/Game-Planetary-Survey'];
+  input.profiles[0].requiredNodeVersion = '24.21.0';
+
+  const plan = resolve(input);
+  assert.equal(plan.agentClass, 'setness-node24-ephemeral');
+  assert.equal(plan.nodeVersion, '24.21.0');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['npm', 'ci'],
+    ['npm', 'run', 'verify'],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes('node24-game-planetary-survey-v1'), true);
+  assert.equal(ROUTINE_DISPATCH_PROFILE_PAIRS.some(({ implementationId, repository }) =>
+    implementationId === 'node24-game-planetary-survey-v1'
+      && repository === 'setnessconsulting/Game-Planetary-Survey'), true);
 
   input.profiles[0].requiredNodeVersion = '24.21.1';
   rejectsCode(() => resolve(input), 'runtime-mismatch');

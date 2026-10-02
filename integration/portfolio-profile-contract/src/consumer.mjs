@@ -153,6 +153,15 @@ export const IMPLEMENTATIONS = Object.freeze({
       Object.freeze(['npm', 'run', 'verify:bundle']),
     ]),
   }),
+  'node24-game-planetary-survey-v1': Object.freeze({
+    agentClass: 'setness-node24-ephemeral',
+    nodeVersion: '24.21.0',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['npm', 'ci']),
+      Object.freeze(['npm', 'run', 'verify']),
+    ]),
+  }),
   'node24-curiouspathway-pilot-v1': Object.freeze({
     agentClass: 'secondary-node24-playwright-ephemeral',
     nodeVersion: '24.21.0',
@@ -336,6 +345,7 @@ export const ROUTINE_DISPATCH_PROFILE_PAIRS = Object.freeze([
   Object.freeze({ implementationId: 'python312-fmod-api-v1', repository: 'setnessconsulting/project-fmod-api' }),
   Object.freeze({ implementationId: 'python312-game-maker-v1', repository: 'setnessconsulting/project-game-maker' }),
   Object.freeze({ implementationId: 'node24-game-platform-sdk-v1', repository: 'setnessconsulting/project-game-platform-sdk' }),
+  Object.freeze({ implementationId: 'node24-game-planetary-survey-v1', repository: 'setnessconsulting/Game-Planetary-Survey' }),
   Object.freeze({ implementationId: 'node24-curiouspathway-pilot-v1', repository: 'setnessconsulting/curiouspathway' }),
   Object.freeze({ implementationId: 'python312-portfolio-graph-uv-v1', repository: 'setnessconsulting/project-portfolio-graph' }),
   Object.freeze({ implementationId: 'node2214-vercel-api-gitleaks-v1', repository: 'setnessconsulting/project-vercel-api' }),
@@ -358,6 +368,7 @@ const QUALIFICATION_CASES_BY_IMPLEMENTATION = Object.freeze({
   'node2214-vercel-api-gitleaks-v1': 6,
   'node24-lint-typescript-test-v1': 4,
   'node24-game-platform-sdk-v1': 4,
+  'node24-game-planetary-survey-v1': 4,
   'node24-curiouspathway-pilot-v1': 4,
   'python312-test-platform-v1': 4,
   'python312-playtest-lab-v1': 5,

@@ -352,7 +352,7 @@ test('the Test Platform implementation is pollable only after its repository pro
   assert.deepEqual(planRoutinePullRequestPoll(catalog, [], [], [], now).dispatches, []);
 });
 
-test('routine polling stays within the explicit thirteen-repository portfolio-dispatch allowlist', () => {
+test('routine polling stays within the explicit fourteen-repository portfolio-dispatch allowlist', () => {
   const selected = ROUTINE_DISPATCH_PROFILE_PAIRS.map(({ repository: target, implementationId }, index) => ({
     id: `focus-${index}`,
     implementationId,
@@ -368,6 +368,7 @@ test('routine polling stays within the explicit thirteen-repository portfolio-di
       state: 'in-progress',
     },
   }));
+  assert.equal(selected.length, 14);
   const outsideFocusGameAi = {
     id: 'outside-focus-game-ai',
     implementationId: 'python312-playtest-lab-v1',
