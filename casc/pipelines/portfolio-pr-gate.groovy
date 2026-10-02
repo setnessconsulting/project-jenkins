@@ -22,6 +22,7 @@ def portfolioAdapterImplementationAllowlist = [
     'node24-game-platform-sdk-v1', 'node24-game-planetary-survey-v1',
     'node24-game-math-detective-static-v1', 'node24-game-motion-lab-static-v1',
     'node24-game-ecosystem-rescue-static-v1',
+    'node24-game-weather-command-static-v1',
     'node24-game-fraction-match-full-ci-v1',
     'node24-curiouspathway-pilot-v1', 'python312-portfolio-graph-uv-v1'
 ]
