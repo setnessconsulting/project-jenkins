@@ -431,6 +431,55 @@ test('resolves the Figma API plugin Node 22.14 static lane for its exact reposit
   }), 'runtime-mismatch');
 });
 
+test('resolves the Number Line Jumper Node 24 static lane for its exact repository', () => {
+  const input = catalog();
+  const implementationId = 'node24-game-number-line-jumper-static-v1';
+  const profileId = 'game-number-line-jumper-node24-static';
+  const targetRepository = 'setnessconsulting/game-number-line-jumper';
+  input.approvedImplementations.push(implementationId);
+  input.profiles[0].id = profileId;
+  input.profiles[0].implementationId = implementationId;
+  input.profiles[0].repositories = [targetRepository];
+  input.profiles[0].requiredNodeVersion = '24.21.0';
+  const plan = resolve(input, {
+    profileId,
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  });
+
+  assert.equal(plan.profileId, profileId);
+  assert.equal(plan.repository, targetRepository);
+  assert.equal(plan.agentClass, 'setness-node24-ephemeral');
+  assert.equal(plan.nodeVersion, '24.21.0');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['npm', 'ci'],
+    ['npm', 'run', 'typecheck'],
+    ['npm', 'run', 'lint'],
+    ['npm', 'run', 'test:coverage'],
+    ['npm', 'run', 'build'],
+    ['npm', 'run', 'build:host-test'],
+    ['npm', 'run', 'check:ip'],
+    ['npm', 'run', 'check:bundle'],
+    ['npm', 'run', 'check:bundle-budget'],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_PROFILE_PAIRS.some(({ implementationId: admitted, repository }) =>
+    admitted === implementationId && repository === targetRepository), true);
+
+  input.profiles[0].requiredNodeVersion = '24.22.0';
+  rejectsCode(() => resolve(input, {
+    profileId,
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  }), 'runtime-mismatch');
+});
+
 test('resolves the exact Fraction Match full CI profile and ordered browser lane', () => {
   const input = catalog();
   const implementationId = 'node24-game-fraction-match-full-ci-v1';
