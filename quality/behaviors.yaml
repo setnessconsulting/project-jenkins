@@ -1,0 +1,19 @@
+schema_version: "1"
+behaviors:
+  - behavior_id: execution.exact-head-binding
+    description: Plans, requests, and receipts stay bound to the declared repository SHA; stale or mismatched heads never count as current evidence.
+    criticality: critical
+    required_evidence: [contract, adversarial-security]
+  - behavior_id: execution.untrusted-escalation-refused
+    description: SHA or repository mismatch and unapproved suite, executor, or entrypoint fail closed before any checkout or execution.
+    criticality: critical
+    required_evidence: [contract, adversarial-security]
+  - behavior_id: execution.static-commands
+    description: Resolved execution commands are Jenkins-owned static tokens from the approved catalog, never interpolated repository text.
+    criticality: high
+    required_evidence: [deterministic, contract]
+  - behavior_id: execution.result-mapping-sound
+    description: Failures, outages, cancellations, and forged or unknown receipt fields never normalize to a pass; receipt identity is re-derived.
+    criticality: critical
+    required_evidence: [deterministic, adversarial-security]
+critical_journeys: []
