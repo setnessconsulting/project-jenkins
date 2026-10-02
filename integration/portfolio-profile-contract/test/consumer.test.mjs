@@ -193,6 +193,102 @@ test('resolves the Planetary Survey Node 24 verify lane for its exact repository
   rejectsCode(() => resolvePlanetarySurvey(), 'runtime-mismatch');
 });
 
+test('resolves the Math Detective Node 24 static lane for its exact repository', () => {
+  const input = catalog();
+  const implementationId = 'node24-game-math-detective-static-v1';
+  const profileId = 'game-math-detective-node24-static';
+  const targetRepository = 'setnessconsulting/game-math-detective';
+  input.approvedImplementations.push(implementationId);
+  input.profiles[0].id = profileId;
+  input.profiles[0].implementationId = implementationId;
+  input.profiles[0].repositories = [targetRepository];
+  input.profiles[0].requiredNodeVersion = '24.21.0';
+  const plan = resolve(input, {
+    profileId,
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  });
+
+  assert.equal(plan.profileId, profileId);
+  assert.equal(plan.repository, targetRepository);
+  assert.equal(plan.agentClass, 'setness-node24-ephemeral');
+  assert.equal(plan.nodeVersion, '24.21.0');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['npm', 'ci'],
+    ['npm', 'run', 'typecheck'],
+    ['npm', 'run', 'lint'],
+    ['npm', 'test'],
+    ['npm', 'run', 'verify:boundary'],
+    ['npm', 'run', 'verify:build-base'],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_PROFILE_PAIRS.some(({ implementationId: admitted, repository }) =>
+    admitted === implementationId && repository === targetRepository), true);
+
+  input.profiles[0].requiredNodeVersion = '24.21.1';
+  rejectsCode(() => resolve(input, {
+    profileId,
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  }), 'runtime-mismatch');
+});
+
+test('resolves the Motion Lab Node 24 static lane for its exact repository', () => {
+  const input = catalog();
+  const implementationId = 'node24-game-motion-lab-static-v1';
+  const profileId = 'game-motion-lab-node24-static';
+  const targetRepository = 'setnessconsulting/game-motion-lab';
+  input.approvedImplementations.push(implementationId);
+  input.profiles[0].id = profileId;
+  input.profiles[0].implementationId = implementationId;
+  input.profiles[0].repositories = [targetRepository];
+  input.profiles[0].requiredNodeVersion = '24.21.0';
+  const plan = resolve(input, {
+    profileId,
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  });
+
+  assert.equal(plan.profileId, profileId);
+  assert.equal(plan.repository, targetRepository);
+  assert.equal(plan.agentClass, 'setness-node24-ephemeral');
+  assert.equal(plan.nodeVersion, '24.21.0');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['npm', 'ci'],
+    ['npm', 'run', 'contracts'],
+    ['npm', 'run', 'foundation'],
+    ['npm', 'run', 'typecheck'],
+    ['npm', 'run', 'lint'],
+    ['npm', 'run', 'test'],
+    ['npm', 'run', 'build'],
+    ['npm', 'run', 'release:manifest'],
+    ['npm', 'run', 'release:check'],
+    ['npm', 'run', 'perf:check'],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_PROFILE_PAIRS.some(({ implementationId: admitted, repository }) =>
+    admitted === implementationId && repository === targetRepository), true);
+
+  input.profiles[0].requiredNodeVersion = '24.21.1';
+  rejectsCode(() => resolve(input, {
+    profileId,
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  }), 'runtime-mismatch');
+});
+
 test('resolves the exact Fraction Match full CI profile and ordered browser lane', () => {
   const input = catalog();
   const implementationId = 'node24-game-fraction-match-full-ci-v1';

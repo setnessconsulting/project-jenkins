@@ -19,6 +19,7 @@ def portfolioAdapterImplementationAllowlist = [
     'node22-supabase-api-v1', 'node22-rive-api-v1',
     'node2214-jira-platform-api-v1',
     'node24-game-platform-sdk-v1', 'node24-game-planetary-survey-v1',
+    'node24-game-math-detective-static-v1', 'node24-game-motion-lab-static-v1',
     'node24-game-fraction-match-full-ci-v1',
     'node24-curiouspathway-pilot-v1', 'python312-portfolio-graph-uv-v1'
 ]
