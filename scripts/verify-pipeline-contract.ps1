@@ -1218,6 +1218,14 @@ foreach ($portfolioGuard in @(
     "Object.freeze(['npm', 'run', 'verify:bundle'])",
     "'node24-game-planetary-survey-v1'",
     "Object.freeze(['npm', 'run', 'verify'])",
+    "'node24-game-fraction-match-full-ci-v1'",
+    "'game-fraction-match-node24-full-ci'",
+    "'setnessconsulting/game-fraction-match'",
+    "Object.freeze(['npm', 'run', 'test:coverage'])",
+    "Object.freeze(['npm', 'run', 'check:architecture'])",
+    "Object.freeze(['npm', 'run', 'check:privacy'])",
+    "Object.freeze(['npm', 'run', 'test:e2e:run'])",
+    "Object.freeze(['npm', 'run', 'test:host:run'])",
     "'node24-curiouspathway-pilot-v1'",
     "agentClass: 'secondary-node24-playwright-ephemeral'",
     "Object.freeze(['npm', 'ci', '--no-audit', '--no-fund'])",
@@ -1273,7 +1281,11 @@ foreach ($portfolioGuard in @(
     "Object.freeze(['npm', 'ci'])",
     "Object.freeze(['npm', 'run', 'maintenance'])",
     'const FIXED_IMPLEMENTATION_REPOSITORIES = Object.freeze({',
+    "'node24-game-fraction-match-full-ci-v1': 'setnessconsulting/game-fraction-match'",
     "reject('implementation-repository-mismatch',",
+    'const FIXED_IMPLEMENTATION_PROFILE_IDS = Object.freeze({',
+    "'node24-game-fraction-match-full-ci-v1': 'game-fraction-match-node24-full-ci'",
+    "reject('implementation-profile-mismatch',",
     "'setnessconsulting/project-unity-api'",
     'export function validateProfileCatalog(catalog)',
     'function resolveShadowExecution(catalog, profileId, headSha)',
@@ -1309,6 +1321,7 @@ foreach ($portfolioRuntimeGuard in @(
     "'jenkins-repository-contract'",
     "'node24-game-platform-sdk-v1'",
     "'node24-game-planetary-survey-v1'",
+    "'node24-game-fraction-match-full-ci-v1'",
     "'node24-curiouspathway-pilot-v1'",
     "'python312-portfolio-graph-uv-v1'",
     "'python312-test-platform-v1'",
@@ -1358,6 +1371,11 @@ foreach ($portfolioRuntimeGuard in @(
     if (-not $portfolioPipeline.Contains($portfolioRuntimeGuard)) {
         throw "The manual portfolio controller dispatcher is missing a required scope, exact-SHA, or cleanup boundary: $portfolioRuntimeGuard"
     }
+}
+$portfolioArtifactPattern = "archiveArtifacts artifacts: 'dist/**,coverage/coverage-summary.json,coverage/lcov.info,test-results/**,playwright-report/**,playwright-report-host/**'"
+$portfolioArtifactScopedBlock = "(?s)finally\s*\{\s*try\s*\{\s*if \(env\.PORTFOLIO_PROFILE_ID == 'game-fraction-match-node24-full-ci'\)\s*\{\s*$([regex]::Escape($portfolioArtifactPattern))\s*,\s*allowEmptyArchive: true,\s*onlyIfSuccessful: false\s*\}\s*\}\s*finally\s*\{\s*deleteDir\(\)"
+if (-not [regex]::IsMatch($portfolioPipeline, $portfolioArtifactScopedBlock)) {
+    throw 'The Fraction Match profile must archive the fixed verification and browser outputs, including failed runs, before unconditional workspace cleanup.'
 }
 if (-not $portfolioCredentialHelpers.Contains('CredentialsProvider.lookupStores(folder)') -or
     -not $portfolioCredentialHelpers.Contains('candidate.getContext()?.is(folder)') -or
@@ -1469,6 +1487,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumer.Contains("'setnessconsulting/project-github-api'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-game-platform-sdk'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/Game-Planetary-Survey'") -or
+    -not $portfolioConsumer.Contains("'setnessconsulting/game-fraction-match'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/curiouspathway'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-portfolio-graph'") -or
     -not $portfolioConsumer.Contains("'setnessconsulting/project-jira-api'") -or
@@ -1484,6 +1503,8 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumer.Contains("'node2214-vercel-api-gitleaks-v1'") -or
     -not $portfolioConsumer.Contains("'node22-verify-clean-checkout-v1'") -or
     -not $portfolioConsumer.Contains("'node24-game-planetary-survey-v1'") -or
+    -not $portfolioConsumer.Contains("'node24-game-fraction-match-full-ci-v1'") -or
+    -not $portfolioConsumer.Contains("setnessconsulting/game-fraction-match") -or
     -not $portfolioConsumer.Contains("['missing', 'in_progress', 'orphaned', 'untracked', 'completed']") -or
     -not $portfolioConsumer.Contains("'dispatchId'") -or
     -not $portfolioConsumer.Contains('const dispatches = dispatchCandidates.slice(0, 1)') -or
@@ -1497,9 +1518,10 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioPollerTests.Contains('a missing exact-SHA check is stalled after the bounded retry budget') -or
     -not $portfolioPollerTests.Contains('polling is inert until the private control plane is explicitly active') -or
     -not $portfolioPollerTests.Contains('only centrally approved implementations are polled') -or
+    -not $portfolioPollerTests.Contains('Fraction Match full CI polling binds to its exact shadow profile and repository') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check dispatches only the owner same-repository shadow head') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check rejects fork, outside-author, draft, closed, mismatched-base, and planned cases') -or
-    -not $portfolioPollerTests.Contains('routine polling stays within the explicit fifteen-repository portfolio-dispatch allowlist') -or
+    -not $portfolioPollerTests.Contains('routine polling stays within the explicit sixteen-repository portfolio-dispatch allowlist') -or
     -not $portfolioPollerCliTests.Contains('planner fails closed on malformed input, oversized data, and caller arguments') -or
     -not $portfolioAdapterDocs.Contains('JENKINS_PORTFOLIO_PR_POLL_ENABLED=true') -or
     -not $portfolioAdapterDocs.Contains('queues one') -or
@@ -1514,6 +1536,7 @@ if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
     -not $portfolioConsumerTests.Contains('returns executable commands only after PR identity and profile repository bind') -or
     -not $portfolioConsumerTests.Contains('rejects a profile whose required Node.js runtime differs from the pinned agent') -or
     -not $portfolioConsumerTests.Contains('resolves the centrally pinned Node 24 lint, type, and test implementation') -or
+    -not $portfolioConsumerTests.Contains('resolves the exact Fraction Match full CI profile and ordered browser lane') -or
     -not $portfolioConsumerTests.Contains('resolves the project-jenkins self-check on the no-socket Node 22.23 agent') -or
     -not $portfolioConsumerTests.Contains('resolves the clean-checkout workflow on the isolated Node 22.14 disposable agent') -or
     -not $portfolioConsumerTests.Contains('resolves Vercel API secret-scan and tests on the isolated Node 22.14 Gitleaks agent') -or

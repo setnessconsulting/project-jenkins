@@ -15,6 +15,7 @@ def portfolioAdapterImplementationAllowlist = [
     'node2214-vercel-api-gitleaks-v1', 'node2214-unity-api-maintenance-v1',
     'node22-github-api-foundation-v1',
     'node24-game-platform-sdk-v1', 'node24-game-planetary-survey-v1',
+    'node24-game-fraction-match-full-ci-v1',
     'node24-curiouspathway-pilot-v1', 'python312-portfolio-graph-uv-v1'
 ]
 /* JENKINS_PORTFOLIO_CREDENTIAL_STORE_HELPERS */
@@ -612,10 +613,21 @@ fi
                                 }
                             }
                         } finally {
-                            if (temporaryCheckoutCredentialId) {
-                                portfolioRemoveCheckoutCredential(currentBuild.rawBuild, temporaryCheckoutCredentialId)
+                            try {
+                                if (temporaryCheckoutCredentialId) {
+                                    portfolioRemoveCheckoutCredential(currentBuild.rawBuild, temporaryCheckoutCredentialId)
+                                }
+                            } finally {
+                                try {
+                                    if (env.PORTFOLIO_PROFILE_ID == 'game-fraction-match-node24-full-ci') {
+                                        archiveArtifacts artifacts: 'dist/**,coverage/coverage-summary.json,coverage/lcov.info,test-results/**,playwright-report/**,playwright-report-host/**',
+                                            allowEmptyArchive: true,
+                                            onlyIfSuccessful: false
+                                    }
+                                } finally {
+                                    deleteDir()
+                                }
                             }
-                            deleteDir()
                         }
                     }
                 }

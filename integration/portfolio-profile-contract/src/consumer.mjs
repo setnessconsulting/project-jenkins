@@ -172,6 +172,22 @@ export const IMPLEMENTATIONS = Object.freeze({
       Object.freeze(['npm', 'run', 'verify']),
     ]),
   }),
+  'node24-game-fraction-match-full-ci-v1': Object.freeze({
+    agentClass: 'secondary-node24-playwright-ephemeral',
+    nodeVersion: '24.21.0',
+    requiredCheck: 'jenkins-pr-gate',
+    commands: Object.freeze([
+      Object.freeze(['npm', 'ci']),
+      Object.freeze(['npm', 'run', 'typecheck']),
+      Object.freeze(['npm', 'run', 'lint']),
+      Object.freeze(['npm', 'run', 'test:coverage']),
+      Object.freeze(['npm', 'run', 'check:architecture']),
+      Object.freeze(['npm', 'run', 'build']),
+      Object.freeze(['npm', 'run', 'check:privacy']),
+      Object.freeze(['npm', 'run', 'test:e2e:run']),
+      Object.freeze(['npm', 'run', 'test:host:run']),
+    ]),
+  }),
   'node24-curiouspathway-pilot-v1': Object.freeze({
     agentClass: 'secondary-node24-playwright-ephemeral',
     nodeVersion: '24.21.0',
@@ -356,6 +372,7 @@ export const ROUTINE_DISPATCH_PROFILE_PAIRS = Object.freeze([
   Object.freeze({ implementationId: 'python312-game-maker-v1', repository: 'setnessconsulting/project-game-maker' }),
   Object.freeze({ implementationId: 'node24-game-platform-sdk-v1', repository: 'setnessconsulting/project-game-platform-sdk' }),
   Object.freeze({ implementationId: 'node24-game-planetary-survey-v1', repository: 'setnessconsulting/Game-Planetary-Survey' }),
+  Object.freeze({ implementationId: 'node24-game-fraction-match-full-ci-v1', repository: 'setnessconsulting/game-fraction-match' }),
   Object.freeze({ implementationId: 'node24-curiouspathway-pilot-v1', repository: 'setnessconsulting/curiouspathway' }),
   Object.freeze({ implementationId: 'python312-portfolio-graph-uv-v1', repository: 'setnessconsulting/project-portfolio-graph' }),
   Object.freeze({ implementationId: 'node2214-vercel-api-gitleaks-v1', repository: 'setnessconsulting/project-vercel-api' }),
@@ -369,6 +386,11 @@ export const ROUTINE_DISPATCH_PROFILE_PAIRS = Object.freeze([
 // their command plan with another repository.
 const FIXED_IMPLEMENTATION_REPOSITORIES = Object.freeze({
   'node2214-unity-api-maintenance-v1': 'setnessconsulting/project-unity-api',
+  'node24-game-fraction-match-full-ci-v1': 'setnessconsulting/game-fraction-match',
+});
+
+const FIXED_IMPLEMENTATION_PROFILE_IDS = Object.freeze({
+  'node24-game-fraction-match-full-ci-v1': 'game-fraction-match-node24-full-ci',
 });
 
 // A catalog can select only the centrally reviewed behavior matrix for its
@@ -388,6 +410,7 @@ const QUALIFICATION_CASES_BY_IMPLEMENTATION = Object.freeze({
   'node24-lint-typescript-test-v1': 4,
   'node24-game-platform-sdk-v1': 4,
   'node24-game-planetary-survey-v1': 4,
+  'node24-game-fraction-match-full-ci-v1': 4,
   'node24-curiouspathway-pilot-v1': 4,
   'python312-test-platform-v1': 4,
   'python312-playtest-lab-v1': 5,
@@ -557,6 +580,11 @@ export function validateProfileCatalog(catalog) {
             || profile.repositories[0].toLowerCase() !== fixedRepository.toLowerCase())) {
         reject('implementation-repository-mismatch',
           `implementation ${profile.implementationId} is restricted to ${fixedRepository}`);
+      }
+      const fixedProfileId = FIXED_IMPLEMENTATION_PROFILE_IDS[profile.implementationId];
+      if (fixedProfileId !== undefined && profile.id !== fixedProfileId) {
+        reject('implementation-profile-mismatch',
+          `implementation ${profile.implementationId} is restricted to profile ${fixedProfileId}`);
       }
     }
     if (profile.status === 'qualified'

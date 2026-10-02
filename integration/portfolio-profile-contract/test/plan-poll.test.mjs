@@ -274,6 +274,44 @@ test('only centrally approved implementations are polled', () => {
   });
 });
 
+test('Fraction Match full CI polling binds to its exact shadow profile and repository', () => {
+  const targetRepository = 'setnessconsulting/game-fraction-match';
+  const profileId = 'game-fraction-match-node24-full-ci';
+  const implementationId = 'node24-game-fraction-match-full-ci-v1';
+  const catalog = makeCatalog({ implementationId });
+  catalog.profiles[0].id = profileId;
+  catalog.profiles[0].repositories = [targetRepository];
+  assert.deepEqual(listRoutinePullRequestPollRepositories(catalog), [targetRepository]);
+
+  const pullRequest = {
+    number: 73,
+    state: 'open',
+    draft: false,
+    user: { login: 'setnessconsulting' },
+    head: { sha: shaB, repo: { full_name: targetRepository } },
+    base: { repo: { full_name: targetRepository } },
+  };
+  const result = planRoutinePullRequestPoll(
+    catalog,
+    [{ repository: targetRepository, pullRequests: [pullRequest] }],
+    [],
+    [],
+    now,
+  );
+  assert.deepEqual(result.dispatches, [{
+    repository: targetRepository,
+    pullRequestNumber: 73,
+    headSha: shaB,
+    profileId,
+    attempt: 1,
+  }]);
+
+  const mispaired = structuredClone(catalog);
+  mispaired.profiles[0].repositories = ['setnessconsulting/project-game-platform-sdk'];
+  assert.throws(() => listRoutinePullRequestPollRepositories(mispaired),
+    (error) => error.code === 'implementation-repository-mismatch');
+});
+
 test('project Jenkins self-check dispatches only the owner same-repository shadow head', () => {
   const catalog = makeProjectJenkinsCatalog();
   assert.deepEqual(listRoutinePullRequestPollRepositories(catalog), [projectJenkinsRepository]);
@@ -323,6 +361,7 @@ test('routine dispatch implementation and repository lists match the explicit re
     'python312-game-maker-v1',
     'node24-game-platform-sdk-v1',
     'node24-game-planetary-survey-v1',
+    'node24-game-fraction-match-full-ci-v1',
     'node24-curiouspathway-pilot-v1',
     'python312-portfolio-graph-uv-v1',
     'node2214-vercel-api-gitleaks-v1',
@@ -340,6 +379,7 @@ test('routine dispatch implementation and repository lists match the explicit re
     'setnessconsulting/project-game-maker',
     'setnessconsulting/project-game-platform-sdk',
     'setnessconsulting/Game-Planetary-Survey',
+    'setnessconsulting/game-fraction-match',
     'setnessconsulting/curiouspathway',
     'setnessconsulting/project-portfolio-graph',
     'setnessconsulting/project-vercel-api',
@@ -356,9 +396,11 @@ test('routine dispatch implementation and repository lists match the explicit re
   assert.deepEqual(planRoutinePullRequestPoll(catalog, [], [], [], now).dispatches, []);
 });
 
-test('routine polling stays within the explicit fifteen-repository portfolio-dispatch allowlist', () => {
+test('routine polling stays within the explicit sixteen-repository portfolio-dispatch allowlist', () => {
   const selected = ROUTINE_DISPATCH_PROFILE_PAIRS.map(({ repository: target, implementationId }, index) => ({
-    id: `focus-${index}`,
+    id: implementationId === 'node24-game-fraction-match-full-ci-v1'
+      ? 'game-fraction-match-node24-full-ci'
+      : `focus-${index}`,
     implementationId,
     status: 'shadow',
     repositories: [target],
@@ -372,7 +414,7 @@ test('routine polling stays within the explicit fifteen-repository portfolio-dis
       state: 'in-progress',
     },
   }));
-  assert.equal(selected.length, 15);
+  assert.equal(selected.length, 16);
   const outsideFocusGameAi = {
     id: 'outside-focus-game-ai',
     implementationId: 'python312-playtest-lab-v1',
