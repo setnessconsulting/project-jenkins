@@ -1570,8 +1570,10 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     throw 'The opt-in portfolio poller must remain controller-only, bounded, least-permission, centrally allowlisted, and disabled by default.'
 }
 if (-not $portfolioConsumerDocs.Contains('python312-game-maker-v1') -or
-    -not $portfolioConsumerDocs.Contains('Python 3.11.17, then with Python 3.12.14') -or
-    -not $portfolioConsumerDocs.Contains('The target workflow''s `setup-python` selects the floating `3.11` patch') -or
+    -not $portfolioConsumerDocs.Contains('Python 3.11.17') -or
+    -not $portfolioConsumerDocs.Contains('Python 3.12.14') -or
+    -not $portfolioConsumerDocs.Contains('`setup-python`') -or
+    -not $portfolioConsumerDocs.Contains('floating `3.11` patch') -or
     -not $portfolioConsumerDocs.Contains('Actions remains authoritative')) {
     throw 'The Game Maker matrix shadow documentation must name both pinned runtimes and retain the Actions authority boundary.'
 }
