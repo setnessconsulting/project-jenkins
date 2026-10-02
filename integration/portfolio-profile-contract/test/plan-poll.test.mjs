@@ -353,6 +353,7 @@ test('project Jenkins self-check rejects fork, outside-author, draft, closed, mi
 test('routine dispatch implementation and repository lists match the explicit reviewed pairs', () => {
   assert.deepEqual(ROUTINE_DISPATCH_IMPLEMENTATIONS, [
     'node22-github-api-foundation-v1',
+    'node22-investment-council-v1',
     'node22-verify-clean-checkout-v1',
     'python312-test-platform-v1',
     'python312-blender-api-v1',
@@ -371,6 +372,7 @@ test('routine dispatch implementation and repository lists match the explicit re
   ]);
   assert.deepEqual(ROUTINE_DISPATCH_REPOSITORIES, [
     'setnessconsulting/project-github-api',
+    'setnessconsulting/project-investment-council',
     'setnessconsulting/project-jira-api',
     'setnessconsulting/project-test-platform',
     'setnessconsulting/project-blender-api',
@@ -396,12 +398,14 @@ test('routine dispatch implementation and repository lists match the explicit re
   assert.deepEqual(planRoutinePullRequestPoll(catalog, [], [], [], now).dispatches, []);
 });
 
-test('routine polling stays within the explicit sixteen-repository portfolio-dispatch allowlist', () => {
+test('routine polling stays within the explicit seventeen-repository portfolio-dispatch allowlist', () => {
   const selected = ROUTINE_DISPATCH_PROFILE_PAIRS.map(({ repository: target, implementationId }, index) => ({
     id: implementationId === 'node24-game-fraction-match-full-ci-v1'
       ? 'game-fraction-match-node24-full-ci'
       : implementationId === 'python312-game-maker-v1'
         ? 'project-game-maker-python312'
+        : implementationId === 'node22-investment-council-v1'
+          ? 'project-investment-council-node22'
         : `focus-${index}`,
     implementationId,
     status: 'shadow',
@@ -416,7 +420,7 @@ test('routine polling stays within the explicit sixteen-repository portfolio-dis
       state: 'in-progress',
     },
   }));
-  assert.equal(selected.length, 16);
+  assert.equal(selected.length, 17);
   const outsideFocusGameAi = {
     id: 'outside-focus-game-ai',
     implementationId: 'python312-playtest-lab-v1',

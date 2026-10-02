@@ -79,9 +79,8 @@ shadow dispatch when enabled. Context File Maker and CPA AI Pack remain manual
 because the poller does not implement their Actions path filters; Context File
 Maker also has a separately conditioned Windows lane.
 
-The focused central implementation set includes twelve centrally trusted lanes.
-This list describes reviewed code support; it does not mean a private profile
-is enabled, qualified, or authoritative:
+The focused central implementation set below describes reviewed code support;
+it does not mean a private profile is enabled, qualified, or authoritative:
 
 - `python312-test-platform-v1` runs the existing single Linux verification job
   on Python 3.12.14. That lane is Python-only: no agent receives the guest
@@ -160,6 +159,13 @@ is enabled, qualified, or authoritative:
   22.23.3/npm 10.9.9 command sequence on the no-socket Setness Node/PowerShell
   agent. Its push, pull-request, and manual Actions triggers remain intact;
   qualification stays at 0/4.
+- `node22-investment-council-v1` maps only the credential-free verification job
+  in `project-investment-council`'s `council-check.yml`. On the existing
+  no-socket Node 22.23.3/npm 10.9.9 worker it runs the structural check, the
+  default dry route, the repository's Node test glob, and its smoke benchmark.
+  The workflow's Ubuntu/Windows matrix remains in Actions, as do its push and
+  pull-request triggers; this supplemental shadow does not access provider
+  credentials, deploy, or change the repository's authority boundary.
 - `jenkins-repository-contract` runs the centrally defined Node contract suites
   against the current exact PR head of `project-jenkins`: the four portfolio
   profile-contract Node test files and the Test Platform adapter test. Its
@@ -209,12 +215,13 @@ credentials store is never used for checkout tokens.
 The poller is opt-in through the ignored local
 `JENKINS_PORTFOLIO_PR_POLL_ENABLED` setting, which defaults to `false`, and
 also requires the private catalog location and `controlPlane.status: active`.
-The routine poller allowlist is restricted in trusted code to sixteen exact
+The routine poller allowlist is restricted in trusted code to seventeen exact
 implementation/repository pairs: `project-test-platform`,
 `project-game-platform-sdk`, `Game-Planetary-Survey`, `curiouspathway`,
 `game-fraction-match`, `project-portfolio-graph`,
 `project-vercel-api`, `project-unity-api`, `project-jenkins`,
-`project-setness-consulting`, `project-github-api`, `project-jira-api`, `project-blender-api`,
+`project-setness-consulting`, `project-github-api`, `project-investment-council`,
+`project-jira-api`, `project-blender-api`,
 `project-cloudflare-api`, `project-fmod-api`, and `project-game-maker`. The
 Jira API pair uses the centrally fixed Node 22.14 clean-checkout commands; its
 Actions verification check and manual token-backed fallback remain unchanged.
