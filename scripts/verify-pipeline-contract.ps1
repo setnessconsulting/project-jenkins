@@ -1247,6 +1247,9 @@ foreach ($portfolioGuard in @(
     "'node22-supabase-api-v1'",
     "Object.freeze(['npm', 'ci', '--omit=optional'])",
     "Object.freeze(['npm', 'run', 'verify'])",
+    "'node22-rive-api-v1'",
+    "'setnessconsulting/project-rive-api'",
+    "'project-rive-api-node22'",
     "'jenkins-repository-contract'",
     "integration/portfolio-profile-contract/test/consumer.test.mjs",
     "Object.freeze(['node', '--test', 'integration/test-platform-contract/test/adapter.test.mjs'])",
@@ -1396,6 +1399,7 @@ foreach ($portfolioRuntimeGuard in @(
     "'node22-github-api-foundation-v1'",
     "'node22-investment-council-v1'",
     "'node22-supabase-api-v1'",
+    "'node22-rive-api-v1'",
     "!(resolvedAgentClass in ['setness-ephemeral', 'setness-node22-14-ephemeral', 'setness-node22-14-disposable-ephemeral', 'setness-web-ci-node22-ephemeral', 'setness-node24-ephemeral', 'setness-python312-ephemeral', 'setness-game-maker-python-matrix-ephemeral', 'secondary-node24-playwright-ephemeral'])",
     'resolved.pythonVersion.toString() == profile.requiredPythonVersion?.toString()',
     'env.PORTFOLIO_NODE_VERSION = resolved.nodeVersion?.toString() ?:',
@@ -1589,7 +1593,7 @@ if (-not $groovySyntaxVerifier.Contains("'casc/pipelines/portfolio-pr-poller.gro
     -not $portfolioConsumerTests.Contains('resolves both Game Maker Python matrix legs on its exact existing profile and repository') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check dispatches only the owner same-repository shadow head') -or
     -not $portfolioPollerTests.Contains('project Jenkins self-check rejects fork, outside-author, draft, closed, mismatched-base, and planned cases') -or
-    -not $portfolioPollerTests.Contains('routine polling stays within the explicit nineteen-repository portfolio-dispatch allowlist') -or
+    -not $portfolioPollerTests.Contains('routine polling stays within the explicit twenty-repository portfolio-dispatch allowlist') -or
     -not $portfolioPollerCliTests.Contains('planner fails closed on malformed input, oversized data, and caller arguments') -or
     -not $portfolioAdapterDocs.Contains('JENKINS_PORTFOLIO_PR_POLL_ENABLED=true') -or
     -not $portfolioAdapterDocs.Contains('queues one') -or
@@ -1621,6 +1625,7 @@ if (-not $portfolioConsumer.Contains('const PROFILE_KEYS = new Set([') -or
     -not $portfolioConsumerTests.Contains('resolves the GitHub API foundation on the no-socket Node 22.23 profile') -or
     -not $portfolioConsumerTests.Contains('resolves the Investment Council credential-free Node 22 workflow') -or
     -not $portfolioConsumerTests.Contains('resolves the Supabase API Node 22 verification matrix leg') -or
+    -not $portfolioConsumerTests.Contains('resolves the Rive API Node 22 verification matrix leg') -or
     -not $portfolioConsumerTests.Contains('resolves the Jira Admin locked Python 3.12 verification workflow') -or
     -not $portfolioConsumerTests.Contains('rejects qualified and fork claims without full evidence') -or
     -not $portfolioCli.Contains('readInput()') -or

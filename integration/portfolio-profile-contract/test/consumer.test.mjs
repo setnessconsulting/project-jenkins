@@ -525,6 +525,51 @@ test('resolves the Supabase API Node 22 verification matrix leg', () => {
   rejectsCode(() => resolveSupabase(), 'runtime-mismatch');
 });
 
+test('resolves the Rive API Node 22 verification matrix leg', () => {
+  const input = catalog();
+  const implementationId = 'node22-rive-api-v1';
+  const profileId = 'project-rive-api-node22';
+  const targetRepository = 'setnessconsulting/project-rive-api';
+  input.approvedImplementations.push(implementationId);
+  input.profiles[0].id = profileId;
+  input.profiles[0].implementationId = implementationId;
+  input.profiles[0].repositories = [targetRepository];
+  input.profiles[0].requiredNodeVersion = '22.23.3';
+  delete input.profiles[0].requiredPythonVersion;
+  const resolveRive = () => resolve(input, {
+    profileId,
+    repository: targetRepository,
+    prOverrides: {
+      head: { sha, repo: { full_name: targetRepository } },
+      base: { repo: { full_name: targetRepository } },
+    },
+  });
+
+  const plan = resolveRive();
+  assert.equal(plan.profileId, profileId);
+  assert.equal(plan.repository, targetRepository);
+  assert.equal(plan.agentClass, 'setness-ephemeral');
+  assert.equal(plan.nodeVersion, '22.23.3');
+  assert.equal(plan.npmVersion, '10.9.9');
+  assert.equal(plan.requiredCheck, 'jenkins-pr-gate');
+  assert.deepEqual(plan.commands, [
+    ['npm', 'ci', '--omit=optional'],
+    ['npm', 'run', 'verify'],
+  ]);
+  assert.equal(ROUTINE_DISPATCH_IMPLEMENTATIONS.includes(implementationId), true);
+  assert.equal(ROUTINE_DISPATCH_PROFILE_PAIRS.some(({ implementationId: admitted, repository }) =>
+    admitted === implementationId && repository === targetRepository), true);
+
+  const mispairedRepository = structuredClone(input);
+  mispairedRepository.profiles[0].repositories = ['setnessconsulting/project-test-platform'];
+  rejectsCode(() => validateProfileCatalog(mispairedRepository), 'implementation-repository-mismatch');
+  const mispairedProfile = structuredClone(input);
+  mispairedProfile.profiles[0].id = 'project-rive-api-node24';
+  rejectsCode(() => validateProfileCatalog(mispairedProfile), 'implementation-profile-mismatch');
+  input.profiles[0].requiredNodeVersion = '22.23.2';
+  rejectsCode(() => resolveRive(), 'runtime-mismatch');
+});
+
 test('resolves the Python 3.12 Test Platform workflow on its exactly pinned agent', () => {
   const input = catalog();
   input.approvedImplementations.push('python312-test-platform-v1');
