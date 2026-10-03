@@ -1434,6 +1434,7 @@ foreach ($portfolioRuntimeGuard in @(
     "'node22-foundation-v1'",
     "'node22-verify-clean-checkout-v1'",
     "'jenkins-repository-contract'",
+    "'node24-lint-typescript-test-v1'",
     "'node24-game-platform-sdk-v1'",
     "'node24-game-planetary-survey-v1'",
     "'node24-game-math-detective-static-v1'",
