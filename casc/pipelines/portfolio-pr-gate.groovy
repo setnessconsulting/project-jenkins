@@ -19,6 +19,7 @@ def portfolioAdapterImplementationAllowlist = [
     'node22-supabase-api-v1', 'node22-rive-api-v1',
     'node2214-jira-platform-api-v1',
     'node2214-consulting-dashboard-static-v1',
+    'node24-lint-typescript-test-v1',
     'node24-game-platform-sdk-v1', 'node24-game-planetary-survey-v1',
     'node24-game-math-detective-static-v1', 'node24-game-motion-lab-static-v1',
     'node24-game-ecosystem-rescue-static-v1',
