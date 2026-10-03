@@ -1,1 +1,2 @@
 shadow-probe project-jenkins-self-check 2026-10-03
+shadow-probe project-jenkins-self-check head-advance 2026-10-03
